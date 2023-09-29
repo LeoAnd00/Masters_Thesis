@@ -7,26 +7,43 @@ import matplotlib.pyplot as plt
 import random
 import warnings
 
+
 def read_sc_data(count_data: str, gene_data: str, barcode_data: str):
 
     #Load data
-    adata = sc.read(count_data, cache=True)
-    adata = adata.transpose()
-    adata.X = adata.X.toarray()
+    data = sc.read(count_data, cache=True).transpose()
+    data.X = data.X.toarray()
 
-    barcodes = pd.read_csv(barcode_data, sep='\t', header=None)
+    # Load genes and barcodes
     genes = pd.read_csv(gene_data, sep='\t', header=None)
+    barcodes = pd.read_csv(barcode_data, sep='\t', header=None)
 
-    #Annotate data
-    barcodes.rename(columns={0:'barcode'}, inplace=True)
-    barcodes.set_index('barcode', inplace=True)
-    adata.obs = barcodes
-
+    # set genes
     genes.rename(columns={0:'gene_id', 1:'gene_symbol'}, inplace=True)
     genes.set_index('gene_symbol', inplace=True)
-    adata.var = genes
+    data.var = genes
 
-    return adata
+    # set barcodes
+    barcodes.rename(columns={0:'barcode'}, inplace=True)
+    barcodes.set_index('barcode', inplace=True)
+    data.obs = barcodes
+
+    return data
+
+def log1p_normalize(data):
+    data.layers["counts"] = data.X.copy()
+
+    # Calculate size factor
+    L = data.X.sum() / data.shape[0]
+    data.obs["size_factors"] = data.X.sum(1) / L
+
+    # Normalize using shifted logarithm (log1p)
+    scaled_counts = data.X / data.obs["size_factors"].values[:,None]
+    data.layers["log1p_counts"] = np.log1p(scaled_counts)
+
+    data.X = data.layers["log1p_counts"]
+
+    return data
 
 class QC():
 
@@ -53,15 +70,21 @@ class QC():
 
     def QC_metric_calc(self, data):
 
+        # Sum of counts per cell
         data.obs['n_counts'] = data.X.sum(1)
+        # Shifted log of n_counts
         data.obs['log_n_counts'] = np.log(data.obs['n_counts']+1)
+        # Number of unique genes per cell
         data.obs['n_genes'] = (data.X > 0).sum(1)
+        # Shifted lof og n_genes
         data.obs['log_n_genes'] = np.log(data.obs['n_genes']+1)
 
+        # Fraction of total counts among the top 20 genes with highest counts
         top_20_indices = np.argpartition(data.X, -20, axis=1)[:, -20:]
         top_20_values = np.take_along_axis(data.X, top_20_indices, axis=1)
         data.obs['pct_counts_in_top_20_genes'] = (np.sum(top_20_values, axis=1)/data.obs['n_counts'])
 
+        # Fraction of mitochondial counts
         mt_gene_mask = [gene.startswith('MT-') for gene in data.var_names]
         data.obs['mt_frac'] = data.X[:, mt_gene_mask].sum(1)/data.obs['n_counts']
 
@@ -69,6 +92,7 @@ class QC():
 
     def MAD_based_outlier(self, data, metric: str, threshold: int = 5):
         data_metric = data.obs[metric]
+        # calculate indexes where outliers are detected
         outlier = (data_metric < np.median(data_metric) - threshold * self.median_absolute_deviation(data_metric)) | (
                     np.median(data_metric) + threshold * self.median_absolute_deviation(data_metric) < data_metric)
         return outlier
@@ -84,17 +108,18 @@ class QC():
             | self.MAD_based_outlier(data, "mt_frac", threshold)
         )
 
-        data.obs["outlier1"] = (self.MAD_based_outlier(data, "log_n_genes", threshold))
-        data.obs["outlier2"] = (self.MAD_based_outlier(data, "log_n_counts", threshold))
-        data.obs["outlier3"] = (self.MAD_based_outlier(data, "pct_counts_in_top_20_genes", threshold))
-        data.obs["outlier4"] = (self.MAD_based_outlier(data, "mt_frac", threshold))
-
+        # Print how many detected outliers by each QC metric 
+        outlier1 = (self.MAD_based_outlier(data, "log_n_genes", threshold))
+        outlier2 = (self.MAD_based_outlier(data, "log_n_counts", threshold))
+        outlier3 = (self.MAD_based_outlier(data, "pct_counts_in_top_20_genes", threshold))
+        outlier4 = (self.MAD_based_outlier(data, "mt_frac", threshold))
         print(f"Number of cells before QC filtering: {data.n_obs}")
-        print(f"Number of cells removed by log_n_genes filtering: {sum(1 for item in data.obs.outlier1 if item)}")
-        print(f"Number of cells removed by log_n_counts filtering: {sum(1 for item in data.obs.outlier2 if item)}")
-        print(f"Number of cells removed by pct_counts_in_top_20_genes filtering: {sum(1 for item in data.obs.outlier3 if item)}")
-        print(f"Number of cells removed by mt_frac filtering: {sum(1 for item in data.obs.outlier4 if item)}")
+        print(f"Number of cells removed by log_n_genes filtering: {sum(1 for item in outlier1 if item)}")
+        print(f"Number of cells removed by log_n_counts filtering: {sum(1 for item in outlier2 if item)}")
+        print(f"Number of cells removed by pct_counts_in_top_20_genes filtering: {sum(1 for item in outlier3 if item)}")
+        print(f"Number of cells removed by mt_frac filtering: {sum(1 for item in outlier4 if item)}")
         
+        # Filter away outliers
         data = data[(~data.obs.outlier)].copy()
         print(f"Number of cells post QC filtering: {data.n_obs}")
 
@@ -160,7 +185,7 @@ class EDA():
         
         plt.show()
 
-    def Scatter(self, data, title:str = "Scatter Plot", subtitle:list = ["Unfiltered", "QC Filtered"]):
+    def ScatterForQCMetrics(self, data, title:str = "Scatter Plot", subtitle:list = ["Unfiltered", "QC Filtered"]):
         """
         Create a scatter plot with specified x and y columns and color the points based on a color column.
 
@@ -203,6 +228,21 @@ class EDA():
         
         # Show the plot
         plt.show()
+
+    def VisualizeNormalization(self,data):
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+        p1 = sns.histplot(data.obs["n_counts"], bins=100, kde=False, ax=axes[0])
+        axes[0].set_title("Raw counts")
+        axes[0].set_xlabel("Sum of counts")
+
+        p2 = sns.histplot(data.layers["log1p_counts"].sum(1), bins=100, kde=False, ax=axes[1])
+        axes[1].set_xlabel("Sum of Normalized counts")
+        axes[1].set_title("log1p normalised counts")
+
+        plt.show()
+
+
 
 
         
