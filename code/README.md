@@ -1,5 +1,5 @@
 # code
-Contain all code used in this project, including preprocessing, visualization, machine learning models and more.
+Contains all code used in this project, including preprocessing, visualization, machine learning models and more.
 
 ## Structur
 - **data_preprocessing:** Contains all preprocessing code of scRNA-seq data.
