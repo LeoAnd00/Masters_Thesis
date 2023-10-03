@@ -27,7 +27,7 @@ pbmc <- CreateSeuratObject(counts = t(norm_counts))
 pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 4000)
 
 # scale and run PCA
-pbmc <- ScaleData(pbmc, features = rownames(pbmc))
+pbmc <- ScaleData(pbmc, features = rownames(pbmc)) # https://github.com/satijalab/seurat/issues/1166
 pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
 
 # Check number of PC components (we selected 10 PCs for downstream analysis, based on Elbow plot)
