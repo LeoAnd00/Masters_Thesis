@@ -66,7 +66,7 @@ def log1p_normalize(data):
     data = log1p_normalize(data)
     """
 
-    data.layers["counts"] = data.X.copy()
+    data.layers["pp_counts"] = data.X.copy()
 
     # Calculate size factor
     L = data.X.sum() / data.shape[0]

@@ -6,3 +6,4 @@ Contains all code used in this project, including preprocessing, visualization, 
     - **immune_cells:** Code for preprocessing data related to immune cells.
         - **bone_marrow_human:** Preprocessing code for scRNA-seq data samples taken from bone marrow of human subjects.
         - **pbmcs_human:** Preprocessing code for scRNA-seq data samples taken from peripheral blood of human subjects.
+        - **merge:** Code to merge all AnnData objects from *bone_marrow_human* and *pbmcs_human*.

@@ -10,3 +10,4 @@ All data used in this project are located in this folder, consisting of scRNA-se
     - **immune_cells:** Data related to immune cells.
         - **bone_marrow_human:** Preprocessed scRNA-seq data samples taken from bone marrow of human subjects.
         - **pbmcs_human:** Preprocessed scRNA-seq data samples taken from peripheral blood of human subjects.
+        - **merged:** Merged AnnData objects from *bone_marrow_human* and *pbmcs_human*.
