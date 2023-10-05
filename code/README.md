@@ -7,3 +7,4 @@ Contains all code used in this project, including preprocessing, visualization, 
         - **bone_marrow_human:** Preprocessing code for scRNA-seq data samples taken from bone marrow of human subjects.
         - **pbmcs_human:** Preprocessing code for scRNA-seq data samples taken from peripheral blood of human subjects.
         - **merge:** Code to merge all AnnData objects from *bone_marrow_human* and *pbmcs_human*.
+    - **pathway_information:** Contains preprocessing code for human pathway information (gene sets).

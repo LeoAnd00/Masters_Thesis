@@ -169,6 +169,10 @@ class QC():
         mt_gene_mask = [gene.startswith('MT-') for gene in data.var_names]
         data.obs['mt_frac'] = data.X[:, mt_gene_mask].sum(1)/data.obs['n_counts']
 
+        # Fraction of ribosomal counts
+        #ribo_gene_mask = [gene.startswith(("RPS", "RPL")) for gene in data.var_names]
+        #data.obs['ribo_frac'] = data.X[:, ribo_gene_mask].sum(1)/data.obs['n_counts']
+
         return data
 
     def MAD_based_outlier(self, data, metric: str, threshold: int = 5):
