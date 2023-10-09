@@ -169,6 +169,14 @@ class QC():
         mt_gene_mask = [gene.startswith('MT-') for gene in data.var_names]
         data.obs['mt_frac'] = data.X[:, mt_gene_mask].sum(1)/data.obs['n_counts']
 
+        # Fraction of ribosomal counts
+        ribo_gene_mask = [gene.startswith(("RPS", "RPL")) for gene in data.var_names]
+        data.obs['ribo_frac'] = data.X[:, ribo_gene_mask].sum(1)/data.obs['n_counts']
+
+        # Fraction of hemoglobin counts
+        ribo_gene_mask = [gene.startswith(("HB")) for gene in data.var_names]
+        data.obs['hem_frac'] = data.X[:, ribo_gene_mask].sum(1)/data.obs['n_counts']
+
         return data
 
     def MAD_based_outlier(self, data, metric: str, threshold: int = 5):
@@ -337,9 +345,9 @@ class EDA():
         # Ignore the specific FutureWarning
         warnings.filterwarnings("ignore", category=FutureWarning)
 
-        x_column=['n_counts','n_counts','mt_frac','mt_frac']
-        y_column=['n_genes','n_genes','pct_counts_in_top_20_genes','pct_counts_in_top_20_genes']
-        color_column=['mt_frac','pct_counts_in_top_20_genes','n_genes','n_counts']
+        x_column=['n_counts','n_counts','n_counts','n_counts']
+        y_column=['n_genes','n_genes','n_genes','n_genes']
+        color_column=['mt_frac','pct_counts_in_top_20_genes','ribo_frac','hem_frac']
         
         # Create a scatter plot with continuous colors using Matplotlib's pyplot
         fig, axes = plt.subplots(len(x_column), len(data), figsize=(16,6*len(x_column)))
