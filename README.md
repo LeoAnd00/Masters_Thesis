@@ -32,6 +32,18 @@ Comming soon
 ```
 
 ## How to run
+
+### Preprocessing
+Run:
+```
+cd code\data_preprocessing\immune_cells\automated_preprocess
+```
+and then:
+```
+python auto_pp.py --resolution 0.8
+```
+
+### Train model
 ```
 Comming soon
 ```
