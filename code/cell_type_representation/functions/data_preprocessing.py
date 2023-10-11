@@ -174,8 +174,8 @@ class QC():
         data.obs['ribo_frac'] = data.X[:, ribo_gene_mask].sum(1)/data.obs['n_counts']
 
         # Fraction of hemoglobin counts
-        hem_gene_mask = [(gene == "HBB" or gene == "HBA1" or gene == "HBA2") for gene in data.var_names]
-        data.obs['hem_frac'] = data.X[:, hem_gene_mask].sum(1)/data.obs['n_counts']
+        ribo_gene_mask = [gene.startswith(("HB")) for gene in data.var_names]
+        data.obs['hem_frac'] = data.X[:, ribo_gene_mask].sum(1)/data.obs['n_counts']
 
         return data
 
