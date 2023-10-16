@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
+from torch.nn import init
 import scanpy as sc
 import numpy as np
 import math
@@ -59,21 +61,51 @@ class prep_data(data.Dataset):
 
         #print(f"Final length of embedding: {len(gene_embeddings_dic[list(gene_embeddings_dic.keys())[0]])}")
 
-        input_embedding = np.array([gene_embeddings_dic[gene_symbol] for gene_symbol in self.adata.var.index])
-
-        self.input_embedding = torch.tensor(np.concatenate([input_embedding, np.zeros((np.shape(input_embedding)[0], 1))], axis=1))
-
     def __len__(self):
         return self.X.shape[0]
 
     def __getitem__(self, idx):
 
-        data_point = self.input_embedding
-        data_point[:,-1] = self.X[idx]
-        data_point = data_point.to(torch.float32)
-        #data_point = self.X[idx]
+        data_point = self.X[idx]#.reshape(-1,1)
         data_label = self.labels_onehotencoded[idx]
         return data_point, data_label
+    
+
+class CustomScaleModule(torch.nn.Module):
+    """
+    Inspired by nn.Linear: https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear 
+    """
+
+    def __init__(self, in_features: int, out_features: int, bias: bool=True):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = Parameter(torch.empty((in_features, out_features)))
+        if bias:
+            self.bias = Parameter(torch.empty(in_features, out_features))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
+        # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
+        # https://github.com/pytorch/pytorch/issues/57109
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input):
+
+        input = input.unsqueeze(2).expand(-1, -1, self.out_features)
+
+        output = input * self.weight
+        if self.bias is not None:
+            output += self.bias
+
+        return output
     
 def scaled_dot_product(q, k, v):
     """
@@ -109,24 +141,25 @@ class MultiheadAttention(nn.Module):
 
         # Stack all weight matrices 1...h together for efficiency
         # Note that in many implementations you see "bias=False" which is optional
-        self.qkv_proj = nn.Linear(input_dim, 3*embed_dim, bias=attn_bias)
-        self.o_proj = nn.Linear(embed_dim, input_dim)
-        self.attn_dropout1 = nn.Dropout(attn_drop_out, self.training)
-        self.attn_linear1 = nn.Linear(input_dim, input_dim)
-        self.attn_dropout2 = nn.Dropout(proj_drop_out, self.training)
+        self.qkv_proj = CustomScaleModule(input_dim, 3*embed_dim, bias=attn_bias)
+        self.o_proj = nn.Linear(embed_dim, 1)
+        self.attn_dropout1 = nn.Dropout(attn_drop_out)
+        #self.attn_linear1 = nn.Linear(input_dim, input_dim)
+        #self.attn_dropout2 = nn.Dropout(proj_drop_out)
 
         self._reset_parameters()
 
     def _reset_parameters(self):
         # Original Transformer initialization, see PyTorch documentation
-        nn.init.xavier_uniform_(self.qkv_proj.weight)
+        #nn.init.xavier_uniform_(self.qkv_proj.weight)
         nn.init.xavier_uniform_(self.o_proj.weight)
         if self.attn_bias:
-            self.qkv_proj.bias.data.fill_(0)
+        #    self.qkv_proj.bias.data.fill_(0)
             self.o_proj.bias.data.fill_(0)
 
     def forward(self, x, return_attention=False):
-        batch_size, seq_length, _ = x.size()
+        #batch_size, seq_length, _ = x.size()
+        batch_size, seq_length = x.size()
         qkv = self.qkv_proj(x)
 
         # Separate Q, K, V from linear output
@@ -139,9 +172,9 @@ class MultiheadAttention(nn.Module):
         values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
         values = values.reshape(batch_size, seq_length, self.embed_dim)
 
-        attn_output = self.o_proj(values)#.squeeze()
+        attn_output = self.o_proj(values).squeeze()
 
-        #attn_output = self.attn_dropout1(attn_output)
+        attn_output = self.attn_dropout1(attn_output)
         #attn_output = self.attn_linear1(attn_output)
         #attn_output = self.attn_dropout2(attn_output)
 
@@ -159,9 +192,10 @@ class AttentionMlp(nn.Module):
                  act_layer=nn.GELU):
         super().__init__()
         self.mlp_linear1 = nn.Linear(in_features, hidden_features)
+        #self.mlp_linear1 = nn.Linear(in_features, out_features)
         self.mlp_act = act_layer()
         self.mlp_linear2 = nn.Linear(hidden_features, out_features)
-        self.mlp_drop = nn.Dropout(drop, self.training)
+        self.mlp_drop = nn.Dropout(drop)
 
         self._reset_parameters()
 
@@ -180,60 +214,33 @@ class AttentionMlp(nn.Module):
         x = self.mlp_drop(x)
         return x
     
-def drop_path(x, drop_prob: float = 0., training: bool = False):
-    """
-    From: https://github.com/JackieHanLab/TOSICA/tree/main 
-    """
-    if drop_prob == 0. or not training:
-        return x
-    keep_prob = 1 - drop_prob
-    shape = (x.shape[0],) + (1,) * (x.ndim - 1)
-    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
-    random_tensor.floor_()
-    output = x.div(keep_prob) * random_tensor
-    return output
-
-class DropPath(nn.Module):
-    """
-    From: https://github.com/JackieHanLab/TOSICA/tree/main 
-    """
-    def __init__(self, drop_prob=None):
-        super(DropPath, self).__init__()
-        self.drop_prob = drop_prob
-    def forward(self, x):
-        return drop_path(x, self.drop_prob, self.training)
-    
 class AttentionBlock(nn.Module):
     def __init__(self,
                  attn_input_dim: int, 
                  attn_embed_dim: int,
-                 attn_out_dim: int,
                  num_heads: int,
                  mlp_ratio: float=4., 
                  attn_bias: bool=True,
                  mlp_drop: float=0., 
                  attn_drop_out: float=0.,
                  proj_drop_out: float=0.,
-                 drop_path_ratio: float=0.,
                  act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm):
         super(AttentionBlock, self).__init__()
         self.attnblock_norm1 = norm_layer(attn_input_dim)
         self.attnblock_attn = MultiheadAttention(attn_input_dim, attn_embed_dim, num_heads, attn_drop_out, proj_drop_out, attn_bias)
-        self.attnblock_drop_path = DropPath(drop_path_ratio) if drop_path_ratio > 0. else nn.Identity()
-        self.attnblock_norm2 = norm_layer(attn_input_dim)
-        mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
-        self.attnblock_mlp = AttentionMlp(in_features=attn_input_dim, 
-                                          hidden_features=mlp_hidden_dim, 
-                                          out_features=attn_out_dim, 
-                                          act_layer=act_layer, 
-                                          drop=mlp_drop)
+        #self.attnblock_norm2 = norm_layer(attn_input_dim)
+        #mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
+        #self.attnblock_mlp = AttentionMlp(in_features=attn_input_dim, 
+        #                                  hidden_features=mlp_hidden_dim, 
+        #                                  out_features=attn_input_dim, 
+        #                                  act_layer=act_layer, 
+        #                                  drop=mlp_drop)
     def forward(self, x):
         attn = self.attnblock_attn(self.attnblock_norm1(x))
         x = x + attn
-        x = x + self.attnblock_mlp(self.attnblock_norm2(x))
-        #x = self.attnblock_norm2(x + self.attnblock_drop_path(attn))
-        #x = x + self.attnblock_drop_path(self.attnblock_mlp(self.attnblock_norm2(x)))
+        #x = x + self.attnblock_mlp(x)
+        #x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         return x
         
 
@@ -241,55 +248,66 @@ class model(nn.Module):
 
     def __init__(self, 
                  input_dim: int, 
-                 input_dim_emb: int,
                  attn_embed_dim: int,
-                 attn_out_dim: int,
                  num_classes: int,
                  num_heads: int=1,
                  mlp_ratio: float=2., 
-                 attn_bias: bool=True,
+                 attn_bias: bool=False,
                  drop_ratio: float=0.3, 
-                 attn_drop_out: float=0.3,
+                 attn_drop_out: float=0.0,
                  proj_drop_out: float=0.3,
-                 drop_path_ratio: float=0.3,
                  depth: int=1,
                  act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm):
         super().__init__()
 
-        drop_path_ratios = [x.item() for x in torch.linspace(0, drop_path_ratio, depth)]
-
-        self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=input_dim_emb, 
+        self.blocks1 = nn.ModuleList([AttentionBlock(attn_input_dim=input_dim, 
                                    attn_embed_dim=attn_embed_dim,
-                                   attn_out_dim=attn_out_dim,
                                    num_heads=num_heads, 
                                    mlp_ratio=mlp_ratio, 
                                    attn_bias=attn_bias,
                                    mlp_drop=drop_ratio, 
                                    attn_drop_out=attn_drop_out, 
                                    proj_drop_out=proj_drop_out,
-                                   drop_path_ratio=drop_path_ratios[idx],
                                    norm_layer=norm_layer, 
                                    act_layer=act_layer) for idx in range(depth)])
 
-        self.norm_layer1 = norm_layer(input_dim_emb)
-        self.classifier_linear1 = nn.Linear(input_dim_emb, int(input_dim_emb/4))
+        #self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=int(input_dim/4), 
+        #                           attn_embed_dim=attn_embed_dim,
+        #                           num_heads=num_heads, 
+        #                           mlp_ratio=mlp_ratio, 
+        #                           attn_bias=attn_bias,
+        #                           mlp_drop=drop_ratio, 
+        #                           attn_drop_out=attn_drop_out, 
+        #                           proj_drop_out=proj_drop_out,
+        #                           norm_layer=norm_layer, 
+        #                           act_layer=act_layer) for idx in range(2)])
+        
+        #self.input_mlp = nn.Linear(input_dim, int(input_dim/4))
+        #self.norm_layer_in1 = norm_layer(input_dim)
+        #self.input_mlp_act = nn.Tanh()
+
+        self.norm_layer_in = norm_layer(int(input_dim))
+        self.classifier_linear1 = nn.Linear(int(input_dim), int(input_dim/4))
+        self.norm_layer1 = norm_layer(int(input_dim/4))
+        self.classifier__drop1 = nn.Dropout(proj_drop_out)
         self.classifier_linear1_act = nn.Tanh()
-        self.classifier_linear2 = nn.Linear(int(input_dim_emb/4), int(input_dim_emb/16))
-        self.classifier_linear2_act = nn.Tanh()
-        self.classifier_linear3 = nn.Linear(input_dim, num_classes)
+        self.classifier_linear2 = nn.Linear(int(input_dim/4), num_classes)
 
     def forward(self, x):
-        #x_input = x
-        for layer in self.blocks:
+        for layer in self.blocks1:
             x = layer(x)
-        x = self.norm_layer1(x)
+        #x = self.norm_layer_in1(x)
+        #x = self.input_mlp(x)
+        #x = self.input_mlp_act(x)
+        #for layer in self.blocks:
+        #    x = layer(x)
+        x = self.norm_layer_in(x)
         x = self.classifier_linear1(x)
+        x = self.norm_layer1(x)
         x = self.classifier_linear1_act(x)
+        x = self.classifier__drop1(x)
         x = self.classifier_linear2(x)
-        x = self.classifier_linear2_act(x)
-        x = torch.mean(x, dim=2)
-        x = self.classifier_linear3(x)
         x = F.softmax(x, dim=1) 
         return x
 
