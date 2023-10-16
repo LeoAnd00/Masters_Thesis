@@ -36,7 +36,7 @@ Comming soon
 ### Preprocessing
 Run:
 ```
-cd code\data_preprocessing\immune_cells\automated_preprocess
+cd code\data_preprocessing\automated_preprocess
 ```
 and then:
 ```
