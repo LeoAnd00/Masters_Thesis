@@ -1253,6 +1253,9 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
         os.remove("../../../data/processed/immune_cells/merged/Sun_merged.h5ad")
         os.remove("../../../data/processed/immune_cells/merged/10X_merged.h5ad")
 
+        # All immune cells
+        os.remove("../../../data/processed/immune_cells/merged/Immune_cells_merged_all.h5ad")
+
         # Pancreas
         os.remove("../../../data/processed/pancreas_cells/pancreas_1_adata.h5ad")
 
