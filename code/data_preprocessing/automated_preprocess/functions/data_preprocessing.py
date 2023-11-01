@@ -1045,6 +1045,31 @@ class Merge():
 
         del adata
 
+    def PBMC_merge_all(self):
+        file_paths = '../../../data/processed/immune_cells/merged/'
+
+        filenames = ['Freytag_merged.h5ad', 'Sun_merged.h5ad', '10X_merged.h5ad']
+
+        adata = []
+        for k, name in enumerate(filenames):
+            file = file_paths + name
+            adata_temp = sc.read(file, cache=True)
+            adata.append(adata_temp) 
+
+        adata = adata[0].concatenate(adata[1:], batch_key='sample_ID', index_unique=None)
+
+        adata.obs.index.rename('barcode', inplace=True)
+        # Assign adata.X to be the preprocessed unnormalized data
+        adata.X = adata.layers['pp_counts']
+
+        # Normalize
+        adata = log1p_normalize(adata)
+
+        # Download
+        adata.write("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
+
+        del adata
+
     def Immune_cells_merge_all(self):
         file_paths = '../../../data/processed/immune_cells/merged/'
 
@@ -1228,6 +1253,7 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
     merge_env.Freytag_merge()
     merge_env.Sun_merge()
     merge_env.merge_10X()
+    merge_env.PBMC_merge_all()
     merge_env.Immune_cells_merge_all()
     merge_env.Muto_merge()
     merge_env.merge_all()
@@ -1252,6 +1278,7 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
         os.remove("../../../data/processed/immune_cells/merged/Freytag_merged.h5ad")
         os.remove("../../../data/processed/immune_cells/merged/Sun_merged.h5ad")
         os.remove("../../../data/processed/immune_cells/merged/10X_merged.h5ad")
+        os.remove("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
 
         # All immune cells
         os.remove("../../../data/processed/immune_cells/merged/Immune_cells_merged_all.h5ad")
