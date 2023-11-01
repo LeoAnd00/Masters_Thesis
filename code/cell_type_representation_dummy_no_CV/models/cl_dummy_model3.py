@@ -20,6 +20,10 @@ import torch.optim as optim
 import umap
 from functions import data_preprocessing as dp
 
+#
+# Where the loss calculates centroids of the different clusters and enforce batch effect clusters to be close to cell type cluster center
+#
+
 class prep_data(data.Dataset):
 
     def __init__(self, adata, HVG: bool, Scaled: bool, HVGs:int = 4000, target_key: str="cell_type", batch_keys: list=None):

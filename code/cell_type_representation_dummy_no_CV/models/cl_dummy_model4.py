@@ -17,7 +17,6 @@ import time as time
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 import torch.optim as optim
-import umap
 from functions import data_preprocessing as dp
 
 class prep_data(data.Dataset):

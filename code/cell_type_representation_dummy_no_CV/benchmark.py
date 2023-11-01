@@ -98,15 +98,16 @@ class benchmark():
     def unintegrated(self, n_comps: int=30, umap_plot: bool=True):
         adata_unscaled = self.adata.copy()
 
-        sc.tl.pca(adata_unscaled, n_comps=n_comps, use_highly_variable=True)
-        sc.pp.neighbors(adata_unscaled, use_rep="X_pca")
+        #sc.tl.pca(adata_unscaled, n_comps=n_comps, use_highly_variable=True)
+        adata_unscaled.obsm["Unscaled"] = adata_unscaled.X
+        sc.pp.neighbors(adata_unscaled, use_rep="Unscaled")
 
         self.metrics_unscaled = scib.metrics.metrics(
             self.adata,
             adata_unscaled,
             "batch", 
             self.label_key,
-            embed="X_pca",
+            embed="Unscaled",
             isolated_labels_asw_=True,
             silhouette_=True,
             hvg_score_=True,
@@ -482,6 +483,12 @@ class benchmark():
         adata_bbknn = self.adata.copy()
         sc.pp.pca(adata_bbknn, svd_solver="arpack")
         corrected = bbknn.bbknn(adata_bbknn, batch_key="batch", copy=True)
+        #print(corrected)
+        #print(corrected.obsp["distances"].shape)
+        #print(corrected.obsp["connectivities"].shape)
+        #print(corrected.obsm["X_pca"].shape)
+        #sddsfsdf
+        adata_bbknn = corrected.copy()
         adata_bbknn.obsm["BBKNN"] = corrected.X
 
         del corrected
@@ -581,6 +588,7 @@ class benchmark():
             index_unique=None,
         )
 
+        adata_mnn = corrected.copy()
         adata_mnn.obsm["FastMNN"] = corrected.X
         del corrected
 
