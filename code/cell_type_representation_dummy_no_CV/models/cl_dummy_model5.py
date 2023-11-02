@@ -265,6 +265,7 @@ class AttentionBlock(nn.Module):
         super(AttentionBlock, self).__init__()
 
         self.output_dim = output_dim
+        output_dim = 50
 
         self.attnblock_norm1 = norm_layer(normlayer_input_dim)
         self.attnblock_norm2 = norm_layer(normlayer_input_dim)
@@ -276,6 +277,9 @@ class AttentionBlock(nn.Module):
                                           out_features=attn_input_dim, 
                                           act_layer=act_layer, 
                                           drop=mlp_drop)
+        
+        self.linear_out = nn.Linear(output_dim,1)
+
     def forward(self, x):
         attn = self.attnblock_attn(self.attnblock_norm1(x))
         if self.output_dim != 1:
@@ -283,7 +287,8 @@ class AttentionBlock(nn.Module):
             x = x + self.attnblock_mlp(x)
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
-            x = attn
+            #x = attn
+            x = self.linear_out(attn).squeeze()
         #x = x + self.attnblock_mlp(x)
         #x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         return x
