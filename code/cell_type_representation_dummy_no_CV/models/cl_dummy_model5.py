@@ -267,8 +267,9 @@ class AttentionBlock(nn.Module):
         self.output_dim = output_dim
         output_dim = 50
 
-        self.attnblock_norm1 = norm_layer(normlayer_input_dim)
-        self.attnblock_norm2 = norm_layer(normlayer_input_dim)
+        norm_layer = nn.LayerNorm
+        self.attnblock_norm1 = norm_layer(attn_input_dim)#norm_layer(normlayer_input_dim)
+        self.attnblock_norm2 = norm_layer(attn_input_dim)#norm_layer(normlayer_input_dim)
 
         self.attnblock_attn = MultiheadAttention(attn_input_dim, attn_embed_dim, num_heads, output_dim, attn_drop_out, proj_drop_out, attn_bias)
         mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
@@ -279,18 +280,16 @@ class AttentionBlock(nn.Module):
                                           drop=mlp_drop)
         
         self.linear_out = nn.Linear(output_dim,1)
+        self.linear_out2 = nn.Linear(output_dim,1)
 
     def forward(self, x):
         attn = self.attnblock_attn(self.attnblock_norm1(x))
         if self.output_dim != 1:
             x = x + attn
-            x = x + self.attnblock_mlp(x)
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
             #x = attn
-            x = self.linear_out(attn).squeeze()
-        #x = x + self.attnblock_mlp(x)
-        #x = x + self.attnblock_mlp(self.attnblock_norm2(x))
+            x = self.linear_out2(x).squeeze() + self.linear_out(attn).squeeze()
         return x
         
 
@@ -303,7 +302,7 @@ class CellType2VecModel(nn.Module):
                  HVGs: int,
                  pathway_input_dim: int,
                  num_heads: int=1,
-                 mlp_ratio: float=2., 
+                 mlp_ratio: float=4.,#2., 
                  attn_bias: bool=False,
                  drop_ratio: float=0.3, 
                  attn_drop_out: float=0.0,
@@ -315,6 +314,7 @@ class CellType2VecModel(nn.Module):
         super().__init__()
 
         self.pathways_linear1 = nn.Linear(HVGs, pathway_emb_dim)
+        self.pathways_norm1 = norm_layer(pathway_input_dim)
 
         self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=pathway_emb_dim, 
                                    attn_embed_dim=attn_embed_dim,
@@ -361,7 +361,7 @@ class CellType2VecModel(nn.Module):
         for layer in self.blocks:
             pathways = layer(pathways)
         pathways = self.block_out(pathways)
-        x = pathways
+        x = self.pathways_norm1(pathways)
         #x = torch.cat((x, pathways), dim=1)
 
         # Encoder for HVGs and pathways
@@ -509,9 +509,9 @@ class SNNLoss(nn.Module):
 
         # Restrict the temperature term
         if self.temperature_target.item() <= self.min_temperature:
-            self.temperature_target.data = torch.tensor(0.1)
+            self.temperature_target.data = torch.tensor(self.min_temperature)
         elif self.temperature_target.item() >= self.max_temperature:
-            self.temperature_target.data = torch.tensor(1.0)
+            self.temperature_target.data = torch.tensor(self.max_temperature)
 
         # Calculate the cosine similarity matrix
         cosine_similarity_matrix = F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperature_target
@@ -535,7 +535,7 @@ class SNNLoss(nn.Module):
         for target in targets.unique():
             losses_for_target = loss_dict[str(target)]
             # Make sure there's values in losses_for_target of given target
-            if len(losses_for_target) > 0:
+            if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
                 if self.use_weights:
                     weighted_loss = torch.mean(losses_for_target) * self.weight[int(target)]
                 else:
@@ -556,9 +556,9 @@ class SNNLoss(nn.Module):
                 
                 # Restrict the temperature term
                 #if self.temperatures_batches[outer_idx].item() <= self.min_temperature:
-                #    self.temperatures_batches[outer_idx].data = torch.tensor(0.1)
+                #    self.temperatures_batches[outer_idx].data = torch.tensor(self.min_temperature)
                 #elif self.temperatures_batches[outer_idx].item() >= self.max_temperature:
-                #    self.temperatures_batches[outer_idx].data = torch.tensor(1.0)
+                #    self.temperatures_batches[outer_idx].data = torch.tensor(self.max_temperature)
 
                 # Calculate the cosine similarity matrix
                 cosine_similarity_matrix = F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperatures_batches[outer_idx]
@@ -582,7 +582,7 @@ class SNNLoss(nn.Module):
                 for batch_target in batch.unique():
                     losses_for_target = loss_dict[str(batch_target)]
                     # Make sure there's values in losses_for_target of given batch effect
-                    if len(losses_for_target) > 0:
+                    if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
                         temp_loss = torch.mean(losses_for_target)
                         losses.append(temp_loss)
                     else:
