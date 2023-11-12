@@ -34,11 +34,20 @@ class MakeCellTypeRepresentation():
                                         target_key=target_key,
                                         batch_keys=batch_keys)
         
-        self.adata = sc.read(data_path, cache=True)
+        #self.adata = sc.read(data_path, cache=True)
+        self.adata = train_env.data_env.adata
 
         # Make predictions
         predictions = train_env.predict(data_=self.adata, out_path=model_path)
         self.adata.obsm["predictions"] = predictions
+        #sc.tl.pca(self.adata, n_comps=50, use_highly_variable=True)
+        #self.adata.obsm["predictions"] = self.adata.obsm["X_pca"]
+
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=12)
+
+        sc.pp.neighbors(self.adata, use_rep="predictions")
+        sc.tl.umap(self.adata)
+        sc.pl.umap(self.adata, color=self.target_key, ncols=1, edgecolor="none", show=False, title='Cell type embedding space')
 
     def CentroidRepresentation(self):
         unique_labels = np.unique(self.adata.obs[self.target_key])
@@ -100,18 +109,33 @@ class MakeCellTypeRepresentation():
 
         return medoid_centroids
     
-    def UMAP_visualization(self, representation: dict):
+    def UMAP_visualization(self, representation: dict, neighbors: int=5, size: int=60):
         # Make AnnData object
         latent_space_array = np.array(list(representation.values()))
         labels = np.array(list(representation.keys()))
         adata = sc.AnnData(latent_space_array)
+        labels = pd.Categorical(labels, categories=labels, ordered=False)
         adata.obs['labels'] = labels
 
         # Use Scanpy UMAP to visualize
-        sc.pp.neighbors(adata, n_neighbors=5, use_rep='X')
+        sc.pp.neighbors(adata, n_neighbors=neighbors, use_rep='X')
         sc.tl.umap(adata)
 
-        sc.pl.umap(adata, color='labels', edgecolor="none", show=False, title='Cell type vector representations')
+        sc.pl.umap(adata, color='labels', size=size, edgecolor="none", show=False, title='Cell type vector representations')
+
+    def PCA_visualization(self, representation: dict, size: int=60):
+        # Make AnnData object
+        latent_space_array = np.array(list(representation.values()))
+        labels = np.array(list(representation.keys()))
+        adata = sc.AnnData(latent_space_array)
+        labels = pd.Categorical(labels, categories=labels, ordered=False)
+        adata.obs['labels'] = labels
+
+        # Perform PCA
+        sc.tl.pca(adata)
+
+        # Visualize the PCA plot
+        sc.pl.pca(adata, color='labels', size=size, edgecolor="none", show=False, title='Cell type vector representations')
 
     def Download_representation(self, representation: dict, save_path: str="file.csv"):
         # Convert the dictionary to a Pandas DataFrame

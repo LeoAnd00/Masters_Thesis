@@ -20,9 +20,6 @@ from sklearn.model_selection import StratifiedKFold
 import torch.optim as optim
 from functions import data_preprocessing as dp
 
-#
-# Model using pathway information
-#
 
 class prep_data(data.Dataset):
     """
@@ -153,6 +150,8 @@ class prep_data(data.Dataset):
             #print("Pathway names: ", pathway_names[np.argsort(relative_hvg_abundance)[-num_pathways:]])
 
             # Filter the pathway_mask to contain the top pathways with highest relative HVG abundance
+            #random_order = np.random.permutation(len(relative_hvg_abundance))[:num_pathways]
+            #self.pathway_mask = torch.FloatTensor(pathway_mask[random_order,:])
             self.pathway_mask = torch.FloatTensor(pathway_mask[np.argsort(relative_hvg_abundance)[-num_pathways:],:])
 
 
@@ -184,7 +183,7 @@ class prep_data(data.Dataset):
         """
 
         # Get HVG expression levels
-        data_point = self.X[idx]
+        data_point = self.X[idx] #torch.where(self.X[idx] != 0, torch.tensor(1.0), torch.tensor(0.0)) #self.X[idx]
         # Get labels
         data_label = self.target[idx]
 
@@ -194,7 +193,7 @@ class prep_data(data.Dataset):
 
             if self.json_file_path is not None:
                 # Apply pathway mask to HVGs
-                data_pathways = self.X[idx] * self.pathway_mask 
+                data_pathways = self.X[idx] * self.pathway_mask #torch.where(self.X[idx] * self.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0)) #self.X[idx] * self.pathway_mask 
             else:
                 data_pathways=torch.tensor([])
 
@@ -202,7 +201,7 @@ class prep_data(data.Dataset):
         else:
             if self.json_file_path is not None:
                 # Apply pathway mask to HVGs
-                data_pathways = self.X[idx] * self.pathway_mask 
+                data_pathways = self.X[idx] * self.pathway_mask #torch.where(self.X[idx] * self.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0)) #self.X[idx] * self.pathway_mask 
             else:
                 data_pathways=torch.tensor([])
 

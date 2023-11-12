@@ -10,12 +10,15 @@ import tensorflow as tf
 import warnings
 from IPython.display import display
 from functions import data_preprocessing as dp
-from functions import train as trainer
+from functions import train2 as trainer
 from models import model_encoder as model_encoder
 from models import model_pathway as model_pathway
+from models import model_encoder_with_pathway_no_attention as model_encoder_with_pathway_no_attention
 from models import model_encoder_with_pathway as model_encoder_with_pathway
 from models import model_transformer_encoder as model_transformer_encoder
 from models import model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
+
+from models import model_encoderpathways as model_encoderpathways
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -53,6 +56,7 @@ class benchmark():
 
         # Initialize variables
         self.metrics = None
+        self.metrics_pca = None
         self.metrics_scanorama = None
         self.metrics_scvi = None
         self.metrics_scanvi = None
@@ -66,6 +70,7 @@ class benchmark():
         self.metrics_in_house_model_encoder = None
         self.metrics_in_house_model_pathways = None
         self.metrics_in_house_model_encoder_pathways = None
+        self.metrics_in_house_model_encoder_with_pathways_no_attention = None
         self.metrics_in_house_model_transformer_encoder = None
         self.metrics_in_house_model_transformer_encoder_pathways = None
 
@@ -104,7 +109,12 @@ class benchmark():
         if Scaled:
             self.adata.X = dp.scale_data(self.adata.X)
 
-    def unintegrated(self, n_comps: int=30, umap_plot: bool=True):
+        # Settings for visualizations
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=12)
+        self.celltype_title = 'Cell type'
+        self.batcheffect_title = 'Batch effect'
+
+    def unintegrated(self, umap_plot: bool=True, save_figure: bool=False):
         adata_unscaled = self.adata.copy()
 
         #sc.tl.pca(adata_unscaled, n_comps=n_comps, use_highly_variable=True)
@@ -133,13 +143,66 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_unscaled.n_obs)
+        adata_unscaled = adata_unscaled[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_unscaled)
-            sc.pl.umap(adata_unscaled, color=[self.label_key, "batch"], ncols=1)
+            #sc.pl.umap(adata_unscaled, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_unscaled, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_unscaled, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_unscaled)
+            sc.pl.umap(adata_unscaled, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Unintegrated_cell_type.svg")
+            sc.pl.umap(adata_unscaled, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Unintegrated_batch_effect.svg")
 
         del adata_unscaled
 
-    def scanorama(self, umap_plot: bool=True):
+    def pca(self, n_comps: int=50, umap_plot: bool=True, save_figure: bool=False):
+        adata_pca = self.adata.copy()
+
+        sc.tl.pca(adata_pca, n_comps=n_comps, use_highly_variable=True)
+        adata_pca.obsm["PCA"] = adata_pca.obsm["X_pca"]
+        sc.pp.neighbors(adata_pca, use_rep="PCA")
+
+        self.metrics_pca = scib.metrics.metrics(
+            self.adata,
+            adata_pca,
+            "batch", 
+            self.label_key,
+            embed="PCA",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_pca.n_obs)
+        adata_pca = adata_pca[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_pca)
+            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_pca)
+            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="PCA_cell_type.svg")
+            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="PCA_batch_effect.svg")
+
+
+        del adata_pca
+
+    def scanorama(self, umap_plot: bool=True, save_figure: bool=False):
         """
         SCANORAMA version 1.7.4: https://github.com/brianhie/scanorama
         """
@@ -182,13 +245,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_scanorama.n_obs)
+        adata_scanorama = adata_scanorama[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_scanorama)
-            sc.pl.umap(adata_scanorama, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_scanorama, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_scanorama, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_scanorama)
+            sc.pl.umap(adata_scanorama, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Scanorama_cell_type.svg")
+            sc.pl.umap(adata_scanorama, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Scanorama_batch_effect.svg")
 
         del adata_scanorama
 
-    def harmony(self, n_comps: int=30, umap_plot: bool=True):
+    def harmony(self, n_comps: int=30, umap_plot: bool=True, save_figure: bool=False):
         """
         Harmony version 0.1.7: https://github.com/lilab-bcb/harmony-pytorch
         """
@@ -225,13 +296,22 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_harmony.n_obs)
+        adata_harmony = adata_harmony[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_harmony)
-            sc.pl.umap(adata_harmony, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_harmony, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_harmony, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_harmony)
+            sc.pl.umap(adata_harmony, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Harmony_cell_type.svg")
+            sc.pl.umap(adata_harmony, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Harmony_batch_effect.svg")
+
 
         del adata_harmony
 
-    def scvi(self, umap_plot: bool=True):
+    def scvi(self, umap_plot: bool=True, save_figure: bool=False):
         """
         scVI version 1.0.4: https://github.com/scverse/scvi-tools
         """
@@ -269,15 +349,24 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_scvi.n_obs)
+        adata_scvi = adata_scvi[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_scvi)
-            sc.pl.umap(adata_scvi, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_scvi, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_scvi, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_scvi)
+            sc.pl.umap(adata_scvi, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scVI_cell_type.svg")
+            sc.pl.umap(adata_scvi, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scVI_batch_effect.svg")
+
 
         del adata_scvi
 
         return vae
 
-    def scanvi(self, umap_plot: bool=True, vae=None):
+    def scanvi(self, umap_plot: bool=True, vae=None, save_figure: bool=False):
         """
         scANVI version 1.0.4: https://github.com/scverse/scvi-tools
         """
@@ -325,13 +414,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_scANVI.n_obs)
+        adata_scANVI = adata_scANVI[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_scANVI)
-            sc.pl.umap(adata_scANVI, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_scANVI, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_scANVI, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_scANVI)
+            sc.pl.umap(adata_scANVI, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scANVI_cell_type.svg")
+            sc.pl.umap(adata_scANVI, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scANVI_batch_effect.svg")
 
         del adata_scANVI
 
-    def scgen(self, umap_plot: bool=True):
+    def scgen(self, umap_plot: bool=True, save_figure: bool=False):
         """
         scGen version 2.1.1: https://github.com/theislab/scgen 
         """
@@ -376,13 +473,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_scgen.n_obs)
+        adata_scgen = adata_scgen[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_scgen)
-            sc.pl.umap(adata_scgen, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_scgen, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_scgen, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_scgen)
+            sc.pl.umap(adata_scgen, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scGen_cell_type.svg")
+            sc.pl.umap(adata_scgen, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scGen_batch_effect.svg")
 
         del adata_scgen
 
-    def combat(self, umap_plot: bool=True):
+    def combat(self, umap_plot: bool=True, save_figure: bool=False):
         """
         ComBat (Scanpy version 1.9.5): https://scanpy.readthedocs.io/en/stable/generated/scanpy.pp.combat.html
         """
@@ -416,13 +521,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_combat.n_obs)
+        adata_combat = adata_combat[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_combat)
-            sc.pl.umap(adata_combat, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_combat, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_combat, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_combat)
+            sc.pl.umap(adata_combat, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="ComBat_cell_type.svg")
+            sc.pl.umap(adata_combat, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="ComBat_batch_effect.svg")
 
         del adata_combat
 
-    def desc(self, umap_plot: bool=True):
+    def desc(self, umap_plot: bool=True, save_figure: bool=False):
         """
         DESC version 2.1.1: https://github.com/eleozzr/desc
         """
@@ -477,13 +590,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_desc.n_obs)
+        adata_desc = adata_desc[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_desc)
-            sc.pl.umap(adata_desc, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_desc, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_desc, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_desc)
+            sc.pl.umap(adata_desc, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="DESC_cell_type.svg")
+            sc.pl.umap(adata_desc, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="DESC_batch_effect.svg")
 
         del adata_desc
 
-    def bbknn(self, umap_plot: bool=True):
+    def bbknn(self, umap_plot: bool=True, save_figure: bool=False):
         """
         BBKNN version 1.6.0: https://github.com/Teichlab/bbknn
         """
@@ -525,13 +646,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_bbknn.n_obs)
+        adata_bbknn = adata_bbknn[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_bbknn)
-            sc.pl.umap(adata_bbknn, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_bbknn, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_bbknn, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_bbknn)
+            sc.pl.umap(adata_bbknn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="BBKNN_cell_type.svg")
+            sc.pl.umap(adata_bbknn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="BBKNN_batch_effect.svg")
 
         del adata_bbknn
 
-    def tosica(self, umap_plot: bool=True):
+    def tosica(self, umap_plot: bool=True, save_figure: bool=False):
         """
         TOSICA: https://github.com/JackieHanLab/TOSICA/tree/main
         """
@@ -573,17 +702,24 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_tosica.n_obs)
+        adata_tosica = adata_tosica[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_tosica)
-            sc.pl.umap(adata_tosica, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_tosica, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_tosica, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_tosica)
+            sc.pl.umap(adata_tosica, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="TOSICA_cell_type.svg")
+            sc.pl.umap(adata_tosica, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="TOSICA_batch_effect.svg")
 
         del adata_tosica
 
-    def fastmnn(self, umap_plot: bool=True):
+    def fastmnn(self, umap_plot: bool=True, save_figure: bool=False):
         """
         FastMNN version 0.1.9.5: https://github.com/chriscainx/mnnpy
         """
-        # Doesn't work great for some reason
         adata_mnn = self.adata.copy()
 
         data_mnn = []
@@ -625,13 +761,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_mnn.n_obs)
+        adata_mnn = adata_mnn[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_mnn)
-            sc.pl.umap(adata_mnn, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_mnn, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_mnn, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_mnn)
+            sc.pl.umap(adata_mnn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="FastMNN_cell_type.svg")
+            sc.pl.umap(adata_mnn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="FastMNN_batch_effect.svg")
 
         del adata_mnn
 
-    def trvae(self, umap_plot: bool=True):
+    def trvae(self, umap_plot: bool=True, save_figure: bool=False):
         """
         trVAE: https://github.com/theislab/trvaep 
         """
@@ -672,7 +816,7 @@ class benchmark():
         #data = model.predict(x=adata_trvae.X, y=adata_trvae.obs["batch"].tolist(), target=main_batch)
         #adata_trvae.X = data'''
 
-    def saucie(self, umap_plot: bool=True):
+    def saucie(self, umap_plot: bool=True, save_figure: bool=False):
         """
         SAUCIE: https://github.com/KrishnaswamyLab/SAUCIE 
         """
@@ -693,7 +837,99 @@ class benchmark():
 
         sc.pp.neighbors(adata_saucie, use_rep="SAUCIE")'''
 
-    def in_house_model_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True):
+    def in_house_model_encoderpathwaystest(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Model description
+
+        Parameters:
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        """
+
+        adata_in_house = self.adata.copy()
+
+        #Model
+        model = model_encoderpathways.CellType2VecModel(input_dim=1000,
+                                                        output_dim=100,
+                                                        drop_out=0.2,
+                                                        act_layer=nn.ReLU,
+                                                        norm_layer=nn.BatchNorm1d)
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=1000,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"])
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                loss_with_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_encoder_with_pathways_no_attention = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_batch_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
 
@@ -770,13 +1006,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_batch_effect.svg")
 
         del adata_in_house
 
-    def in_house_model_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True):
+    def in_house_model_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
 
@@ -796,7 +1040,7 @@ class benchmark():
         model = model_pathway.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
                                                 attn_embed_dim=24*4,
                                                 output_dim=100,
-                                                num_pathways=300,
+                                                num_pathways=30,#300,
                                                 num_heads=4,
                                                 mlp_ratio=4,
                                                 attn_bias=False,
@@ -808,7 +1052,7 @@ class benchmark():
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=300,
+                                        num_pathways=30,#300,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -861,13 +1105,114 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Pathways_batch_effect.svg")
 
         del adata_in_house
 
-    def in_house_model_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True):
+    def in_house_model_encoder_pathways_no_attention(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Model description
+
+        Parameters:
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        """
+
+        adata_in_house = self.adata.copy()
+
+        #Model
+        model = model_encoder_with_pathway_no_attention.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
+                                                output_dim=100,
+                                                num_pathways=1000,
+                                                drop_ratio=0.2,
+                                                norm_layer=nn.BatchNorm1d,
+                                                pathway_embedding_dim=100)
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=1000,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"])
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                loss_with_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_encoder_with_pathways_no_attention = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_batch_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
 
@@ -954,13 +1299,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_batch_effect.svg")
 
         del adata_in_house
 
-    def in_house_model_transformer_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True):
+    def in_house_model_transformer_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
 
@@ -1044,13 +1397,21 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Transformer_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Transformer_Encoder_batch_effect.svg")
 
         del adata_in_house
 
-    def in_house_model_transformer_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True):
+    def in_house_model_transformer_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
 
@@ -1136,19 +1497,30 @@ class benchmark():
             organism="human",
         )
 
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=[self.label_key, "batch"], ncols=1)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Transformer_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Transformer_Encoder_with_Pathways_batch_effect.svg")
 
         del adata_in_house
 
-    def make_benchamrk_results_dataframe(self):
+    def make_benchamrk_results_dataframe(self, min_max_normalize: bool=False):
         """
         Makes a dataframe called metrics that contains the performance of the different methods for multiple metrics
         """
 
         calculated_metrics = []
         calculated_metrics_names = []
+        if self.metrics_pca is not None:
+            calculated_metrics.append(self.metrics_pca)
+            calculated_metrics_names.append("PCA")
         if self.metrics_scanorama is not None:
             calculated_metrics.append(self.metrics_scanorama)
             calculated_metrics_names.append("Scanorama")
@@ -1188,6 +1560,9 @@ class benchmark():
         if self.metrics_in_house_model_encoder_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder_pathways)
             calculated_metrics_names.append("In-house Encoder with Pathways Model")
+        if self.metrics_in_house_model_encoder_with_pathways_no_attention is not None:
+            calculated_metrics.append(self.metrics_in_house_model_encoder_with_pathways_no_attention)
+            calculated_metrics_names.append("In-house Encoder with Pathways (Without Attention) Model")
         if self.metrics_in_house_model_transformer_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder)
             calculated_metrics_names.append("In-house Transformer Encoder Model")
@@ -1195,43 +1570,49 @@ class benchmark():
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder_pathways)
             calculated_metrics_names.append("In-house Transformer Encoder with Pathways Model")
 
-        metrics = pd.concat(calculated_metrics, axis="columns")
+        if len(calculated_metrics_names) != 0:
+            metrics = pd.concat(calculated_metrics, axis="columns")
 
-        metrics = metrics.set_axis(calculated_metrics_names, axis="columns")
+            metrics = metrics.set_axis(calculated_metrics_names, axis="columns")
 
-        metrics = metrics.loc[
-            [
-                "ASW_label",
-                "ASW_label/batch",
-                "PCR_batch",
-                "isolated_label_silhouette",
-                "graph_conn",
-                "hvg_overlap",
-                "NMI_cluster/label",
-                "ARI_cluster/label",
-                "cell_cycle_conservation",
-                "isolated_label_F1"
-            ],
-            :,
-        ]
+            metrics = metrics.loc[
+                [
+                    "ASW_label",
+                    "ASW_label/batch",
+                    "PCR_batch",
+                    "isolated_label_silhouette",
+                    "graph_conn",
+                    "hvg_overlap",
+                    "NMI_cluster/label",
+                    "ARI_cluster/label",
+                    "cell_cycle_conservation",
+                    "isolated_label_F1"
+                ],
+                :,
+            ]
 
-        metrics = metrics.T
-        metrics = metrics.drop(columns=["hvg_overlap"])
+            metrics = metrics.T
+            metrics = metrics.drop(columns=["hvg_overlap"])
 
-        metrics["Overall Batch"] = metrics[["ASW_label/batch", "PCR_batch", "graph_conn"]].mean(axis=1)
-        metrics["Overall Bio"] = metrics[["ASW_label", 
+            if self.metrics is None:
+                self.metrics = metrics#.sort_values(by='Overall', ascending=False)
+            else:
+                self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
+
+        if min_max_normalize:
+            self.metrics = (self.metrics - self.metrics.min()) / (self.metrics.max() - self.metrics.min())
+        
+        self.metrics["Overall Batch"] = self.metrics[["ASW_label/batch", "PCR_batch", "graph_conn"]].mean(axis=1)
+        self.metrics["Overall Bio"] = self.metrics[["ASW_label", 
                                         "isolated_label_silhouette", 
                                         "NMI_cluster/label", 
                                         "ARI_cluster/label",
                                         "isolated_label_F1",
                                         "cell_cycle_conservation"]].mean(axis=1)
-        metrics["Overall"] = 0.4 * metrics["Overall Batch"] + 0.6 * metrics["Overall Bio"] # priorities biology slightly more
+        self.metrics["Overall"] = 0.4 * self.metrics["Overall Batch"] + 0.6 * self.metrics["Overall Bio"] # priorities biology slightly more
+        self.metrics = self.metrics.sort_values(by='Overall', ascending=False)
 
-        if self.metrics is None:
-            self.metrics = metrics.sort_values(by='Overall', ascending=False)
-        else:
-            self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
-            self.metrics = self.metrics.sort_values(by='Overall', ascending=False)
+        self.metrics = self.metrics.sort_values(by='Overall', ascending=False)
 
     def visualize_results(self, bg_color: str="Blues"):
         styled_metrics = self.metrics.style.background_gradient(cmap=bg_color)
@@ -1241,12 +1622,7 @@ class benchmark():
         self.metrics.to_csv(f'{name}.csv', index=True, header=True)
 
     def read_csv(self, name: str='benchmarks/results/Benchmark_results'):
-        if self.metrics is None:
-            self.metrics = pd.read_csv(f'{name}.csv', index_col=0)
-        else:
-            metrics = pd.read_csv(f'{name}.csv', index_col=0)
-            self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
-            self.metrics = self.metrics.sort_values(by='Overall', ascending=False)
+        self.metrics = pd.read_csv(f'{name}.csv', index_col=0)
 
 
 
