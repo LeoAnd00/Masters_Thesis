@@ -17,10 +17,8 @@ from models import model_encoder_with_pathway_no_attention as model_encoder_with
 from models import model_encoder_with_pathway as model_encoder_with_pathway
 from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
 from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
-
-#from models import model_encoderpathways as model_encoderpathways
-from models import model_tokenized_pathways as model_encoderpathways
-#from models import model_NEWIDEtransformerpathways as model_encoderpathways
+from models import model_tokenized_pathways as model_tokenized_pathways
+from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -75,6 +73,8 @@ class benchmark():
         self.metrics_in_house_model_encoder_with_pathways_no_attention = None
         self.metrics_in_house_model_transformer_encoder = None
         self.metrics_in_house_model_transformer_encoder_pathways = None
+        self.metrics_in_house_model_tokenized_pathways = None
+        self.metrics_in_house_model_tokenized_HVG_transformer = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -839,110 +839,6 @@ class benchmark():
 
         sc.pp.neighbors(adata_saucie, use_rep="SAUCIE")'''
 
-    def in_house_model_encoderpathwaystest(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Model description
-
-        Parameters:
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        """
-
-        adata_in_house = self.adata.copy()
-
-        #Model
-        '''model = model_encoderpathways.CellType2VecModel(input_dim=300,
-                                                        output_dim=100,
-                                                        drop_out=0.2,
-                                                        act_layer=nn.ReLU,
-                                                        norm_layer=nn.BatchNorm1d)'''
-        model = model_encoderpathways.CellType2VecModel(input_dim=300,
-                                                        output_dim=100,
-                                                        drop_out=0.2,
-                                                        act_layer=nn.ReLU,
-                                                        norm_layer=nn.BatchNorm1d,
-                                                        attn_embed_dim=24*4,
-                                                        num_heads=4,
-                                                        mlp_ratio=4,
-                                                        attn_bias=False,
-                                                        attn_drop_out=0.,
-                                                        depth=3,
-                                                        pathway_embedding_dim=50)
-
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=300,
-                                        save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
-                                        Scaled=False,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"])
-        
-        # Train
-        if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=42,
-                                batch_size=256,
-                                loss_with_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
-                                eval_freq=4,
-                                epochs=20,
-                                earlystopping_threshold=3)
-        
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.metrics_in_house_model_encoder_with_pathways_no_attention = scib.metrics.metrics(
-            self.adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_batch_effect.svg")
-
-        del adata_in_house
-
     def in_house_model_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Model description
@@ -967,13 +863,19 @@ class benchmark():
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path=None,
-                                        num_pathways=None,
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1029,8 +931,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_batch_effect.svg")
 
         del adata_in_house
 
@@ -1067,12 +969,18 @@ class benchmark():
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
                                         num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1160,12 +1068,18 @@ class benchmark():
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
                                         num_pathways=1000,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1221,8 +1135,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_no_attention_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_no_attention_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_no_attention_batch_effect.svg")
 
         del adata_in_house
 
@@ -1261,12 +1175,18 @@ class benchmark():
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
                                         num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1322,8 +1242,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Encoder_with_Pathways_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Encoder_with_Pathways_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_batch_effect.svg")
 
         del adata_in_house
 
@@ -1358,13 +1278,19 @@ class benchmark():
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path=None,
-                                        num_pathways=None,
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1420,8 +1346,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Transformer_Encoder_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Transformer_Encoder_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Transformer_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Transformer_Encoder_batch_effect.svg")
 
         del adata_in_house
 
@@ -1459,12 +1385,18 @@ class benchmark():
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
                                         num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=100,
+                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
                                         Scaled=False,
                                         target_key=self.label_key,
-                                        batch_keys=["batch"])
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
         
         # Train
         if train:
@@ -1520,8 +1452,224 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Transformer_Encoder_with_Pathways_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Transformer_Encoder_with_Pathways_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Transformer_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Transformer_Encoder_with_Pathways_batch_effect.svg")
+
+        del adata_in_house
+    
+    def in_house_model_tokenized_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Model description
+
+        Parameters:
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        """
+
+        adata_in_house = self.adata.copy()
+
+        #Model
+        patwhaybuckets = 100
+        model = model_tokenized_pathways.CellType2VecModel(input_dim=300,
+                                                        output_dim=100,
+                                                        drop_out=0.2,
+                                                        act_layer=nn.ReLU,
+                                                        norm_layer=nn.BatchNorm1d,
+                                                        attn_embed_dim=24*4,
+                                                        num_heads=4,
+                                                        mlp_ratio=4,
+                                                        attn_bias=False,
+                                                        attn_drop_out=0.,
+                                                        depth=3,
+                                                        pathway_embedding_dim=50,
+                                                        nn_tokens=patwhaybuckets)
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=patwhaybuckets,
+                                        use_pathway_buckets=True,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=False,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                loss_with_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_tokenized_pathways = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_Pathways_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_Pathways_Model_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_tokenized_HVG_transformer(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Model description
+
+        Parameters:
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        """
+
+        adata_in_house = self.adata.copy()
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=patwhaybuckets,
+                                        use_pathway_buckets=True,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        HVG_buckets=1000,
+                                        use_HVG_buckets=True,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=True)
+        
+        #Model
+        patwhaybuckets = 100
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=300,
+                                                        output_dim=100,
+                                                        drop_out=0.2,
+                                                        act_layer=nn.ReLU,
+                                                        norm_layer=nn.BatchNorm1d,
+                                                        attn_embed_dim=24*4,
+                                                        num_heads=4,
+                                                        mlp_ratio=4,
+                                                        attn_bias=False,
+                                                        attn_drop_out=0.,
+                                                        depth=3,
+                                                        pathway_embedding_dim=50,
+                                                        nn_tokens=patwhaybuckets,
+                                                        nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
+                                                        use_gene2vec_emb=True)
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                loss_with_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_tokenized_HVG_transformer = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_batch_effect.svg")
 
         del adata_in_house
 
@@ -1567,22 +1715,28 @@ class benchmark():
             calculated_metrics_names.append("Unintegrated")
         if self.metrics_in_house_model_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder)
-            calculated_metrics_names.append("In-house Encoder Model")
+            calculated_metrics_names.append("In-house HVG Encoder Model")
         if self.metrics_in_house_model_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_pathways)
             calculated_metrics_names.append("In-house Pathways Model")
         if self.metrics_in_house_model_encoder_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder_pathways)
-            calculated_metrics_names.append("In-house Encoder with Pathways Model")
+            calculated_metrics_names.append("In-house HVG Encoder with Pathways Model")
         if self.metrics_in_house_model_encoder_with_pathways_no_attention is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder_with_pathways_no_attention)
-            calculated_metrics_names.append("In-house Encoder with Pathways (Without Attention) Model")
+            calculated_metrics_names.append("In-house HVG Encoder with Pathways (Without Attention) Model")
         if self.metrics_in_house_model_transformer_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder)
-            calculated_metrics_names.append("In-house Transformer Encoder Model")
+            calculated_metrics_names.append("In-house HVG Transformer Encoder Model")
         if self.metrics_in_house_model_transformer_encoder_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder_pathways)
-            calculated_metrics_names.append("In-house Transformer Encoder with Pathways Model")
+            calculated_metrics_names.append("In-house HVG Transformer Encoder with Pathways Model")
+        if self.metrics_in_house_model_tokenized_pathways is not None:
+            calculated_metrics.append(self.metrics_in_house_model_tokenized_pathways)
+            calculated_metrics_names.append("In-house Tokenized Pathways Model")
+        if self.metrics_in_house_model_tokenized_HVG_transformer is not None:
+            calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer)
+            calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder Model")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")

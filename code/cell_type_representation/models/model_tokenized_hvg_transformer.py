@@ -494,6 +494,7 @@ class CellType2VecModel(nn.Module):
         super().__init__()
 
         self.use_gene2vec_emb = use_gene2vec_emb
+        self.nn_embedding_dim = nn_embedding_dim
 
         self.hvg_transformer = HVGTransformer(attn_embed_dim=attn_embed_dim,
                                                     num_HVGs=input_dim,
@@ -537,7 +538,7 @@ class CellType2VecModel(nn.Module):
         if self.use_gene2vec_emb:
             x = self.hvg_transformer(x, gene2vec_emb)
         else:
-            x = self.hvg_transformer(x, torch.zeros((x.size(1), x.size(2))))
+            x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)))
         #pathways = torch.cat((x, pathways), dim=1)
         x = self.output_encoder(x)
 

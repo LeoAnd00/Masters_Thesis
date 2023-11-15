@@ -55,6 +55,8 @@ class prep_data(data.Dataset):
         Whether to scale the data (default is False).
     batch_keys : list, optional
         A list of keys for batch labels (default is None).
+    use_gene2vec_emb : bool, optional
+        Whether to use gene2vec representations if training the HVG Transformer model.
 
     Attributes
     ----------
@@ -407,6 +409,8 @@ class SNNLoss(nn.Module):
         If True, calculate class weights based on label frequency (default is True).
     targets : Tensor, optional
         A tensor containing the class labels for the input vectors. Required if use_weights is True.
+    batches : Tensor, optional
+        A list of tensors containing the batch effect labels.
     batch_keys : list, optional
         A list containing batch keys to account for batch effects (default is None).
     temperature : float, optional
@@ -446,6 +450,7 @@ class SNNLoss(nn.Module):
     def __init__(self, 
                  use_weights: bool=True, 
                  targets=None, 
+                 batches=None,
                  batch_keys: list=None, 
                  temperature: float=0.25, 
                  min_temperature: float=0.1,
@@ -472,9 +477,15 @@ class SNNLoss(nn.Module):
         # Calculate weights for the loss based on label frequency
         if self.use_weights:
             if targets is not None:
-                self.weight = self.calculate_class_weights(targets)
+                self.weight_target = self.calculate_class_weights(targets)
             else:
                 raise ValueError("'use_weights' is True, but 'targets' is not provided.")
+            if batch_keys is not None:
+                self.weight_batch = []
+                for i in range(len(batch_keys)):
+                    self.weight_batch.append(self.calculate_class_weights(batches[i]))
+            else:
+                raise ValueError("'use_weights' is True, but 'batch_keys' is not provided.")
 
     def calculate_class_weights(self, targets):
         """
@@ -522,7 +533,7 @@ class SNNLoss(nn.Module):
             self.temperature_target.data = torch.tensor(self.max_temperature)
 
         # Calculate the cosine similarity matrix
-        cosine_similarity_matrix = F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperature_target
+        cosine_similarity_matrix = torch.exp(F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperature_target)
 
         # Define a loss dictionary containing the loss of each label
         loss_dict = {str(target): torch.tensor([]).to(self.device) for target in targets.unique()}
@@ -531,12 +542,10 @@ class SNNLoss(nn.Module):
             negativ_samples = sim_vec[(targets != target)]
             # Must be more or equal to 2 samples per sample type for the loss to work
             if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
-                positiv_sum = torch.sum(torch.exp(positiv_samples)) - torch.exp(sim_vec[idx])
-                negativ_sum = torch.sum(torch.exp(negativ_samples))
+                positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
+                negativ_sum = torch.sum(negativ_samples)
                 loss = -torch.log(positiv_sum / (positiv_sum + negativ_sum))
                 loss_dict[str(target)] = torch.cat((loss_dict[str(target)], loss.unsqueeze(0)))
-            else:
-                continue
 
         del cosine_similarity_matrix
 
@@ -547,13 +556,11 @@ class SNNLoss(nn.Module):
             # Make sure there's values in losses_for_target of given target
             if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
                 if self.use_weights:
-                    weighted_loss = torch.mean(losses_for_target) * self.weight[int(target)]
+                    weighted_loss = torch.mean(losses_for_target) * self.weight_target[int(target)]
                 else:
                     weighted_loss = torch.mean(losses_for_target)
 
                 weighted_losses.append(weighted_loss)
-            else:
-                continue
 
         loss_target = torch.mean(torch.stack(weighted_losses))
 
@@ -565,7 +572,7 @@ class SNNLoss(nn.Module):
             for outer_idx, batch in enumerate(batches):
 
                 # Calculate the cosine similarity matrix
-                cosine_similarity_matrix = F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperatures_batches[outer_idx]
+                cosine_similarity_matrix = torch.exp(F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperatures_batches[outer_idx])
 
                 # Define a loss dictionary containing the loss of each label
                 loss_dict = {str(target_batch): torch.tensor([]).to(self.device) for target_batch in batch.unique()}
@@ -574,23 +581,23 @@ class SNNLoss(nn.Module):
                     negativ_samples = sim_vec[(targets == target) & (batch != target_batch)]
                     # Must be more or equal to 2 samples per sample type for the loss to work
                     if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
-                        positiv_sum = torch.sum(torch.exp(positiv_samples)) - torch.exp(sim_vec[idx])
-                        negativ_sum = torch.sum(torch.exp(negativ_samples))
+                        positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
+                        negativ_sum = torch.sum(negativ_samples)
                         #loss = -torch.log(negativ_sum / (positiv_sum + negativ_sum))
                         loss = (-torch.log(positiv_sum / (positiv_sum + negativ_sum)))**-1
                         loss_dict[str(target_batch)] = torch.cat((loss_dict[str(target_batch)], loss.unsqueeze(0)))
-                    else:
-                        continue
 
                 losses = []
                 for batch_target in batch.unique():
                     losses_for_target = loss_dict[str(batch_target)]
                     # Make sure there's values in losses_for_target of given batch effect
                     if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
-                        temp_loss = torch.mean(losses_for_target)
+                        #temp_loss = torch.mean(losses_for_target)
+                        if self.use_weights:
+                            temp_loss = torch.mean(losses_for_target) * self.weight_batch[outer_idx][int(batch_target)]
+                        else:
+                            temp_loss = torch.mean(losses_for_target)
                         losses.append(temp_loss)
-                    else:
-                        continue
 
                 if losses != []:
                     loss_ = torch.mean(torch.stack(losses))
@@ -603,7 +610,7 @@ class SNNLoss(nn.Module):
             else:
                 loss_batch = torch.tensor([0.0]).to(self.device)
 
-            loss = 0.95*loss_target + 0.05*loss_batch
+            loss = 0.9*loss_target + 0.1*loss_batch
 
             return loss
         else:
@@ -623,30 +630,30 @@ class train_module():
         Path to the JSON file containing metadata and pathway information.
     num_pathways : int
         The number of pathways in the dataset.
+    pathway_hvg_limit : int, optional
+        The minimum number of HVGs in a pathway to consider (default is 10).
+    pathways_buckets : int, optional
+        The number of buckets for binning pathway information (default is 200).
+    use_pathway_buckets : bool, optional
+        Whether to use pathway information representations as relativ percentage of active genes of a pathway and to use buckets (True). Or To simply apply the binary pathway mask on the expression levels (False) (default is False).
     save_model_path : str
         The path to save the trained model.
     HVG : bool, optional
         Whether to identify highly variable genes (HVGs) in the data (default is True).
     HVGs : int, optional
         The number of highly variable genes to select (default is 4000).
+    HVG_buckets : int, optional
+        The number of buckets for binning HVG expression levels (default is 1000).
+    use_HVG_buckets : bool, optional
+        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False).
     Scaled : bool, optional
         Whether to scale (normalize) the data before training (default is False).
     target_key : str, optional
         The metadata key specifying the target variable (default is "cell_type").
     batch_keys : list, optional
         List of batch keys to account for batch effects (default is None).
-
-    Methods
-    -------
-    train(device=None, seed=42, batch_size=256, attn_embed_dim=24*4, depth=2, num_heads=4, output_dim=100,
-          attn_drop_out=0.0, proj_drop_out=0.2, drop_ratio=0.2, attn_bias=False, act_layer=nn.ReLU,
-          norm_layer=nn.BatchNorm1d, loss_with_weights=True, init_temperature=0.25, min_temperature=0.1,
-          max_temperature=1.0, init_lr=0.001, lr_scheduler_warmup=4, lr_scheduler_maxiters=25, eval_freq=2,
-          epochs=20, earlystopping_threshold=10, pathway_emb_dim=50)
-        Perform cross-validation training on the machine learning model.
-    predict(data_, out_path, batch_size=32, device=None)
-        Predict the target variable for new data using the trained model.
-
+    use_gene2vec_emb : bool, optional
+        Whether to use gene2vec representations if training the HVG Transformer model.
     """
 
     def __init__(self, 
@@ -654,11 +661,17 @@ class train_module():
                  json_file_path: str,
                  num_pathways: int,
                  save_model_path: str,
+                 pathway_hvg_limit: int=10,
+                 pathways_buckets: int=200,
+                 use_pathway_buckets: bool=True,
                  HVG: bool=True, 
                  HVGs: int=4000, 
+                 HVG_buckets: int=1000,
+                 use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
                  target_key: str="cell_type", 
-                 batch_keys: list=None):
+                 batch_keys: list=None,
+                 use_gene2vec_emb: bool=False):
         
         if type(data_path) == str:
             self.adata = sc.read(data_path, cache=True)
@@ -672,7 +685,20 @@ class train_module():
         self.batch_keys = batch_keys
         self.num_pathways = num_pathways
 
-        self.data_env = prep_data(adata=self.adata, json_file_path=json_file_path, num_pathways=num_pathways, HVG=HVG, Scaled=Scaled, HVGs=HVGs, target_key=target_key, batch_keys=batch_keys)
+        self.data_env = prep_data(adata=self.adata, 
+                                  json_file_path=json_file_path, 
+                                  num_pathways=num_pathways, 
+                                  pathway_hvg_limit=pathway_hvg_limit,
+                                  pathways_buckets=pathways_buckets,
+                                  use_pathway_buckets=use_pathway_buckets,
+                                  HVG=HVG,  
+                                  HVGs=HVGs, 
+                                  HVG_buckets=HVG_buckets,
+                                  use_HVG_buckets=use_HVG_buckets,
+                                  Scaled=Scaled,
+                                  target_key=target_key, 
+                                  batch_keys=batch_keys,
+                                  use_gene2vec_emb=use_gene2vec_emb)
 
         self.save_model_path = save_model_path
 
@@ -815,6 +841,8 @@ class train_module():
 
         Parameters
         ----------
+        model : nn.Module
+            The model to train.
         device : str or None, optional
             The device to run the training on (e.g., "cuda" or "cpu"). If None, it automatically selects "cuda" if available, or "cpu" otherwise.
         seed : int, optional
@@ -875,7 +903,7 @@ class train_module():
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Number of parameters: {total_params}")
 
-        loss_module = SNNLoss(use_weights=loss_with_weights, targets=torch.tensor(self.data_env.target), batch_keys=self.batch_keys, temperature=init_temperature, min_temperature=min_temperature, max_temperature=max_temperature)
+        loss_module = SNNLoss(use_weights=loss_with_weights, targets=torch.tensor(self.data_env.target), batches=self.data_env.encoded_batches, batch_keys=self.batch_keys, temperature=init_temperature, min_temperature=min_temperature, max_temperature=max_temperature)
         #optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=5e-5)
         optimizer = optim.Adam([{'params': model.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
         lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
