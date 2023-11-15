@@ -401,14 +401,14 @@ class CellType2VecModel(nn.Module):
     ----------
     input_dim : int
         The input dimension of the model. (Number of HVGs)
-    attn_embed_dim : int
-        The embedding dimension for the attention mechanism in the Pathway Transformer.
     output_dim : int
         The output dimension of the model, representing cell type embeddings.
     HVGs : int
         The number of highly variable genes.
     num_pathways : int
         The number of pathways to consider.
+    attn_embed_dim : int
+        The embedding dimension for the attention mechanism in the Pathway Transformer (defualt is 96).
     num_heads : int, optional
         The number of attention heads in the Pathway Transformer (default is 4).
     mlp_ratio : float, optional
@@ -445,9 +445,9 @@ class CellType2VecModel(nn.Module):
 
     def __init__(self, 
                  input_dim: int, 
-                 attn_embed_dim: int,
                  output_dim: int,
                  num_pathways: int,
+                 attn_embed_dim: int=96,
                  num_heads: int=4,
                  mlp_ratio: float=4.,
                  attn_bias: bool=False,

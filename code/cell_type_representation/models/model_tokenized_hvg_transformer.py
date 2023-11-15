@@ -1,13 +1,10 @@
 import torch
 import torch.nn as nn
+import math
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torch.nn import init
-import math
-
-#
-# Model using pathway information
-#
+import pandas as pd
 
 
 class CustomScaleModule(torch.nn.Module):
@@ -269,9 +266,10 @@ class AttentionBlock(nn.Module):
             x = self.linear_out(x).squeeze() + self.linear_out2(attn).squeeze()
         return x
 
-class PathwayTransformer(nn.Module):
+
+class HVGTransformer(nn.Module):
     """
-    A PyTorch module for a Pathway Transformer model.
+    A PyTorch module for a Transformer model for HVGs.
 
     This model processes pathway data using self-attention blocks.
 
@@ -283,8 +281,10 @@ class PathwayTransformer(nn.Module):
         The number of highly variable genes.
     num_pathways : int
         The number of pathways to consider.
-    pathway_embedding_dim : int, optional
-        The embedding dimension for the pathway data (default is 50).
+    nn_embedding_dim : int, optional
+        The embedding dimension for the HVGs data to be used by nn.Embedding() (default is 200).
+    nn_tokens : int, optional
+        The number of tokens used for pathways (default is 1000).
     num_heads : int, optional
         The number of attention heads in the self-attention blocks (default is 4).
     mlp_ratio : float, optional
@@ -317,9 +317,9 @@ class PathwayTransformer(nn.Module):
 
     def __init__(self, 
                  attn_embed_dim: int,
-                 HVGs: int,
-                 num_pathways: int,
-                 pathway_embedding_dim: int=50,
+                 num_HVGs: int,
+                 nn_embedding_dim: int=200,
+                 nn_tokens: int=1000,
                  num_heads: int=4,
                  mlp_ratio: float=4., 
                  attn_bias: bool=False,
@@ -330,14 +330,14 @@ class PathwayTransformer(nn.Module):
                  norm_layer=nn.LayerNorm):
         super().__init__()
 
-        self.pathways_input = nn.Linear(HVGs, pathway_embedding_dim)
+        self.pathways_input = nn.Embedding(nn_tokens, nn_embedding_dim)
 
         if depth >= 2:
-            self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=pathway_embedding_dim, 
+            self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=nn_embedding_dim, 
                                     attn_embed_dim=attn_embed_dim,
-                                    num_pathways=num_pathways,
+                                    num_pathways=num_HVGs,
                                     num_heads=num_heads, 
-                                    output_dim=pathway_embedding_dim,
+                                    output_dim=nn_embedding_dim,
                                     mlp_ratio=mlp_ratio, 
                                     attn_bias=attn_bias,
                                     mlp_drop=drop_ratio, 
@@ -346,11 +346,11 @@ class PathwayTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=False) for idx in range(int(depth-1))])
             
-            self.blocks.append(AttentionBlock(attn_input_dim=pathway_embedding_dim, 
+            self.blocks.append(AttentionBlock(attn_input_dim=nn_embedding_dim, 
                                     attn_embed_dim=attn_embed_dim,
-                                    num_pathways=num_pathways,
+                                    num_pathways=num_HVGs,
                                     num_heads=num_heads, 
-                                    output_dim=pathway_embedding_dim,
+                                    output_dim=nn_embedding_dim,
                                     mlp_ratio=mlp_ratio, 
                                     attn_bias=attn_bias,
                                     mlp_drop=drop_ratio, 
@@ -359,11 +359,11 @@ class PathwayTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=True))
         elif depth == 1:
-            self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=pathway_embedding_dim, 
+            self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=nn_embedding_dim, 
                                     attn_embed_dim=attn_embed_dim,
-                                    num_pathways=num_pathways,
+                                    num_pathways=num_HVGs,
                                     num_heads=num_heads, 
-                                    output_dim=pathway_embedding_dim,
+                                    output_dim=nn_embedding_dim,
                                     mlp_ratio=mlp_ratio, 
                                     attn_bias=attn_bias,
                                     mlp_drop=drop_ratio, 
@@ -372,7 +372,7 @@ class PathwayTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=True)])
 
-    def forward(self, pathways):
+    def forward(self, pathways, gene2vec_emb):
         """
         Forward pass of the Pathway Transformer model.
 
@@ -388,71 +388,87 @@ class PathwayTransformer(nn.Module):
         """
 
         pathways = self.pathways_input(pathways)
+        pathways += gene2vec_emb
         for layer in self.blocks:
             pathways = layer(pathways)
 
         return pathways
     
+
 class OutputEncoder(nn.Module):
     def __init__(self, 
-                 num_pathways: int,
+                 input_dim: int, 
                  output_dim: int,
-                 norm_layer=nn.BatchNorm1d):
+                 act_layer=nn.ReLU,
+                 norm_layer=nn.BatchNorm1d,
+                 drop_out: float=0.0):
         super().__init__()
 
-        self.pathways_norm = norm_layer(num_pathways)
-        self.output = nn.Linear(num_pathways, output_dim)
+        self.norm_layer_in = norm_layer(int(input_dim))
+        self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
+        self.norm_layer1 = norm_layer(int(input_dim/2))
+        self.linear1_act = act_layer()
+        self.linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
+        self.norm_layer2 = norm_layer(int(input_dim/4))
+        self.dropout2 = nn.Dropout(drop_out)
+        self.linear2_act = act_layer()
+        self.output = nn.Linear(int(input_dim/4), output_dim)
 
-    def forward(self, x, pathways):
-        x = self.pathways_norm(pathways)
+    def forward(self, x):
+        x = self.norm_layer_in(x)
+        x = self.linear1(x)
+        x = self.norm_layer1(x)
+        x = self.linear1_act(x)
+        x = self.dropout2(x)
+        x = self.linear2(x)
+        x = self.norm_layer2(x)
+        x = self.linear2_act(x)
         x = self.output(x)
         return x
 
 class CellType2VecModel(nn.Module):
     """
-    A PyTorch module for a CellType2Vec model that combines a Pathway Transformer and Output Encoder.
+    A PyTorch module for a CellType2Vec model that only consists of a Output Encoder.
 
-    This model processes input data and pathway information to produce cell type embeddings.
+    This model processes input data through a encoder to produce cell type embeddings.
 
     Parameters
     ----------
     input_dim : int
         The input dimension of the model. (Number of HVGs)
-    output_dim : int
-        The output dimension of the model, representing cell type embeddings.
-    HVGs : int
-        The number of highly variable genes.
-    num_pathways : int
-        The number of pathways to consider.
     attn_embed_dim : int
-        The embedding dimension for the attention mechanism in the Pathway Transformer (defualt is 96).
+        The embedding dimension for the attention mechanism (defualt is 96).
+    output_dim : int
+        The output dimension of the model, representing cell type embeddings (default is 100).
+    drop_out : float, optional
+        The dropout ratio used in the output projection layer (default is 0.2).
+    nn_embedding_dim : int, optional
+        The embedding dimension for the HVGs data to be used by nn.Embedding() (default is 200).
+    nn_tokens : int, optional
+        The number of tokens used for pathways (default is 1000).
     num_heads : int, optional
-        The number of attention heads in the Pathway Transformer (default is 4).
+        The number of attention heads in the self-attention blocks (default is 4).
     mlp_ratio : float, optional
-        The ratio to scale the hidden dimension of the feedforward neural network within the Pathway Transformer (default is 4.0).
+        The ratio to scale the hidden dimension of the feedforward neural network within attention blocks (default is 4.0).
     attn_bias : bool, optional
         Whether to use bias in the attention mechanism (default is False).
-    drop_ratio : float, optional
-        The dropout ratio used within the Pathway Transformer (default is 0.2).
     attn_drop_out : float, optional
         The dropout ratio used in the attention mechanism (default is 0.0).
-    proj_drop_out : float, optional
-        The dropout ratio used in the output projection layer (default is 0.2).
     depth : int, optional
-        The depth of the Pathway Transformer, indicating the number of attention blocks (default is 3).
+        The number of attention blocks in the model (default is 3).
     act_layer : nn.Module, optional
         The activation function layer to use (default is nn.ReLU).
     norm_layer : nn.Module, optional
         The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
-    pathway_embedding_dim : int, optional
-        The embedding dimension for pathway data (default is 50).
+    use_gene2vec_emb : bool, optional
+        Whether to use gene2vec embbedings or not.
 
     Attributes
     ----------
-    pathway_transformer : PathwayTransformer
-        The Pathway Transformer component for processing pathway data.
     output_encoder : OutputEncoder
         The Output Encoder component for generating cell type embeddings.
+    hvg_transformer : HVGTransformer
+        Transformer taking HVG expressions.
 
     Methods
     -------
@@ -461,41 +477,44 @@ class CellType2VecModel(nn.Module):
     """
 
     def __init__(self, 
-                 input_dim: int, 
-                 output_dim: int,
-                 num_pathways: int,
+                 input_dim: int,
                  attn_embed_dim: int=96,
+                 output_dim: int=100,
+                 drop_out: float=0.2,
+                 nn_embedding_dim: int=200,
+                 nn_tokens: int=1000,
                  num_heads: int=4,
                  mlp_ratio: float=4.,
                  attn_bias: bool=False,
-                 drop_ratio: float=0.2, 
                  attn_drop_out: float=0.0,
                  depth: int=3,
+                 act_layer=nn.ReLU,
                  norm_layer=nn.BatchNorm1d,
-                 pathway_embedding_dim: int=50):
+                 use_gene2vec_emb: bool=False):
         super().__init__()
-        assert depth >= 1, "depth should be bigger than 1"
-        assert num_heads >= 1, "num_heads should be bigger than 1"
-        assert mlp_ratio >= 1.0, "mlp_ratio should be bigger than 1.0"
-        
-        self.pathway_transformer = PathwayTransformer(attn_embed_dim=attn_embed_dim,
-                                                        HVGs=input_dim, 
-                                                        num_pathways=num_pathways,
-                                                        pathway_embedding_dim=pathway_embedding_dim,
-                                                        num_heads=num_heads,
-                                                        mlp_ratio=mlp_ratio, 
-                                                        attn_bias=attn_bias,
-                                                        drop_ratio=drop_ratio, 
-                                                        attn_drop_out=attn_drop_out,
-                                                        depth=depth,
-                                                        act_layer=nn.ReLU,
-                                                        norm_layer=nn.LayerNorm)
-        
-        self.output_encoder = OutputEncoder(num_pathways=num_pathways,
-                                            output_dim=output_dim,
-                                            norm_layer=norm_layer)
 
-    def forward(self, x, pathways):
+        self.use_gene2vec_emb = use_gene2vec_emb
+
+        self.hvg_transformer = HVGTransformer(attn_embed_dim=attn_embed_dim,
+                                                    num_HVGs=input_dim,
+                                                    nn_embedding_dim=nn_embedding_dim,
+                                                    nn_tokens=nn_tokens,
+                                                    num_heads=num_heads,
+                                                    mlp_ratio=mlp_ratio, 
+                                                    attn_bias=attn_bias,
+                                                    drop_ratio=drop_out, 
+                                                    attn_drop_out=attn_drop_out,
+                                                    depth=depth,
+                                                    act_layer=nn.ReLU,
+                                                    norm_layer=nn.LayerNorm)
+        
+        self.output_encoder = OutputEncoder(input_dim=input_dim, 
+                                            output_dim=output_dim,
+                                            act_layer=act_layer,
+                                            norm_layer=norm_layer,
+                                            drop_out=drop_out)
+
+    def forward(self, x, pathways, gene2vec_emb):
         """
         Forward pass of the CellType2Vec model.
 
@@ -504,7 +523,7 @@ class CellType2VecModel(nn.Module):
         x : torch.Tensor
             Input tensor for the model.
         pathways : torch.Tensor
-            Input tensor containing pathway data.
+            Input tensor containing pathway data. (Not used by this model)
 
         Returns
         -------
@@ -512,11 +531,15 @@ class CellType2VecModel(nn.Module):
             Output tensor representing cell type embeddings.
         """
 
-        # Pathways transformer
-        pathways = self.pathway_transformer(pathways)
-
         # Output encoder 
-        x = self.output_encoder(x, pathways)
+        #print("Shape: ", pathways.shape)
+        #x = torch.cat((x, pathways), dim=1)
+        if self.use_gene2vec_emb:
+            x = self.hvg_transformer(x, gene2vec_emb)
+        else:
+            x = self.hvg_transformer(x, torch.zeros((x.size(1), x.size(2))))
+        #pathways = torch.cat((x, pathways), dim=1)
+        x = self.output_encoder(x)
 
         return x
 

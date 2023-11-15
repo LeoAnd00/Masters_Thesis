@@ -33,14 +33,24 @@ class prep_data(data.Dataset):
         An AnnData object containing single-cell RNA-seq data.
     target_key : str
         The key in the adata.obs dictionary specifying the target labels.
-    json_file_path : str
-        The path to a JSON file containing pathway information (default is None).
-    num_pathways : int
-        The number of top pathways to select based on relative HVG abundance (default is None).
+    json_file_path : str, optional
+        The path to a JSON file containing pathway information (default is None). If defined as None it's not possible to use pathway information.
+    num_pathways : int, optional
+        The number of top pathways to select based on relative HVG abundance (default is None). Only used if json_file_path is given.
+    pathway_hvg_limit : int, optional
+        The minimum number of HVGs in a pathway to consider (default is 10).
+    pathways_buckets : int, optional
+        The number of buckets for binning pathway information (default is 100).
+    use_pathway_buckets : bool, optional
+        Whether to use pathway information representations as relativ percentage of active genes of a pathway and to use buckets (True). Or To simply apply the binary pathway mask on the expression levels (False) (default is False).
     HVG : bool, optional
         Whether to use highly variable genes for feature selection (default is True).
     HVGs : int, optional
         The number of highly variable genes to select (default is 4000).
+    HVG_buckets : int, optional
+        The number of buckets for binning HVG expression levels (default is 1000).
+    use_HVG_buckets : bool, optional
+        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False).
     Scaled : bool, optional
         Whether to scale the data (default is False).
     batch_keys : list, optional
@@ -54,6 +64,8 @@ class prep_data(data.Dataset):
         The target labels.
     pathway_mask : torch.Tensor
         The binary mask representing selected pathways.
+    use_gene2vec_emb : bool, optional
+        Whether to use gene2vec embbedings or not.
 
     Methods
     -------
@@ -68,10 +80,16 @@ class prep_data(data.Dataset):
                  target_key: str,
                  json_file_path: str=None, 
                  num_pathways: int=None,  
+                 pathway_hvg_limit: int=10,
+                 pathways_buckets: int=100,
+                 use_pathway_buckets: bool=True,
                  HVG: bool=True, 
-                 HVGs:int = 4000, 
+                 HVGs: int=4000, 
+                 HVG_buckets: int=1000,
+                 use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
-                 batch_keys: list=None):
+                 batch_keys: list=None,
+                 use_gene2vec_emb: bool=False):
         
         self.adata = adata
         self.target_key = target_key
@@ -80,6 +98,11 @@ class prep_data(data.Dataset):
         self.HVGs = HVGs
         self.scaled = Scaled
         self.json_file_path = json_file_path
+        self.pathways_buckets = pathways_buckets
+        self.HVG_buckets = HVG_buckets
+        self.use_pathway_buckets = use_pathway_buckets
+        self.use_HVG_buckets = use_HVG_buckets
+        self.use_gene2vec_emb = use_gene2vec_emb
 
         # Some processing depending on what's specified in the call
         if HVG:
@@ -113,6 +136,10 @@ class prep_data(data.Dataset):
 
             self.encoded_batches = [torch.tensor(batch, dtype=torch.long) for batch in self.encoded_batches]
 
+        # Convert expression level to buckets, suitable for nn.Embbeding()
+        if use_HVG_buckets:
+            self.X = self.bucketize_expression_levels_per_gene(self.X, HVG_buckets)  
+
         # Pathway information
         # Load the JSON data into a Python dictionary
         if json_file_path is not None:
@@ -124,6 +151,8 @@ class prep_data(data.Dataset):
             # Initiate a all zeros mask
             pathway_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
             # List to be filed with pathway lengths
+            num_hvgs = []
+            # List to be filed with number of hvgs per pathway
             pathway_length = []
             # List to be filed with pathway names
             pathway_names = []
@@ -135,12 +164,14 @@ class prep_data(data.Dataset):
                 for gene_idx, gene in enumerate(gene_symbols):
                     if gene in pathway:
                         pathway_mask[key_idx,gene_idx] = 1.0
+                num_hvgs.append(np.sum(pathway_mask[key_idx,:]))
 
             pathway_length = np.array(pathway_length)
-            # Filter so that there must be more than 10 HVGs
-            pathway_mask = pathway_mask[pathway_length>10,:]
-            pathway_names = np.array(pathway_names)[pathway_length>10]
-            pathway_length = pathway_length[pathway_length>10]
+            # Filter so that there must be more than pathway_hvg_limit HVGs
+            pathway_mask = pathway_mask[pathway_length>pathway_hvg_limit,:]
+            pathway_names = np.array(pathway_names)[pathway_length>pathway_hvg_limit]
+            num_hvgs = np.array(num_hvgs)[pathway_length>pathway_hvg_limit]
+            pathway_length = pathway_length[pathway_length>pathway_hvg_limit]
 
             # Realtive percentage of HVGs in each pathway
             relative_hvg_abundance = np.sum(pathway_mask, axis=1)/pathway_length
@@ -154,16 +185,115 @@ class prep_data(data.Dataset):
             #random_order = np.random.permutation(len(relative_hvg_abundance))[:num_pathways]
             #self.pathway_mask = torch.FloatTensor(pathway_mask[random_order,:])
             self.pathway_mask = torch.FloatTensor(pathway_mask[np.argsort(relative_hvg_abundance)[-num_pathways:],:])
-            self.pathway_length = torch.tensor(pathway_length[np.argsort(relative_hvg_abundance)[-num_pathways:]])
 
-            self.pathway_information = torch.tensor([])
-            for idx in range(len(self.X)):
-                # Apply pathway mask to HVGs
-                data_pathways = torch.where(self.X[idx] * self.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0))
-                data_pathways = torch.sum(data_pathways, dim=1).squeeze() / self.pathway_length
-                #data_pathways = torch.where(data_pathways != 0, torch.tensor(1.0), torch.tensor(0.0))
-                self.pathway_information = torch.cat((self.pathway_information, data_pathways.unsqueeze(0)))
+            if use_pathway_buckets:
+                self.num_hvgs = torch.tensor(num_hvgs[np.argsort(relative_hvg_abundance)[-num_pathways:]])
 
+                self.pathway_information = torch.tensor([])
+                for idx in range(len(self.X)):
+                    # Apply pathway mask to HVGs
+                    data_pathways = torch.where(self.X[idx] * self.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0))
+                    data_pathways = torch.sum(data_pathways, dim=1).squeeze() / self.num_hvgs
+                    #data_pathways = torch.where(data_pathways != 0, torch.tensor(1.0), torch.tensor(0.0))
+                    self.pathway_information = torch.cat((self.pathway_information, data_pathways.unsqueeze(0)))
+
+                # Bucketize levels, making it suitable for nn.Embedding() 
+                self.pathway_information = self.bucketize_expression_levels(self.pathway_information, pathways_buckets)
+
+        # Import gene2vec embeddings
+        if use_gene2vec_emb:
+            gene2vec_emb = pd.read_csv('../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt', sep=' ', header=None)
+            # Create a dictionary
+            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+            self.gene2vec_tensor = self.make_gene2vec_embedding()
+
+    def bucketize_expression_levels(self, expression_levels, num_buckets):
+        """
+        Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.
+
+        Parameters:
+            expression_levels: Tensor, shape [samples, num_genes]
+            num_buckets: Number of buckets to create
+
+        Returns:
+            bucketized_levels: LongTensor, shape [samples, num_genes]
+        """
+        # Apply bucketization to each gene independently
+        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
+
+        # Generate continuous thresholds
+        eps = 1e-6
+        thresholds = torch.linspace(torch.min(expression_levels) - eps, torch.max(expression_levels) + eps, steps=num_buckets + 1)
+
+        bucketized_levels = torch.bucketize(expression_levels, thresholds)
+
+        bucketized_levels -= 1
+
+        return bucketized_levels.to(torch.long)
+    
+    def bucketize_expression_levels_per_gene(self, expression_levels, num_buckets):
+        """
+        Bucketize expression levels into categories based on specified number of buckets and min/max values of each individual gene.
+
+        Parameters:
+            expression_levels: Tensor, shape [samples, num_genes]
+            num_buckets: Number of buckets to create
+
+        Returns:
+            bucketized_levels: LongTensor, shape [samples, num_genes]
+        """
+        # Apply bucketization to each gene independently
+        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
+
+        # Generate continuous thresholds
+        eps = 1e-6
+        min_values, _ = torch.min(expression_levels, dim=0)
+        max_values, _ = torch.max(expression_levels, dim=0)
+        for i in range(expression_levels.size(1)):
+            gene_levels = expression_levels[:, i]
+            min_scalar = min_values[i].item()
+            max_scalar = max_values[i].item()
+            thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
+            bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+
+        bucketized_levels -= 1
+
+        return bucketized_levels.to(torch.long)
+    
+    def make_gene2vec_embedding(self):
+        # Match correct gene2vec embeddings to correct genes
+        gene_embeddings_dic = {}
+        missing_gene_symbols = []
+        gene_symbol_list = list(self.gene2vec_dic.keys())
+        for gene_symbol in self.adata.var.index:
+            if gene_symbol in gene_symbol_list:
+                gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+            else:
+                #print(f"Gene symbol {gene_symbol} doesn't exists in embedded format")
+                missing_gene_symbols.append(gene_symbol)
+
+        #print("Number of missing gene symbols: ", len(missing_gene_symbols))
+
+        # When gene symbol doesn't have an embedding we'll simply make a one hot encoded embedding for these
+        onehot_template = torch.zeros((1,len(missing_gene_symbols)))[0] # one hot embedding template
+
+        # Add zero vector to the end of all embedded gene symbols
+        for idx, gene_symbol in enumerate(gene_embeddings_dic.keys()):
+            gene_embeddings_dic[gene_symbol] = torch.concatenate([gene_embeddings_dic[gene_symbol],onehot_template])
+        # Add the one hot encoding for missing gene symbols
+        for idx, gene_symbol in enumerate(missing_gene_symbols):
+            onehot_temp = onehot_template.copy()
+            onehot_temp[idx] = 1.0
+            gene_embeddings_dic[gene_symbol] = torch.concatenate([torch.zeros((1,200))[0],onehot_temp])
+        
+        # Convert values to a list
+        values_list = list(gene_embeddings_dic.values())
+
+        # Convert the list to a PyTorch tensor
+        gene_embeddings_tensor = torch.transpose(torch.tensor(values_list))
+
+        #print(f"Final length of embedding: {len(gene_embeddings_dic[list(gene_embeddings_dic.keys())[0]])}")
+        return gene_embeddings_tensor
 
     def __len__(self):
         """
@@ -194,28 +324,27 @@ class prep_data(data.Dataset):
 
         # Get HVG expression levels
         data_point = self.X[idx] #torch.where(self.X[idx] != 0, torch.tensor(1.0), torch.tensor(0.0)) #self.X[idx]
+
         # Get labels
         data_label = self.target[idx]
 
         if self.batch_keys is not None:
             # Get batch effect information
             batches = [encoded_batch[idx] for encoded_batch in self.encoded_batches]
-
-            if self.json_file_path is not None:
-                # Apply pathway mask to HVGs
-                data_pathways = self.pathway_information[idx]
-            else:
-                data_pathways=torch.tensor([])
-
-            return data_point, data_label, batches, data_pathways
         else:
-            if self.json_file_path is not None:
-                # Apply pathway mask to HVGs
+            batches = torch.tensor([])
+
+        if self.json_file_path is not None:
+            if self.use_pathway_buckets:
+                # Extract bucketed percentage of active genes of total possible HVGs in each pathway
                 data_pathways = self.pathway_information[idx]
             else:
-                data_pathways=torch.tensor([])
+                # Apply pathway mask to HVGs
+                data_pathways = self.X[idx] * self.pathway_mask
+        else:
+            data_pathways = torch.tensor([])
 
-            return data_point, data_label, data_pathways
+        return data_point, data_label, batches, data_pathways
 
 
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
@@ -409,6 +538,8 @@ class SNNLoss(nn.Module):
             else:
                 continue
 
+        del cosine_similarity_matrix
+
         # Calculate the weighted average loss
         weighted_losses = []
         for target in targets.unique():
@@ -461,12 +592,16 @@ class SNNLoss(nn.Module):
                     else:
                         continue
 
-                loss_ = torch.mean(torch.stack(losses))
-                loss_batches.append(loss_)
+                if losses != []:
+                    loss_ = torch.mean(torch.stack(losses))
+                    loss_batches.append(loss_)
 
                 del cosine_similarity_matrix
 
-            loss_batch = torch.mean(torch.stack(loss_batches, dim=0))
+            if loss_batches != []:
+                loss_batch = torch.mean(torch.stack(loss_batches, dim=0))
+            else:
+                loss_batch = torch.tensor([0.0]).to(self.device)
 
             loss = 0.95*loss_target + 0.05*loss_batch
 
@@ -576,45 +711,31 @@ class train_module():
             # Training
             model.train()
             train_loss = []
-            if self.batch_keys is not None:
-                #acc_grad_count = len(train_loader)
-                for data_inputs, data_labels, data_batches, data_pathways in train_loader:
+            #acc_grad_count = len(train_loader)
+            for data_inputs, data_labels, data_batches, data_pathways in train_loader:
 
-                    data_inputs = data_inputs.to(device)
-                    data_labels = data_labels.to(device)
-                    data_pathways = data_pathways.to(device)
+                data_inputs = data_inputs.to(device)
+                data_labels = data_labels.to(device)
+                data_pathways = data_pathways.to(device)
 
-                    optimizer.zero_grad()
+                optimizer.zero_grad()
+                if self.data_env.use_gene2vec_emb:
+                    preds = model(data_inputs, data_pathways, self.data_env.gene2vec_tensor)
+                else:
                     preds = model(data_inputs, data_pathways)
 
+                if self.batch_keys is not None:
                     data_batches = [batch.to(device) for batch in data_batches]
                     loss = loss_module(preds, data_labels, data_batches) #/ acc_grad_count
-
-                    loss.backward()
-                    optimizer.step()
-
-                    train_loss.append(loss.item())
-                #optimizer.step()
-                #optimizer.zero_grad()
-            else:
-                #acc_grad_count = len(train_loader)
-                for data_inputs, data_labels, data_pathways in train_loader:
-
-                    data_inputs = data_inputs.to(device)
-                    data_labels = data_labels.to(device)
-                    data_pathways = data_pathways.to(device)
-
-                    optimizer.zero_grad()
-                    preds = model(data_inputs, data_pathways)
-
+                else:
                     loss = loss_module(preds, data_labels)#/ acc_grad_count
 
-                    loss.backward()
-                    optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-                    train_loss.append(loss.item())
-                #optimizer.step()
-                #optimizer.zero_grad()
+                train_loss.append(loss.item())
+            #optimizer.step()
+            #optimizer.zero_grad()
 
             # Validation
             if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
@@ -622,33 +743,25 @@ class train_module():
                 val_loss = []
                 all_preds = []
                 with torch.no_grad():
-                    if self.batch_keys is not None:
-                        for data_inputs, data_labels, data_batches, data_pathways in val_loader:
+                    for data_inputs, data_labels, data_batches, data_pathways in val_loader:
 
-                            data_inputs = data_inputs.to(device)
-                            data_labels = data_labels.to(device)
-                            data_pathways = data_pathways.to(device)
+                        data_inputs = data_inputs.to(device)
+                        data_labels = data_labels.to(device)
+                        data_pathways = data_pathways.to(device)
 
+                        if self.data_env.use_gene2vec_emb:
+                            preds = model(data_inputs, data_pathways, self.data_env.gene2vec_tensor)
+                        else:
                             preds = model(data_inputs, data_pathways)
 
+                        if self.batch_keys is not None:
                             data_batches = [batch.to(device) for batch in data_batches]
                             loss = loss_module(preds, data_labels, data_batches)
-
-                            val_loss.append(loss.item())
-                            all_preds.extend(preds.cpu().detach().numpy())
-                    else:
-                        for data_inputs, data_labels, data_pathways in val_loader:
-
-                            data_inputs = data_inputs.to(device)
-                            data_labels = data_labels.to(device)
-                            data_pathways = data_pathways.to(device)
-
-                            preds = model(data_inputs, data_pathways)
-
+                        else:
                             loss = loss_module(preds, data_labels)
 
-                            val_loss.append(loss.item())
-                            all_preds.extend(preds.cpu().detach().numpy())
+                        val_loss.append(loss.item())
+                        all_preds.extend(preds.cpu().detach().numpy())
 
                 # Metrics
                 avg_train_loss = sum(train_loss) / len(train_loss)
@@ -835,7 +948,10 @@ class train_module():
                 data_inputs = data_inputs.to(device)
                 data_pathways = data_pathways.to(device)
 
-                pred = model(data_inputs, data_pathways)
+                if self.data_env.use_gene2vec_emb:
+                    pred = model(data_inputs, data_pathways, self.data_env.gene2vec_tensor)
+                else:
+                    pred = model(data_inputs, data_pathways)
 
                 preds.extend(pred.cpu().detach().numpy())
 
@@ -847,7 +963,7 @@ class prep_test_data(data.Dataset):
 
     Parameters:
         adata (AnnData): An AnnData object containing single-cell RNA sequencing data.
-        perp_data_env: The data environment used for preprocessing training data.
+        prep_data_env: The data environment used for preprocessing training data.
 
     Attributes:
         X (Tensor): The test data features as a PyTorch tensor.
@@ -859,25 +975,87 @@ class prep_test_data(data.Dataset):
 
     """
 
-    def __init__(self, adata, perp_data_env):
+    def __init__(self, adata, prep_data_env):
         self.adata = adata
-        self.adata = self.adata[:, perp_data_env.hvg_genes].copy()
-        if perp_data_env.scaled:
-            self.adata.X = dp.scale_data(data=self.adata.X, feature_means=perp_data_env.feature_means, feature_stdevs=perp_data_env.feature_stdevs)
+        self.adata = self.adata[:, prep_data_env.hvg_genes].copy()
+        if prep_data_env.scaled:
+            self.adata.X = dp.scale_data(data=self.adata.X, feature_means=prep_data_env.feature_means, feature_stdevs=prep_data_env.feature_stdevs)
 
         self.X = self.adata.X
         self.X = torch.tensor(self.X)
-        self.json_file_path = perp_data_env.json_file_path
+        self.json_file_path = prep_data_env.json_file_path
+        self.use_pathway_buckets = prep_data_env.use_pathway_buckets
 
         # Pathway information
         if self.json_file_path is not None:
+            self.pathway_mask = prep_data_env.pathway_mask
+        if (self.json_file_path is not None) and (prep_data_env.use_pathway_buckets == True):
 
             self.pathway_information = torch.tensor([])
             for idx in range(len(self.X)):
                 # Apply pathway mask to HVGs
-                data_pathways = torch.where(self.X[idx] * perp_data_env.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0))
-                data_pathways = torch.sum(data_pathways, dim=1).squeeze() / perp_data_env.pathway_length
+                data_pathways = torch.where(self.X[idx] * prep_data_env.pathway_mask != 0, torch.tensor(1.0), torch.tensor(0.0))
+                data_pathways = torch.sum(data_pathways, dim=1).squeeze() / prep_data_env.num_hvgs
                 self.pathway_information = torch.cat((self.pathway_information, data_pathways.unsqueeze(0)))
+
+            # Bucketize levels
+            self.pathway_information = self.bucketize_expression_levels(self.pathway_information, prep_data_env.pathways_buckets)
+
+        if prep_data_env.use_HVG_buckets:
+            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
+
+    def bucketize_expression_levels(self, expression_levels, num_buckets):
+        """
+        Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.
+
+        Parameters:
+            expression_levels: Tensor, shape [samples, num_genes]
+            num_buckets: Number of buckets to create
+
+        Returns:
+            bucketized_levels: LongTensor, shape [samples, num_genes]
+        """
+        # Apply bucketization to each gene independently
+        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
+
+         # Generate continuous thresholds
+        eps = 1e-6
+        thresholds = torch.linspace(torch.min(expression_levels) - eps, torch.max(expression_levels) + eps, steps=num_buckets + 1)
+
+        bucketized_levels = torch.bucketize(expression_levels, thresholds)
+
+        bucketized_levels -= 1
+
+        return bucketized_levels.to(torch.long)
+    
+    def bucketize_expression_levels_per_gene(self, expression_levels, num_buckets):
+        """
+        Bucketize expression levels into categories based on specified number of buckets and min/max values of each individual gene.
+
+        Parameters:
+            expression_levels: Tensor, shape [samples, num_genes]
+            num_buckets: Number of buckets to create
+
+        Returns:
+            bucketized_levels: LongTensor, shape [samples, num_genes]
+        """
+        # Apply bucketization to each gene independently
+        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
+
+        # Generate continuous thresholds
+        eps = 1e-6
+        min_values, _ = torch.min(expression_levels, dim=0)
+        max_values, _ = torch.max(expression_levels, dim=0)
+        for i in range(expression_levels.size(1)):
+            gene_levels = expression_levels[:, i]
+            min_scalar = min_values[i].item()
+            max_scalar = max_values[i].item()
+            thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
+            bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+
+        bucketized_levels -= 1
+
+        return bucketized_levels.to(torch.long)
 
     def __len__(self):
         """
@@ -903,7 +1081,10 @@ class prep_test_data(data.Dataset):
         data_point = self.X[idx]
 
         if self.json_file_path is not None:
-            data_pathways = self.pathway_information[idx]
+            if self.use_pathway_buckets:
+                data_pathways = self.pathway_information[idx]
+            else:
+                data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
 

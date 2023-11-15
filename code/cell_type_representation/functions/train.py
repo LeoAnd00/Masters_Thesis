@@ -450,13 +450,17 @@ class SNNLoss(nn.Module):
                         losses.append(temp_loss)
                     else:
                         continue
-
-                loss_ = torch.mean(torch.stack(losses))
-                loss_batches.append(loss_)
+                
+                if losses != []:
+                    loss_ = torch.mean(torch.stack(losses))
+                    loss_batches.append(loss_)
 
                 del cosine_similarity_matrix
 
-            loss_batch = torch.mean(torch.stack(loss_batches, dim=0))
+            if loss_batches != []:
+                loss_batch = torch.mean(torch.stack(loss_batches, dim=0))
+            else:
+                loss_batch = torch.tensor([0.0]).to(self.device)
 
             loss = 0.95*loss_target + 0.05*loss_batch
 

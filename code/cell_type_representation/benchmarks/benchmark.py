@@ -15,10 +15,12 @@ from models import model_encoder as model_encoder
 from models import model_pathway as model_pathway
 from models import model_encoder_with_pathway_no_attention as model_encoder_with_pathway_no_attention
 from models import model_encoder_with_pathway as model_encoder_with_pathway
-from models import model_transformer_encoder as model_transformer_encoder
-from models import model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
+from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
+from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
 
-from models import model_encoderpathways as model_encoderpathways
+#from models import model_encoderpathways as model_encoderpathways
+from models import model_tokenized_pathways as model_encoderpathways
+#from models import model_NEWIDEtransformerpathways as model_encoderpathways
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -854,15 +856,27 @@ class benchmark():
         adata_in_house = self.adata.copy()
 
         #Model
-        model = model_encoderpathways.CellType2VecModel(input_dim=1000,
+        '''model = model_encoderpathways.CellType2VecModel(input_dim=300,
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
-                                                        norm_layer=nn.BatchNorm1d)
+                                                        norm_layer=nn.BatchNorm1d)'''
+        model = model_encoderpathways.CellType2VecModel(input_dim=300,
+                                                        output_dim=100,
+                                                        drop_out=0.2,
+                                                        act_layer=nn.ReLU,
+                                                        norm_layer=nn.BatchNorm1d,
+                                                        attn_embed_dim=24*4,
+                                                        num_heads=4,
+                                                        mlp_ratio=4,
+                                                        attn_bias=False,
+                                                        attn_drop_out=0.,
+                                                        depth=3,
+                                                        pathway_embedding_dim=50)
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=1000,
+                                        num_pathways=300,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1040,7 +1054,7 @@ class benchmark():
         model = model_pathway.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
                                                 attn_embed_dim=24*4,
                                                 output_dim=100,
-                                                num_pathways=30,#300,
+                                                num_pathways=300,
                                                 num_heads=4,
                                                 mlp_ratio=4,
                                                 attn_bias=False,
@@ -1052,7 +1066,7 @@ class benchmark():
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=30,#300,
+                                        num_pathways=300,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
