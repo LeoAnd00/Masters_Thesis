@@ -13,11 +13,11 @@ from functions import data_preprocessing as dp
 from functions import train2 as trainer
 from models import model_encoder as model_encoder
 from models import model_pathway as model_pathway
-from models import model_encoder_with_pathway_no_attention as model_encoder_with_pathway_no_attention
 from models import model_encoder_with_pathway as model_encoder_with_pathway
 from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
 from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
 from models import model_tokenized_pathways as model_tokenized_pathways
+from models import model_tokenized_pathways_hvg_encoder as model_tokenized_pathways_hvg_encoder
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -30,12 +30,26 @@ class benchmark():
     """
     A class for benchmarking single-cell RNA-seq data integration methods.
 
-    Parameters:
-    data_path (str): The path to the single-cell RNA-seq data file in h5ad format.
-    batch_key (str): The batch key to use for batch information. Default is "patientID".
-    HVG (bool, optional): Whether to select highly variable genes (HVGs). Default is True.
-    HVGs (int, optional): The number of highly variable genes to select if HVG is enabled. Default is 4000.
-    Scaled (bool, optional): Whether to scale the data. Default is False.
+    Parameters
+    ----------
+    data_path : str 
+        The path to the single-cell RNA-seq Anndata file in h5ad format.
+    batch_key : str, optional
+        The batch key to use for batch effect information (default is "patientID").
+    label_key : str, optional
+        The label key containing the cell type information (default is "cell_type").
+    HVG : bool, optional 
+        Whether to select highly variable genes (HVGs) (default is True).
+    HVGs : int, optional
+        The number of highly variable genes to select if HVG is enabled (default is 4000).
+    Scaled : bool, optional
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
+    seed : int, optional
+        Which random seed to use (default is 42).
+
+    Methods
+    -------
+
     """
 
     def __init__(self, 
@@ -70,10 +84,10 @@ class benchmark():
         self.metrics_in_house_model_encoder = None
         self.metrics_in_house_model_pathways = None
         self.metrics_in_house_model_encoder_pathways = None
-        self.metrics_in_house_model_encoder_with_pathways_no_attention = None
         self.metrics_in_house_model_transformer_encoder = None
         self.metrics_in_house_model_transformer_encoder_pathways = None
         self.metrics_in_house_model_tokenized_pathways = None
+        self.metrics_in_house_model_tokenized_pathways_hvg_encoder = None
         self.metrics_in_house_model_tokenized_HVG_transformer = None
 
         # Ensure reproducibility
@@ -117,6 +131,27 @@ class benchmark():
         self.batcheffect_title = 'Batch effect'
 
     def unintegrated(self, umap_plot: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of unintegrated (Not going through any model) version of single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate the quality of an unintegrated version of single-cell RNA-seq data.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the unintegrated data.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
         adata_unscaled = self.adata.copy()
 
         #sc.tl.pca(adata_unscaled, n_comps=n_comps, use_highly_variable=True)
@@ -161,6 +196,29 @@ class benchmark():
         del adata_unscaled
 
     def pca(self, n_comps: int=50, umap_plot: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of PCA on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        n_comps : int, optional
+            Number of components to retrieve from PCA.
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
         adata_pca = self.adata.copy()
 
         sc.tl.pca(adata_pca, n_comps=n_comps, use_highly_variable=True)
@@ -206,9 +264,26 @@ class benchmark():
 
     def scanorama(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        SCANORAMA version 1.7.4: https://github.com/brianhie/scanorama
-        """
+        Evaluate and visualization on performance of SCANORAMA (version 1.7.4: https://github.com/brianhie/scanorama) on single-cell RNA-seq data.
 
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
         # import package
         import scanorama
 
@@ -263,7 +338,25 @@ class benchmark():
 
     def harmony(self, n_comps: int=30, umap_plot: bool=True, save_figure: bool=False):
         """
-        Harmony version 0.1.7: https://github.com/lilab-bcb/harmony-pytorch
+        Evaluate and visualization on performance of Harmony (version 0.1.7: https://github.com/lilab-bcb/harmony-pytorch) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         # import package
         from harmony import harmonize
@@ -315,7 +408,25 @@ class benchmark():
 
     def scvi(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        scVI version 1.0.4: https://github.com/scverse/scvi-tools
+        Evaluate and visualization on performance of scVI (version 1.0.4: https://github.com/scverse/scvi-tools) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         # import package
         import scvi
@@ -370,7 +481,25 @@ class benchmark():
 
     def scanvi(self, umap_plot: bool=True, vae=None, save_figure: bool=False):
         """
-        scANVI version 1.0.4: https://github.com/scverse/scvi-tools
+        Evaluate and visualization on performance of scANVI (version 1.0.4: https://github.com/scverse/scvi-tools) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         # import package
         import scvi
@@ -432,7 +561,25 @@ class benchmark():
 
     def scgen(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        scGen version 2.1.1: https://github.com/theislab/scgen 
+        Evaluate and visualization on performance of scGen (version 2.1.1: https://github.com/theislab/scgen) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         from scgen import SCGEN
 
@@ -491,7 +638,25 @@ class benchmark():
 
     def combat(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        ComBat (Scanpy version 1.9.5): https://scanpy.readthedocs.io/en/stable/generated/scanpy.pp.combat.html
+        Evaluate and visualization on performance of ComBat (Scanpy version 1.9.5: https://scanpy.readthedocs.io/en/stable/generated/scanpy.pp.combat.html) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         adata_combat = self.adata.copy()
         corrected_data = sc.pp.combat(adata_combat, key="batch", inplace=False)
@@ -539,7 +704,25 @@ class benchmark():
 
     def desc(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        DESC version 2.1.1: https://github.com/eleozzr/desc
+        Evaluate and visualization on performance of DESC (version 2.1.1: https://github.com/eleozzr/desc) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         import desc
         import os
@@ -608,7 +791,25 @@ class benchmark():
 
     def bbknn(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        BBKNN version 1.6.0: https://github.com/Teichlab/bbknn
+        Evaluate and visualization on performance of BBKNN (version 1.6.0: https://github.com/Teichlab/bbknn) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         import bbknn
 
@@ -664,7 +865,25 @@ class benchmark():
 
     def tosica(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        TOSICA: https://github.com/JackieHanLab/TOSICA/tree/main
+        Evaluate and visualization on performance of TOSICA (https://github.com/JackieHanLab/TOSICA/tree/main) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         import TOSICA
 
@@ -720,7 +939,25 @@ class benchmark():
 
     def fastmnn(self, umap_plot: bool=True, save_figure: bool=False):
         """
-        FastMNN version 0.1.9.5: https://github.com/chriscainx/mnnpy
+        Evaluate and visualization on performance of FastMNN (version 0.1.9.5: https://github.com/chriscainx/mnnpy) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         adata_mnn = self.adata.copy()
 
@@ -841,16 +1078,29 @@ class benchmark():
 
     def in_house_model_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         adata_in_house = self.adata.copy()
 
@@ -883,7 +1133,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -894,7 +1145,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -938,16 +1189,29 @@ class benchmark():
 
     def in_house_model_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the model_pathway.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
         adata_in_house = self.adata.copy()
@@ -988,7 +1252,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -999,7 +1264,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1041,117 +1306,32 @@ class benchmark():
 
         del adata_in_house
 
-    def in_house_model_encoder_pathways_no_attention(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Model description
-
-        Parameters:
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        """
-
-        adata_in_house = self.adata.copy()
-
-        #Model
-        model = model_encoder_with_pathway_no_attention.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
-                                                output_dim=100,
-                                                num_pathways=1000,
-                                                drop_ratio=0.2,
-                                                norm_layer=nn.BatchNorm1d,
-                                                pathway_embedding_dim=100)
-
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=1000,
-                                        pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
-                                        save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
-                                        HVG_buckets=1000,
-                                        use_HVG_buckets=False,
-                                        Scaled=False,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
-        
-        # Train
-        if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=42,
-                                batch_size=256,
-                                loss_with_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
-                                eval_freq=4,
-                                epochs=20,
-                                earlystopping_threshold=3)
-        
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.metrics_in_house_model_encoder_with_pathways_no_attention = scib.metrics.metrics(
-            self.adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_no_attention_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_no_attention_batch_effect.svg")
-
-        del adata_in_house
 
     def in_house_model_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the model_encoder_with_pathway.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
         adata_in_house = self.adata.copy()
@@ -1194,7 +1374,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -1205,7 +1386,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1249,16 +1430,29 @@ class benchmark():
 
     def in_house_model_transformer_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the CustomScaler_model_transformer_encoder.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         
         adata_in_house = self.adata.copy()
@@ -1298,7 +1492,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=24,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -1309,7 +1504,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1353,16 +1548,29 @@ class benchmark():
 
     def in_house_model_transformer_encoder_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the CustomScaler_model_transformer_encoder_with_pathways.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
         
         adata_in_house = self.adata.copy()
@@ -1404,7 +1612,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=24,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -1415,7 +1624,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1459,16 +1668,29 @@ class benchmark():
     
     def in_house_model_tokenized_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the model_tokenized_pathways.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
         adata_in_house = self.adata.copy()
@@ -1511,7 +1733,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -1522,7 +1745,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1564,21 +1787,51 @@ class benchmark():
 
         del adata_in_house
 
-    def in_house_model_tokenized_HVG_transformer(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def in_house_model_tokenized_pathways_hvg_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Model description
+        Evaluate and visualization on performance of the model_tokenized_pathways_hvg_encoder.py model on single-cell RNA-seq data.
 
-        Parameters:
+        Parameters
         ----------
         save_path : str
             Path at which the model will be saved.
-        umap_plot : bool
+        umap_plot : bool, optional
             Whether to plot resulting latent space using UMAP (default: True).
-        train : bool
+        train : bool, optional
             Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
         adata_in_house = self.adata.copy()
+
+        #Model
+        patwhaybuckets = 100
+        model = model_tokenized_pathways_hvg_encoder.CellType2VecModel(input_dim=300,
+                                                                        HVG_num=4000,
+                                                                        output_dim=100,
+                                                                        drop_out=0.2,
+                                                                        act_layer=nn.ReLU,
+                                                                        norm_layer=nn.BatchNorm1d,
+                                                                        attn_embed_dim=24*4,
+                                                                        num_heads=4,
+                                                                        mlp_ratio=4,
+                                                                        attn_bias=False,
+                                                                        attn_drop_out=0.,
+                                                                        depth=3,
+                                                                        pathway_embedding_dim=50,
+                                                                        nn_tokens=patwhaybuckets)
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         json_file_path='../../data/processed/pathway_information/all_pathways.json',
@@ -1590,6 +1843,114 @@ class benchmark():
                                         HVG=False,
                                         HVGs=4000,
                                         HVG_buckets=1000,
+                                        use_HVG_buckets=False,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=False)
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                use_target_weights=True,
+                                use_batch_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_tokenized_pathways_hvg_encoder = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_Tokenized_Pathways_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_Tokenized_Pathways_Model_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_tokenized_HVG_transformer(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of the model_tokenized_hvg_transformer.py model on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool, optional
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool, optional
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+
+        adata_in_house = self.adata.copy()
+
+        patwhaybuckets = 100
+        HVG_buckets_ = 1000
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=patwhaybuckets,
+                                        use_pathway_buckets=True,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
                                         Scaled=False,
                                         target_key=self.label_key,
@@ -1597,7 +1958,6 @@ class benchmark():
                                         use_gene2vec_emb=True)
         
         #Model
-        patwhaybuckets = 100
         model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=300,
                                                         output_dim=100,
                                                         drop_out=0.2,
@@ -1610,7 +1970,7 @@ class benchmark():
                                                         attn_drop_out=0.,
                                                         depth=3,
                                                         pathway_embedding_dim=50,
-                                                        nn_tokens=patwhaybuckets,
+                                                        nn_tokens=HVG_buckets_,
                                                         nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
                                                         use_gene2vec_emb=True)
         
@@ -1620,7 +1980,8 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                loss_with_weights=True,
+                                use_target_weights=True,
+                                use_batch_weights=True,
                                 init_temperature=0.25,
                                 min_temperature=0.1,
                                 max_temperature=2.0,
@@ -1631,7 +1992,7 @@ class benchmark():
                                 epochs=20,
                                 earlystopping_threshold=3)
         
-        predictions = train_env.predict(data_=adata_in_house, out_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1675,7 +2036,21 @@ class benchmark():
 
     def make_benchamrk_results_dataframe(self, min_max_normalize: bool=False):
         """
-        Makes a dataframe called metrics that contains the performance of the different methods for multiple metrics
+        Generates a dataframe named 'metrics' containing the performance metrics of different methods.
+
+        Parameters
+        ----------
+        min_max_normalize : bool, optional
+            If True, performs min-max normalization on the metrics dataframe (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method consolidates performance metrics from various methods into a single dataframe.
+        If min_max_normalize is True, the metrics dataframe is normalized between 0 and 1.
         """
 
         calculated_metrics = []
@@ -1722,9 +2097,6 @@ class benchmark():
         if self.metrics_in_house_model_encoder_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder_pathways)
             calculated_metrics_names.append("In-house HVG Encoder with Pathways Model")
-        if self.metrics_in_house_model_encoder_with_pathways_no_attention is not None:
-            calculated_metrics.append(self.metrics_in_house_model_encoder_with_pathways_no_attention)
-            calculated_metrics_names.append("In-house HVG Encoder with Pathways (Without Attention) Model")
         if self.metrics_in_house_model_transformer_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder)
             calculated_metrics_names.append("In-house HVG Transformer Encoder Model")
@@ -1734,6 +2106,9 @@ class benchmark():
         if self.metrics_in_house_model_tokenized_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_pathways)
             calculated_metrics_names.append("In-house Tokenized Pathways Model")
+        if self.metrics_in_house_model_tokenized_pathways_hvg_encoder is not None:
+            calculated_metrics.append(self.metrics_in_house_model_tokenized_pathways_hvg_encoder)
+            calculated_metrics_names.append("In-house HVG Encoder with Tokenized Pathways Model")
         if self.metrics_in_house_model_tokenized_HVG_transformer is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer)
             calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder Model")
@@ -1783,13 +2158,61 @@ class benchmark():
         self.metrics = self.metrics.sort_values(by='Overall', ascending=False)
 
     def visualize_results(self, bg_color: str="Blues"):
+        """
+        Visualizes the performance metrics dataframe using a colored heatmap.
+
+        Parameters
+        ----------
+        bg_color : str, optional
+            The colormap for the heatmap (default is "Blues").
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method creates a styled heatmap of the performance metrics dataframe for visual inspection.
+        """
         styled_metrics = self.metrics.style.background_gradient(cmap=bg_color)
         display(styled_metrics)
 
     def save_results_as_csv(self, name: str='benchmarks/results/Benchmark_results'):
+        """
+        Saves the performance metrics dataframe as a CSV file.
+
+        Parameters
+        ----------
+        name : str, optional
+            The file path and name for the CSV file (default is 'benchmarks/results/Benchmark_results' (file name will then be Benchmark_results.csv)).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method exports the performance metrics dataframe to a CSV file.
+        """
         self.metrics.to_csv(f'{name}.csv', index=True, header=True)
 
     def read_csv(self, name: str='benchmarks/results/Benchmark_results'):
+        """
+        Reads a CSV file and updates the performance metrics dataframe.
+
+        Parameters
+        ----------
+        name : str, optional
+            The file path and name of the CSV file to read (default is 'benchmarks/results/Benchmark_results').
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method reads a CSV file containing performance metrics and updates the metrics dataframe.
+        """
         self.metrics = pd.read_csv(f'{name}.csv', index_col=0)
 
 

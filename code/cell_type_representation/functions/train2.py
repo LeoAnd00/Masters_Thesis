@@ -25,8 +25,6 @@ class prep_data(data.Dataset):
     """
     A class for preparing and handling data.
 
-    ...
-
     Parameters
     ----------
     adata : anndata.AnnData
@@ -34,13 +32,13 @@ class prep_data(data.Dataset):
     target_key : str
         The key in the adata.obs dictionary specifying the target labels.
     json_file_path : str, optional
-        The path to a JSON file containing pathway information (default is None). If defined as None it's not possible to use pathway information.
+        The path to a JSON file containing pathway/gene set information (default is None). If defined as None it's not possible to use pathway information. Needs to be defined if a model designed to use pathway information is used.
     num_pathways : int, optional
         The number of top pathways to select based on relative HVG abundance (default is None). Only used if json_file_path is given.
     pathway_hvg_limit : int, optional
-        The minimum number of HVGs in a pathway to consider (default is 10).
+        The minimum number of HVGs in a pathway for the pathway to be considered (default is 10). Only used if json_file_path is given.
     pathways_buckets : int, optional
-        The number of buckets for binning pathway information (default is 100).
+        The number of buckets for binning pathway information (default is 100). Only used if json_file_path is given and use_pathway_buckets is set to True.
     use_pathway_buckets : bool, optional
         Whether to use pathway information representations as relativ percentage of active genes of a pathway and to use buckets (True). Or To simply apply the binary pathway mask on the expression levels (False) (default is False).
     HVG : bool, optional
@@ -48,33 +46,32 @@ class prep_data(data.Dataset):
     HVGs : int, optional
         The number of highly variable genes to select (default is 4000).
     HVG_buckets : int, optional
-        The number of buckets for binning HVG expression levels (default is 1000).
+        The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True.
     use_HVG_buckets : bool, optional
-        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False).
+        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False). This option is required to be set to True if using a HVG transformer model relying on tokenization.
     Scaled : bool, optional
-        Whether to scale the data (default is False).
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
     batch_keys : list, optional
         A list of keys for batch labels (default is None).
     use_gene2vec_emb : bool, optional
-        Whether to use gene2vec representations if training the HVG Transformer model.
-
-    Attributes
-    ----------
-    X : torch.Tensor
-        The input data tensor.
-    labels : pd.Series
-        The target labels.
-    pathway_mask : torch.Tensor
-        The binary mask representing selected pathways.
-    use_gene2vec_emb : bool, optional
-        Whether to use gene2vec embbedings or not.
+        Whether to use gene2vec representations when training the HVG Transformer model relying on tokenization. use_HVG_buckets must be set to True for the use of gene2vec to work.
 
     Methods
     -------
     __len__()
         Returns the number of data points in the dataset.
+
     __getitem(idx)
         Returns a data point, its label, batch information, and selected pathways for a given index.
+
+    bucketize_expression_levels(expression_levels, num_buckets)
+        Bucketize expression levels into categories based on the specified number of buckets and absolute min/max values.
+
+    bucketize_expression_levels_per_gene(expression_levels, num_buckets)
+        Bucketize expression levels into categories based on the specified number of buckets and min/max values of each individual gene.
+
+    make_gene2vec_embedding()
+        Match correct gene2vec embeddings to correct genes and return a PyTorch tensor with gene embeddings.
     """
 
     def __init__(self, 
@@ -152,9 +149,9 @@ class prep_data(data.Dataset):
             gene_symbols = list(self.adata.var.index)
             # Initiate a all zeros mask
             pathway_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
-            # List to be filed with pathway lengths
-            num_hvgs = []
             # List to be filed with number of hvgs per pathway
+            num_hvgs = []
+            # List to be filed with pathway lengths
             pathway_length = []
             # List to be filed with pathway names
             pathway_names = []
@@ -214,11 +211,12 @@ class prep_data(data.Dataset):
         Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.
 
         Parameters:
-            expression_levels: Tensor, shape [samples, num_genes]
+            expression_levels: Tensor
             num_buckets: Number of buckets to create
 
         Returns:
-            bucketized_levels: LongTensor, shape [samples, num_genes]
+            bucketized_levels: LongTensor
+                Bucketized expression levels.
         """
         # Apply bucketization to each gene independently
         bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
@@ -227,6 +225,7 @@ class prep_data(data.Dataset):
         eps = 1e-6
         thresholds = torch.linspace(torch.min(expression_levels) - eps, torch.max(expression_levels) + eps, steps=num_buckets + 1)
 
+        # Generate buckets
         bucketized_levels = torch.bucketize(expression_levels, thresholds)
 
         bucketized_levels -= 1
@@ -238,16 +237,17 @@ class prep_data(data.Dataset):
         Bucketize expression levels into categories based on specified number of buckets and min/max values of each individual gene.
 
         Parameters:
-            expression_levels: Tensor, shape [samples, num_genes]
+            expression_levels: Tensor
             num_buckets: Number of buckets to create
 
         Returns:
-            bucketized_levels: LongTensor, shape [samples, num_genes]
+            bucketized_levels: LongTensor
+                Bucketized expression levels.
         """
         # Apply bucketization to each gene independently
         bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
 
-        # Generate continuous thresholds
+        # Generate buckets
         eps = 1e-6
         min_values, _ = torch.min(expression_levels, dim=0)
         max_values, _ = torch.max(expression_levels, dim=0)
@@ -263,6 +263,13 @@ class prep_data(data.Dataset):
         return bucketized_levels.to(torch.long)
     
     def make_gene2vec_embedding(self):
+        """
+        Match correct gene2vec embeddings to correct genes and return a PyTorch tensor with gene embeddings.
+
+        Returns:
+            gene_embeddings_tensor: PyTorch tensor
+                Tensor containing gene2vec embeddings.
+        """
         # Match correct gene2vec embeddings to correct genes
         gene_embeddings_dic = {}
         missing_gene_symbols = []
@@ -271,10 +278,7 @@ class prep_data(data.Dataset):
             if gene_symbol in gene_symbol_list:
                 gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
             else:
-                #print(f"Gene symbol {gene_symbol} doesn't exists in embedded format")
                 missing_gene_symbols.append(gene_symbol)
-
-        #print("Number of missing gene symbols: ", len(missing_gene_symbols))
 
         # When gene symbol doesn't have an embedding we'll simply make a one hot encoded embedding for these
         onehot_template = torch.zeros((1,len(missing_gene_symbols)))[0] # one hot embedding template
@@ -294,7 +298,6 @@ class prep_data(data.Dataset):
         # Convert the list to a PyTorch tensor
         gene_embeddings_tensor = torch.transpose(torch.tensor(values_list))
 
-        #print(f"Final length of embedding: {len(gene_embeddings_dic[list(gene_embeddings_dic.keys())[0]])}")
         return gene_embeddings_tensor
 
     def __len__(self):
@@ -350,24 +353,24 @@ class prep_data(data.Dataset):
 
 
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
-        """
-        From: https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
-        """
+    """
+    From: https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
+    """
 
-        def __init__(self, optimizer, warmup, max_iters):
-            self.warmup = warmup
-            self.max_num_iters = max_iters
-            super().__init__(optimizer)
+    def __init__(self, optimizer, warmup, max_iters):
+        self.warmup = warmup
+        self.max_num_iters = max_iters
+        super().__init__(optimizer)
 
-        def get_lr(self):
-            lr_factor = self.get_lr_factor(epoch=self.last_epoch)
-            return [base_lr * lr_factor for base_lr in self.base_lrs]
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
 
-        def get_lr_factor(self, epoch):
-            lr_factor = 0.5 * (1 + np.cos(np.pi * epoch / self.max_num_iters))
-            if epoch <= self.warmup:
-                lr_factor *= epoch * 1.0 / self.warmup
-            return lr_factor
+    def get_lr_factor(self, epoch):
+        lr_factor = 0.5 * (1 + np.cos(np.pi * epoch / self.max_num_iters))
+        if epoch <= self.warmup:
+            lr_factor *= epoch * 1.0 / self.warmup
+        return lr_factor
         
 
 class EarlyStopping():
@@ -397,20 +400,22 @@ class EarlyStopping():
             self.counter = 0
     
 
-class SNNLoss(nn.Module):
+class CustomSNNLoss(nn.Module):
     """
-    Soft Nearest Neighbor Loss
+    A Custom Soft Nearest Neighbor Loss used for training the machine learning models.
 
-    This PyTorch loss function computes the Soft Nearest Neighbor (SNN) loss for a given set of input vectors and their corresponding targets. The SNN loss encourages the similarity between vectors of the same class while discouraging the similarity between vectors of different classes.
+    This PyTorch loss function computes the Soft Nearest Neighbor (SNN) loss in such a way that the clustering of samples of the same cell type is reinforced while at the same time promoting the creation of noise in terms of batch effect properties in each cell type cluster.
 
     Parameters
     ----------
-    use_weights : bool, optional
-        If True, calculate class weights based on label frequency (default is True).
+    use_target_weights : bool, optional
+        If True, calculate target weights based on label frequency (default is True).
+    use_batch_weights : bool, optional
+        If True, calculate class weights for specified batch effects based on label frequency (default is True).   
     targets : Tensor, optional
-        A tensor containing the class labels for the input vectors. Required if use_weights is True.
+        A tensor containing the class labels for the input vectors. Required if use_target_weights is True.
     batches : Tensor, optional
-        A list of tensors containing the batch effect labels.
+        A list of tensors containing the batch effect labels. Required if use_batch_weights is True.
     batch_keys : list, optional
         A list containing batch keys to account for batch effects (default is None).
     temperature : float, optional
@@ -422,23 +427,6 @@ class SNNLoss(nn.Module):
     device : str, optional
         Which device to be used (default is "cuda").
 
-    Attributes
-    ----------
-    temperature_target : nn.Parameter
-        A parameter for the temperature value to be optimized during training.
-    temperatures_batches : list
-        List of temperature values for different batches.
-    min_temperature : float
-        The minimum temperature value allowed during optimization.
-    max_temperature : float
-        The maximum temperature value allowed during optimization.
-    use_weights : bool
-        Whether to calculate class weights based on label frequency.
-    batch_keys : list
-        List of batch keys to account for batch effects.
-    weight : dict
-        Class weights based on label frequency.
-
     Methods
     -------
     calculate_class_weights(targets)
@@ -448,18 +436,18 @@ class SNNLoss(nn.Module):
     """
 
     def __init__(self, 
-                 use_weights: bool=True, 
+                 use_target_weights: bool=True, 
+                 use_batch_weights: bool=True, 
                  targets=None, 
-                 batches=None,
+                 batches: list=None,
                  batch_keys: list=None, 
                  temperature: float=0.25, 
                  min_temperature: float=0.1,
                  max_temperature: float=1.0,
                  device: str="cuda"):
-        super(SNNLoss, self).__init__()
+        super(CustomSNNLoss, self).__init__()
         
         # Define temperature variables to be optimized durring training
-        #self.temperature = temperature
         self.temperature_target = nn.Parameter(torch.tensor(temperature), requires_grad=True) 
         if batch_keys is not None:
             self.temperatures_batches = []
@@ -471,15 +459,17 @@ class SNNLoss(nn.Module):
         self.min_temperature = min_temperature
         self.max_temperature = max_temperature
         self.device = device
-        self.use_weights = use_weights
+        self.use_target_weights = use_target_weights
+        self.use_batch_weights = use_batch_weights
         self.batch_keys = batch_keys
 
         # Calculate weights for the loss based on label frequency
-        if self.use_weights:
+        if self.use_target_weights:
             if targets is not None:
                 self.weight_target = self.calculate_class_weights(targets)
             else:
-                raise ValueError("'use_weights' is True, but 'targets' is not provided.")
+                raise ValueError("'use_target_weights' is True, but 'targets' is not provided.")
+        if self.use_batch_weights: 
             if batch_keys is not None:
                 self.weight_batch = []
                 for i in range(len(batch_keys)):
@@ -532,7 +522,7 @@ class SNNLoss(nn.Module):
         elif self.temperature_target.item() >= self.max_temperature:
             self.temperature_target.data = torch.tensor(self.max_temperature)
 
-        # Calculate the cosine similarity matrix
+        # Calculate the cosine similarity matrix, and also apply exp()
         cosine_similarity_matrix = torch.exp(F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperature_target)
 
         # Define a loss dictionary containing the loss of each label
@@ -549,29 +539,30 @@ class SNNLoss(nn.Module):
 
         del cosine_similarity_matrix
 
-        # Calculate the weighted average loss
+        # Calculate the weighted average loss of each cell type
         weighted_losses = []
         for target in targets.unique():
             losses_for_target = loss_dict[str(target)]
             # Make sure there's values in losses_for_target of given target
             if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
-                if self.use_weights:
+                if self.use_target_weights:
                     weighted_loss = torch.mean(losses_for_target) * self.weight_target[int(target)]
                 else:
                     weighted_loss = torch.mean(losses_for_target)
 
                 weighted_losses.append(weighted_loss)
 
+        # Calculate the mean loss accross cell types
         loss_target = torch.mean(torch.stack(weighted_losses))
 
-        ### Batch loss
+        ### Batch effect loss
 
         if batches is not None:
 
             loss_batches = []
             for outer_idx, batch in enumerate(batches):
 
-                # Calculate the cosine similarity matrix
+                # Calculate the cosine similarity matrix, and also apply exp()
                 cosine_similarity_matrix = torch.exp(F.cosine_similarity(input.unsqueeze(1), input.unsqueeze(0), dim=2) / self.temperatures_batches[outer_idx])
 
                 # Define a loss dictionary containing the loss of each label
@@ -587,18 +578,19 @@ class SNNLoss(nn.Module):
                         loss = (-torch.log(positiv_sum / (positiv_sum + negativ_sum)))**-1
                         loss_dict[str(target_batch)] = torch.cat((loss_dict[str(target_batch)], loss.unsqueeze(0)))
 
+                # Calculate the weighted average loss of each batch effect
                 losses = []
                 for batch_target in batch.unique():
                     losses_for_target = loss_dict[str(batch_target)]
                     # Make sure there's values in losses_for_target of given batch effect
                     if (len(losses_for_target) > 0) and (torch.any(torch.isnan(losses_for_target))==False):
-                        #temp_loss = torch.mean(losses_for_target)
-                        if self.use_weights:
+                        if self.use_batch_weights:
                             temp_loss = torch.mean(losses_for_target) * self.weight_batch[outer_idx][int(batch_target)]
                         else:
                             temp_loss = torch.mean(losses_for_target)
                         losses.append(temp_loss)
 
+                # Only use loss if it was possible to caluclate it from previous steps
                 if losses != []:
                     loss_ = torch.mean(torch.stack(losses))
                     loss_batches.append(loss_)
@@ -610,6 +602,7 @@ class SNNLoss(nn.Module):
             else:
                 loss_batch = torch.tensor([0.0]).to(self.device)
 
+            # Apply weights to the two loss contributions
             loss = 0.9*loss_target + 0.1*loss_batch
 
             return loss
@@ -619,7 +612,7 @@ class SNNLoss(nn.Module):
 
 class train_module():
     """
-    A class for training the machine learning model using single-cell RNA sequencing data as input.
+    A class for training the machine learning model using single-cell RNA sequencing data as input and/or pathway/gene set information.
 
     Parameters
     ----------
@@ -630,30 +623,30 @@ class train_module():
         Path to the JSON file containing metadata and pathway information.
     num_pathways : int
         The number of pathways in the dataset.
-    pathway_hvg_limit : int, optional
-        The minimum number of HVGs in a pathway to consider (default is 10).
-    pathways_buckets : int, optional
-        The number of buckets for binning pathway information (default is 200).
-    use_pathway_buckets : bool, optional
-        Whether to use pathway information representations as relativ percentage of active genes of a pathway and to use buckets (True). Or To simply apply the binary pathway mask on the expression levels (False) (default is False).
     save_model_path : str
         The path to save the trained model.
+    pathway_hvg_limit : int, optional
+        The minimum number of HVGs in a pathway for the pathway to be considered (default is 10). Only used if json_file_path is given.
+    pathways_buckets : int, optional
+        The number of buckets for binning pathway information (default is 200). Only used if json_file_path is given and use_pathway_buckets is set to True.
+    use_pathway_buckets : bool, optional
+        Whether to use pathway information representations as relativ percentage of active genes of a pathway and to use buckets (True). Or To simply apply the binary pathway mask on the expression levels (False) (default is False).
     HVG : bool, optional
         Whether to identify highly variable genes (HVGs) in the data (default is True).
     HVGs : int, optional
         The number of highly variable genes to select (default is 4000).
     HVG_buckets : int, optional
-        The number of buckets for binning HVG expression levels (default is 1000).
+        The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True.
     use_HVG_buckets : bool, optional
-        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False).
+        Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False). This option is required to be set to True if using a HVG transformer model relying on tokenization.
     Scaled : bool, optional
-        Whether to scale (normalize) the data before training (default is False).
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
     target_key : str, optional
         The metadata key specifying the target variable (default is "cell_type").
     batch_keys : list, optional
         List of batch keys to account for batch effects (default is None).
     use_gene2vec_emb : bool, optional
-        Whether to use gene2vec representations if training the HVG Transformer model.
+        Whether to use gene2vec representations when training the HVG Transformer model relying on tokenization. use_HVG_buckets must be set to True for the use of gene2vec to work.
     """
 
     def __init__(self, 
@@ -826,7 +819,8 @@ class train_module():
                  device: str=None,
                  seed: int=42,
                  batch_size: int=256,
-                 loss_with_weights: bool=True,
+                 use_target_weights: bool=True,
+                 use_batch_weights: bool=True,
                  init_temperature: float=0.25,
                  min_temperature: float=0.1,
                  max_temperature: float=1.0,
@@ -849,8 +843,10 @@ class train_module():
             Random seed for ensuring reproducibility (default is 42).
         batch_size : int, optional
             Batch size for data loading during training (default is 256).
-        loss_with_weights : bool, optional
-            Whether to use weights in the loss function (default is True).
+        use_target_weights : bool, optional
+            If True, calculate target weights based on label frequency (default is True).
+        use_batch_weights : bool, optional
+            If True, calculate class weights for specified batch effects based on label frequency (default is True).   
         init_temperature : float, optional
             Initial temperature for the loss function (default is 0.25).
         min_temperature : float, optional
@@ -860,9 +856,9 @@ class train_module():
         init_lr : float, optional
             Initial learning rate for the optimizer (default is 0.001).
         lr_scheduler_warmup : int, optional
-            Number of warm-up iterations for the learning rate scheduler (default is 4).
+            Number of warm-up iterations for the cosine learning rate scheduler (default is 4).
         lr_scheduler_maxiters : int, optional
-            Maximum number of iterations for the learning rate scheduler (default is 25).
+            Maximum number of iterations for the cosine learning rate scheduler (default is 25).
         eval_freq : int, optional
             Rate at which the model is evaluated on validation data (default is 2).
         epochs : int, optional
@@ -903,7 +899,7 @@ class train_module():
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Number of parameters: {total_params}")
 
-        loss_module = SNNLoss(use_weights=loss_with_weights, targets=torch.tensor(self.data_env.target), batches=self.data_env.encoded_batches, batch_keys=self.batch_keys, temperature=init_temperature, min_temperature=min_temperature, max_temperature=max_temperature)
+        loss_module = CustomSNNLoss(use_target_weights=use_target_weights, use_batch_weights=use_batch_weights, targets=torch.tensor(self.data_env.target), batches=self.data_env.encoded_batches, batch_keys=self.batch_keys, temperature=init_temperature, min_temperature=min_temperature, max_temperature=max_temperature)
         #optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=5e-5)
         optimizer = optim.Adam([{'params': model.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
         lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
@@ -935,7 +931,7 @@ class train_module():
         return all_preds
     
     
-    def predict(self, data_, out_path: str, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, batch_size: int=32, device: str=None):
         """
         Generate latent represntations for data using the trained model.
 
@@ -943,7 +939,7 @@ class train_module():
         ----------
         data_ : AnnData
             An AnnData object containing data for prediction.
-        out_path : str
+        model_path : str
             The path to the directory where the trained model is saved.
         batch_size : int, optional
             Batch size for data loading during prediction (default is 32).
@@ -952,7 +948,7 @@ class train_module():
 
         Returns
         -------
-        preds : ndarray
+        preds : np.array
             Array of predicted latent embeddings.
         """
 
@@ -963,7 +959,7 @@ class train_module():
         else:
             device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        model = torch.load(f'{out_path}model.pt')
+        model = torch.load(f'{model_path}model.pt')
         model.to(device)
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
@@ -990,17 +986,23 @@ class prep_test_data(data.Dataset):
     PyTorch Dataset for preparing test data for the machine learning model.
 
     Parameters:
-        adata (AnnData): An AnnData object containing single-cell RNA sequencing data.
-        prep_data_env: The data environment used for preprocessing training data.
-
-    Attributes:
-        X (Tensor): The test data features as a PyTorch tensor.
-        pathway_mask (Tensor): Pathway information used in the data.
+        adata : AnnData
+            An AnnData object containing single-cell RNA sequencing data.
+        prep_data_env 
+            The data environment used for preprocessing training data.
 
     Methods:
-        __len__(): Returns the number of data samples.
-        __getitem__(idx): Retrieves a specific data sample by index.
+        __len__()
+            Returns the number of data samples.
 
+        __getitem__(idx) 
+            Retrieves a specific data sample by index.
+
+        bucketize_expression_levels(expression_levels, num_buckets)
+            Bucketize expression levels into categories based on the specified number of buckets and absolute min/max values.
+
+        bucketize_expression_levels_per_gene(expression_levels, num_buckets)
+            Bucketize expression levels into categories based on the specified number of buckets and min/max values of each individual gene.
     """
 
     def __init__(self, adata, prep_data_env):
@@ -1027,9 +1029,11 @@ class prep_test_data(data.Dataset):
                 self.pathway_information = torch.cat((self.pathway_information, data_pathways.unsqueeze(0)))
 
             # Bucketize levels
+            self.training_expression_levels = prep_data_env.pathway_information
             self.pathway_information = self.bucketize_expression_levels(self.pathway_information, prep_data_env.pathways_buckets)
 
         if prep_data_env.use_HVG_buckets:
+            self.training_expression_levels = prep_data_env.X
             self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
 
     def bucketize_expression_levels(self, expression_levels, num_buckets):
@@ -1048,7 +1052,7 @@ class prep_test_data(data.Dataset):
 
          # Generate continuous thresholds
         eps = 1e-6
-        thresholds = torch.linspace(torch.min(expression_levels) - eps, torch.max(expression_levels) + eps, steps=num_buckets + 1)
+        thresholds = torch.linspace(torch.min(self.training_expression_levels) - eps, torch.max(self.training_expression_levels) + eps, steps=num_buckets + 1)
 
         bucketized_levels = torch.bucketize(expression_levels, thresholds)
 
@@ -1072,8 +1076,8 @@ class prep_test_data(data.Dataset):
 
         # Generate continuous thresholds
         eps = 1e-6
-        min_values, _ = torch.min(expression_levels, dim=0)
-        max_values, _ = torch.max(expression_levels, dim=0)
+        min_values, _ = torch.min(self.training_expression_levels, dim=0)
+        max_values, _ = torch.max(self.training_expression_levels, dim=0)
         for i in range(expression_levels.size(1)):
             gene_levels = expression_levels[:, i]
             min_scalar = min_values[i].item()
