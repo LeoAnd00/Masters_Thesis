@@ -18,7 +18,7 @@ class CustomScaleModule(torch.nn.Module):
         self.out_features = out_features
         self.weight = Parameter(torch.empty((in_features, out_features)))
         if bias:
-            self.bias = Parameter(torch.empty(in_features, out_features))
+            self.bias = Parameter(torch.empty(in_features))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -34,10 +34,8 @@ class CustomScaleModule(torch.nn.Module):
             init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input):
-
-        input = input.unsqueeze(2).expand(-1, -1, self.out_features)
-
         output = input * self.weight
+        output = torch.sum(output, dim=2)
         if self.bias is not None:
             output += self.bias
 
@@ -77,7 +75,6 @@ class MultiheadAttention(nn.Module):
         self.head_dim = embed_dim // num_heads
 
         self.qkv_proj = nn.Linear(input_dim, 3*embed_dim, bias=attn_bias)
-        #self.qkv_proj = CustomScaleModule(input_dim, 3*embed_dim, bias=attn_bias) # Use when having a vector input instead of matrix
         self.o_proj = nn.Linear(embed_dim, output_dim)
         self.attn_dropout1 = nn.Dropout(attn_drop_out)
 
@@ -93,7 +90,6 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, x, return_attention=False):
         batch_size, seq_length, _ = x.size()
-        #batch_size, seq_length = x.size() # Use when having a vector input instead of matrix
         qkv = self.qkv_proj(x)#.to_sparse()
 
         # Separate Q, K, V from linear output
@@ -240,6 +236,8 @@ class AttentionBlock(nn.Module):
         
         self.linear_out = nn.Linear(output_dim,1)
         self.linear_out2 = nn.Linear(output_dim,1)
+        #self.linear_out = CustomScaleModule(num_pathways,output_dim)
+        #self.linear_out2 = CustomScaleModule(num_pathways,output_dim) 
 
     def forward(self, x):
         """

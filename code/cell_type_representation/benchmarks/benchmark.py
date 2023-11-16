@@ -19,6 +19,7 @@ from models import CustomScaler_model_transformer_encoder_with_pathways as model
 from models import model_tokenized_pathways as model_tokenized_pathways
 from models import model_tokenized_pathways_hvg_encoder as model_tokenized_pathways_hvg_encoder
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
+from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -89,6 +90,7 @@ class benchmark():
         self.metrics_in_house_model_tokenized_pathways = None
         self.metrics_in_house_model_tokenized_pathways_hvg_encoder = None
         self.metrics_in_house_model_tokenized_HVG_transformer = None
+        self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -1942,7 +1944,7 @@ class benchmark():
         HVG_buckets_ = 1000
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        json_file_path=None,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
                                         pathways_buckets=patwhaybuckets,
@@ -1958,7 +1960,7 @@ class benchmark():
                                         use_gene2vec_emb=True)
         
         #Model
-        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=300,
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=4000,
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
@@ -1969,7 +1971,6 @@ class benchmark():
                                                         attn_bias=False,
                                                         attn_drop_out=0.,
                                                         depth=3,
-                                                        pathway_embedding_dim=50,
                                                         nn_tokens=HVG_buckets_,
                                                         nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
                                                         use_gene2vec_emb=True)
@@ -2031,6 +2032,132 @@ class benchmark():
             sc.tl.umap(adata_in_house)
             sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_cell_type.svg")
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_batch_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_tokenized_HVG_transformer_with_tokenized_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool, optional
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool, optional
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+
+        adata_in_house = self.adata.copy()
+
+        patwhaybuckets = 100
+        HVG_buckets_ = 1000
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        num_pathways=300,
+                                        pathway_hvg_limit=10,
+                                        pathways_buckets=patwhaybuckets,
+                                        use_pathway_buckets=True,
+                                        save_model_path=save_path,
+                                        HVG=False,
+                                        HVGs=4000,
+                                        HVG_buckets=HVG_buckets_,
+                                        use_HVG_buckets=True,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=True)
+        
+        #Model
+        model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=4000,
+                                                                    output_dim=100,
+                                                                    num_pathways=300,
+                                                                    drop_out=0.2,
+                                                                    act_layer=nn.ReLU,
+                                                                    norm_layer=nn.BatchNorm1d,
+                                                                    attn_embed_dim=24*4,
+                                                                    num_heads=4,
+                                                                    mlp_ratio=4,
+                                                                    attn_bias=False,
+                                                                    attn_drop_out=0.,
+                                                                    depth=3,
+                                                                    pathway_embedding_dim=50,
+                                                                    nn_tokens=HVG_buckets_,
+                                                                    nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
+                                                                    use_gene2vec_emb=True)
+                    
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=42,
+                                batch_size=256,
+                                use_target_weights=True,
+                                use_batch_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=25,
+                                eval_freq=4,
+                                epochs=20,
+                                earlystopping_threshold=3)
+        
+        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways = scib.metrics.metrics(
+            self.adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_with_Tokenized_Pathways_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_with_Tokenized_Pathways_Model_batch_effect.svg")
 
         del adata_in_house
 
@@ -2112,6 +2239,9 @@ class benchmark():
         if self.metrics_in_house_model_tokenized_HVG_transformer is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer)
             calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder Model")
+        if self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways is not None:
+            calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways)
+            calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder with Tokenized Pathways Model")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")
