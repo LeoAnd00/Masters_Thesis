@@ -466,7 +466,7 @@ class CellType2VecModel(nn.Module):
     output_encoder : OutputEncoder
         The Output Encoder component for generating cell type embeddings.
     pathway_transformer: PathwayTransformer
-        Transformer for pathway information.
+        Transformer for tokenized pathway information.
 
     Methods
     -------

@@ -7,6 +7,7 @@ from torch.nn import init
 import pandas as pd
 
 
+
 class CustomScaleModule(torch.nn.Module):
     """
     Inspired by the nn.Linear function: https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear 
@@ -19,7 +20,7 @@ class CustomScaleModule(torch.nn.Module):
         self.out_features = out_features
         self.weight = Parameter(torch.empty((in_features, out_features)))
         if bias:
-            self.bias = Parameter(torch.empty(in_features, out_features))
+            self.bias = Parameter(torch.empty(in_features))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -36,9 +37,8 @@ class CustomScaleModule(torch.nn.Module):
 
     def forward(self, input):
 
-        input = input.unsqueeze(2).expand(-1, -1, self.out_features)
-
         output = input * self.weight
+        output = torch.sum(output, dim=2)
         if self.bias is not None:
             output += self.bias
 
@@ -241,6 +241,10 @@ class AttentionBlock(nn.Module):
         
         self.linear_out = nn.Linear(output_dim,1)
         self.linear_out2 = nn.Linear(output_dim,1)
+        
+        ### TRY USING BELOW COMMAND ###
+        #self.linear_out = CustomScaleModule(output_dim,num_pathways) # Unsure about second dimension here
+        #self.linear_out2 = CustomScaleModule(output_dim,num_pathways) # Unsure about second dimension here
 
     def forward(self, x):
         """
@@ -277,7 +281,7 @@ class HVGTransformer(nn.Module):
     ----------
     attn_embed_dim : int
         The embedding dimension for the attention mechanism.
-    HVGs : int
+    num_HVGs : int
         The number of highly variable genes.
     num_pathways : int
         The number of pathways to consider.
