@@ -496,7 +496,7 @@ class automatic_preprocessing():
         normalized_counts.to_csv(f"{name}.csv")
         norm_qc_adata.write(f"{name}_adata.h5ad")
 
-        del adata, qc_adata, norm_qc_adata
+        del adata, qc_adata, norm_qc_adata, HVG_data
 
     def cell_labeling(self, RScript_path: str, name: str, args: list, output_path: str):
         """
@@ -519,7 +519,7 @@ class automatic_preprocessing():
 
         norm_qc_adata.write(output_path)
 
-        del norm_qc_adata
+        del norm_qc_adata, labels
 
         # Remove temporary files
         os.remove(f"{name}.csv")
@@ -813,6 +813,11 @@ class pancreas_1(automatic_preprocessing):
         self.res = res
 
     def QC_filter_(self):
+
+        RScript_path = 'functions\pancreas_to_csv.R'
+        cmd = ['Rscript', RScript_path]
+        subprocess.call(cmd, shell=True)
+
         # Path of data
         path = '../../../data/raw/pancreas_human/'
         adata = sc.read_csv(filename = path + 'pancreas_human.csv').T
