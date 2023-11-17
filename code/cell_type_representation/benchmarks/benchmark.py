@@ -421,7 +421,8 @@ class benchmark():
 
         Returns
         -------
-        None
+        vae : The trained scVI model
+            Returns the trained scVI model, which can be used as input to the scANVI to save time if one intends to run both scVI and scANVI.
 
         Notes
         -----
@@ -489,6 +490,8 @@ class benchmark():
         ----------
         umap_plot : bool, optional
             If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        vae : scVI model
+            If you've already trained the scVI model you can use it as input to scANVI here.
         save_figure : bool, optional
             If True, save UMAP plots as SVG files (default is False).
 
