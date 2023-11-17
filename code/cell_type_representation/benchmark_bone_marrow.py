@@ -51,14 +51,23 @@ def main(data_path):
     print("**Start benchmarking In-house Encoder with Pathways method**")
     benchmark_env.in_house_model_encoder_pathways(save_path='trained_models/Bone_marrow/Encoder_with_Pathways/', train=False, umap_plot=False, save_figure=True)
 
-    print("**Start benchmarking In-house Encoder with Pathways (Without Attention) method**")
-    benchmark_env.in_house_model_encoder_pathways_no_attention(save_path='trained_models/Bone_marrow/Pathways_no_Attention/', train=False, umap_plot=False, save_figure=True)
-
     print("**Start benchmarking In-house Transformer on HVGs method**")
     benchmark_env.in_house_model_transformer_encoder(save_path='trained_models/Bone_marrow/Transformer_Encoder/', train=False, umap_plot=False, save_figure=True)
 
     print("**Start benchmarking In-house Transformer on HVGs and Pathways method**")
     benchmark_env.in_house_model_transformer_encoder_pathways(save_path='trained_models/Bone_marrow/Transformer_Encoder_with_Pathways/', train=False, umap_plot=False, save_figure=True)
+
+    print("**Start benchmarking In-house Transformer on Tokenized Pathways**")
+    benchmark_env.in_house_model_tokenized_pathways(save_path='trained_models/Bone_marrow/Tokenized_Pathways/', train=True, save_figure=True)
+
+    print("**Start benchmarking In-house Transformer on Tokenized Pathways + HVG Encoder**")
+    benchmark_env.in_house_model_tokenized_pathways_hvg_encoder(save_path='trained_models/Bone_marrow/HVG_Encoder_Tokenized_Pathways/', train=True, save_figure=True)
+
+    print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
+    benchmark_env.in_house_model_tokenized_HVG_transformer(save_path='trained_models/Bone_marrow/Tokenized_HVG_Transformer/', train=True, save_figure=True)
+
+    print("**Start benchmarking In-house Transformer on Tokenized HVGs + on Tokenized Pathways**")
+    benchmark_env.in_house_model_tokenized_HVG_transformer_with_tokenized_pathways(save_path='trained_models/Bone_marrow/Tokenized_HVG_Transformer_with_Pathways/', train=True, save_figure=True)
 
     benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
 
