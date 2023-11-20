@@ -948,6 +948,9 @@ class Merge():
         # Normalize
         adata = log1p_normalize(adata)
 
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/Oetjen_merged.h5ad")
 
@@ -979,6 +982,9 @@ class Merge():
 
         # Normalize
         adata = log1p_normalize(adata)
+
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
         # Download
         adata.write("../../../data/processed/immune_cells/merged/Freytag_merged.h5ad")
@@ -1013,6 +1019,9 @@ class Merge():
         # Normalize
         adata = log1p_normalize(adata)
 
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/Sun_merged.h5ad")
 
@@ -1045,6 +1054,9 @@ class Merge():
         # Normalize
         adata = log1p_normalize(adata)
 
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/10X_merged.h5ad")
 
@@ -1070,6 +1082,9 @@ class Merge():
         # Normalize
         adata = log1p_normalize(adata)
 
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
 
@@ -1094,6 +1109,9 @@ class Merge():
 
         # Normalize
         adata = log1p_normalize(adata)
+
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
         # Download
         adata.write("../../../data/processed/immune_cells/merged/Immune_cells_merged_all.h5ad")
@@ -1127,6 +1145,9 @@ class Merge():
 
         # Normalize
         adata = log1p_normalize(adata)
+
+        # Filter out unknown labeled cells
+        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
         # Download
         adata.write("../../../data/processed/kidney_cells/Muto_merged.h5ad")
