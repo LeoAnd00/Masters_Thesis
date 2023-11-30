@@ -239,12 +239,13 @@ class AttentionBlock(nn.Module):
                                           act_layer=act_layer, 
                                           drop=mlp_drop)
         
-        self.linear_out = nn.Linear(output_dim,1)
-        self.linear_out2 = nn.Linear(output_dim,1)
-        
-        ### TRY USING BELOW COMMAND ###
-        #self.linear_out = CustomScaleModule(output_dim,num_pathways) # Unsure about second dimension here
-        #self.linear_out2 = CustomScaleModule(output_dim,num_pathways) # Unsure about second dimension here
+        self.linear_out = nn.Linear(output_dim,int(output_dim/4))
+        self.act_layer_out=nn.ReLU()
+        self.linear_out2 = nn.Linear(int(output_dim/4),1)
+
+        self.linear_out_attn = nn.Linear(output_dim,int(output_dim/4))
+        self.act_layer_out_attn=nn.ReLU()
+        self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
     def forward(self, x):
         """
@@ -267,7 +268,7 @@ class AttentionBlock(nn.Module):
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
             # Essentially removes the additional dimension if it's the last attention block
-            x = self.linear_out(x).squeeze() + self.linear_out2(attn).squeeze()
+            x = self.linear_out2(self.act_layer_out(self.linear_out(x))).squeeze() + self.linear_out2_attn(self.act_layer_out_attn(self.linear_out_attn(attn))).squeeze()
         return x
 
 
@@ -486,7 +487,7 @@ class CellType2VecModel(nn.Module):
                  output_dim: int=100,
                  drop_out: float=0.2,
                  nn_embedding_dim: int=200,
-                 nn_tokens: int=1000,
+                 nn_tokens: int=300,
                  num_heads: int=4,
                  mlp_ratio: float=4.,
                  attn_bias: bool=False,
@@ -537,7 +538,9 @@ class CellType2VecModel(nn.Module):
         """
 
         # Output encoder 
-        #print("Shape: ", pathways.shape)
+        #print("Shape: ", x.shape)
+        #print("Shape: ", gene2vec_emb.shape)
+        #ksajhakdj
         #x = torch.cat((x, pathways), dim=1)
         if self.use_gene2vec_emb:
             x = self.hvg_transformer(x, gene2vec_emb)

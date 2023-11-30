@@ -376,6 +376,36 @@ class OutputEncoder(nn.Module):
         self.linear2_act = act_layer()
         self.output = nn.Linear(int(input_dim/4), output_dim)
 
+        #input_dim = input_dim
+        #self.norm_layer_in = norm_layer(int(input_dim))
+        #self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
+        #self.norm_layer1 = norm_layer(int(input_dim/2))
+        #self.linear1_act = act_layer()
+        #self.linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
+        #self.norm_layer2 = norm_layer(int(input_dim/4))
+        #self.dropout2 = nn.Dropout(drop_out)
+        #self.linear2_act = act_layer()
+        #self.linear3 = nn.Linear(int(input_dim/4), num_pathways)
+        #self.norm_layer3 = norm_layer(num_pathways)
+        #self.dropout3 = nn.Dropout(drop_out)
+        #self.linear3_act = act_layer()
+        #self.output = nn.Linear(num_pathways, output_dim)
+
+        #input_dim = input_dim
+        #self.norm_layer_in = norm_layer(int(input_dim))
+        #self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
+        #self.norm_layer1 = norm_layer(int(input_dim/2))
+        #self.linear1_act = act_layer()
+        #self.linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
+        #self.norm_layer2 = norm_layer(int(input_dim/4 + num_pathways))
+        #self.dropout2 = nn.Dropout(drop_out)
+        #self.linear2_act = act_layer()
+        #self.linear3 = nn.Linear(int(input_dim/4 + num_pathways), int((input_dim/4 + num_pathways)/2))
+        #self.norm_layer3 = norm_layer(int((input_dim/4 + num_pathways)/2))
+        #self.dropout3 = nn.Dropout(drop_out)
+        #self.linear3_act = act_layer()
+        #self.output = nn.Linear(int((input_dim/4 + num_pathways)/2), output_dim)
+
     def forward(self, x, pathways):
         x = torch.cat((x, pathways), dim=1)
 
@@ -389,6 +419,38 @@ class OutputEncoder(nn.Module):
         x = self.norm_layer2(x)
         x = self.linear2_act(x)
         x = self.output(x)
+
+        # Encoder for HVGs and pathways
+        #x = self.norm_layer_in(x)
+        #x = self.linear1(x)
+        #x = self.norm_layer1(x)
+        #x = self.linear1_act(x)
+        #x = self.dropout2(x)
+        #x = self.linear2(x)
+        #x = self.norm_layer2(x)
+        #x = self.linear2_act(x)
+        #x = self.dropout3(x)
+        #x = self.linear3(x)
+        #x += pathways
+        #x = self.norm_layer3(x)
+        #x = self.linear3_act(x)
+        #x = self.output(x)
+
+        # Encoder for HVGs and pathways
+        #x = self.norm_layer_in(x)
+        #x = self.linear1(x)
+        #x = self.norm_layer1(x)
+        #x = self.linear1_act(x)
+        #x = self.dropout2(x)
+        #x = self.linear2(x)
+        #x = torch.cat((x, pathways), dim=1)
+        #x = self.norm_layer2(x)
+        #x = self.linear2_act(x)
+        #x = self.dropout3(x)
+        #x = self.linear3(x)
+        #x = self.norm_layer3(x)
+        #x = self.linear3_act(x)
+        #x = self.output(x)
         return x
 
 class CellType2VecModel(nn.Module):

@@ -9,43 +9,6 @@ import math
 # Model using pathway information
 #
 
-
-class CustomScaleModule(torch.nn.Module):
-    """
-    Inspired by the nn.Linear function: https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear 
-    \nOne-to-one unique scaling of each input (bias if wanted) into a new space, out_features times, making a matrix output
-    """
-
-    def __init__(self, in_features: int, out_features: int, bias: bool=True):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = Parameter(torch.empty((in_features, out_features)))
-        if bias:
-            self.bias = Parameter(torch.empty(in_features, out_features))
-        else:
-            self.register_parameter('bias', None)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
-        # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
-        # https://github.com/pytorch/pytorch/issues/57109
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            init.uniform_(self.bias, -bound, bound)
-
-    def forward(self, input):
-
-        input = input.unsqueeze(2).expand(-1, -1, self.out_features)
-
-        output = input * self.weight
-        if self.bias is not None:
-            output += self.bias
-
-        return output
     
 def scaled_dot_product(q, k, v):
     """

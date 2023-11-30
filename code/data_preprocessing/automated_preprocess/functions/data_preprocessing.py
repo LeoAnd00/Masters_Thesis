@@ -831,6 +831,7 @@ class pancreas_1(automatic_preprocessing):
         adata.obs['tissue'] = ['Pancreas']*adata.n_obs
         adata.obs['species'] = ['Human']*adata.n_obs
         adata.obs['data_type'] = ['UMI']*adata.n_obs
+        adata.obs["patientID"] = adata.obs["patientID"].astype(str) + "_" + adata.obs["chemistry"].astype(str)
         thresholds = [5,5,5]
         name = "pancreas_1"
 

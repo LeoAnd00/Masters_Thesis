@@ -10,14 +10,12 @@ import tensorflow as tf
 import warnings
 from IPython.display import display
 from functions import data_preprocessing as dp
-from functions import train2 as trainer
+from functions import train as trainer
 from models import model_encoder as model_encoder
 from models import model_pathway as model_pathway
 from models import model_encoder_with_pathway as model_encoder_with_pathway
 from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
 from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
-from models import model_tokenized_pathways as model_tokenized_pathways
-from models import model_tokenized_pathways_hvg_encoder as model_tokenized_pathways_hvg_encoder
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
 
@@ -35,6 +33,12 @@ class benchmark():
     ----------
     data_path : str 
         The path to the single-cell RNA-seq Anndata file in h5ad format.
+    pathway_path: str, optional
+        The path to pathway/gene set information.
+    gene2vec_path: str, optional
+        The path to gene2vec representations.
+    image_path : str, optional
+        The path to save UMAP images.
     batch_key : str, optional
         The batch key to use for batch effect information (default is "patientID").
     label_key : str, optional
@@ -55,6 +59,9 @@ class benchmark():
 
     def __init__(self, 
                  data_path: str, 
+                 pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
+                 gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
+                 image_path: str='',
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
                  HVG: bool=True, 
@@ -68,6 +75,9 @@ class benchmark():
 
         self.adata = adata
         self.label_key = label_key
+        self.pathway_path = pathway_path
+        self.gene2vec_path = gene2vec_path
+        self.image_path = image_path
 
         # Initialize variables
         self.metrics = None
@@ -87,10 +97,8 @@ class benchmark():
         self.metrics_in_house_model_encoder_pathways = None
         self.metrics_in_house_model_transformer_encoder = None
         self.metrics_in_house_model_transformer_encoder_pathways = None
-        self.metrics_in_house_model_tokenized_pathways = None
-        self.metrics_in_house_model_tokenized_pathways_hvg_encoder = None
         self.metrics_in_house_model_tokenized_HVG_transformer = None
-        self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways = None
+        self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -192,8 +200,8 @@ class benchmark():
             sc.pl.umap(adata_unscaled, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_unscaled)
-            sc.pl.umap(adata_unscaled, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Unintegrated_cell_type.svg")
-            sc.pl.umap(adata_unscaled, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Unintegrated_batch_effect.svg")
+            sc.pl.umap(adata_unscaled, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Unintegrated_cell_type.svg")
+            sc.pl.umap(adata_unscaled, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Unintegrated_batch_effect.svg")
 
         del adata_unscaled
 
@@ -258,8 +266,8 @@ class benchmark():
             sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_pca)
-            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="PCA_cell_type.svg")
-            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="PCA_batch_effect.svg")
+            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}PCA_cell_type.svg")
+            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}PCA_batch_effect.svg")
 
 
         del adata_pca
@@ -333,8 +341,8 @@ class benchmark():
             sc.pl.umap(adata_scanorama, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_scanorama)
-            sc.pl.umap(adata_scanorama, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Scanorama_cell_type.svg")
-            sc.pl.umap(adata_scanorama, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Scanorama_batch_effect.svg")
+            sc.pl.umap(adata_scanorama, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Scanorama_cell_type.svg")
+            sc.pl.umap(adata_scanorama, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Scanorama_batch_effect.svg")
 
         del adata_scanorama
 
@@ -402,8 +410,8 @@ class benchmark():
             sc.pl.umap(adata_harmony, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_harmony)
-            sc.pl.umap(adata_harmony, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="Harmony_cell_type.svg")
-            sc.pl.umap(adata_harmony, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="Harmony_batch_effect.svg")
+            sc.pl.umap(adata_harmony, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Harmony_cell_type.svg")
+            sc.pl.umap(adata_harmony, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Harmony_batch_effect.svg")
 
 
         del adata_harmony
@@ -474,8 +482,8 @@ class benchmark():
             sc.pl.umap(adata_scvi, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_scvi)
-            sc.pl.umap(adata_scvi, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scVI_cell_type.svg")
-            sc.pl.umap(adata_scvi, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scVI_batch_effect.svg")
+            sc.pl.umap(adata_scvi, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}scVI_cell_type.svg")
+            sc.pl.umap(adata_scvi, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}scVI_batch_effect.svg")
 
 
         del adata_scvi
@@ -559,8 +567,8 @@ class benchmark():
             sc.pl.umap(adata_scANVI, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_scANVI)
-            sc.pl.umap(adata_scANVI, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scANVI_cell_type.svg")
-            sc.pl.umap(adata_scANVI, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scANVI_batch_effect.svg")
+            sc.pl.umap(adata_scANVI, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}scANVI_cell_type.svg")
+            sc.pl.umap(adata_scANVI, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}scANVI_batch_effect.svg")
 
         del adata_scANVI
 
@@ -636,8 +644,8 @@ class benchmark():
             sc.pl.umap(adata_scgen, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_scgen)
-            sc.pl.umap(adata_scgen, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="scGen_cell_type.svg")
-            sc.pl.umap(adata_scgen, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="scGen_batch_effect.svg")
+            sc.pl.umap(adata_scgen, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}scGen_cell_type.svg")
+            sc.pl.umap(adata_scgen, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}scGen_batch_effect.svg")
 
         del adata_scgen
 
@@ -702,8 +710,8 @@ class benchmark():
             sc.pl.umap(adata_combat, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_combat)
-            sc.pl.umap(adata_combat, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="ComBat_cell_type.svg")
-            sc.pl.umap(adata_combat, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="ComBat_batch_effect.svg")
+            sc.pl.umap(adata_combat, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}ComBat_cell_type.svg")
+            sc.pl.umap(adata_combat, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}ComBat_batch_effect.svg")
 
         del adata_combat
 
@@ -789,8 +797,8 @@ class benchmark():
             sc.pl.umap(adata_desc, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_desc)
-            sc.pl.umap(adata_desc, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="DESC_cell_type.svg")
-            sc.pl.umap(adata_desc, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="DESC_batch_effect.svg")
+            sc.pl.umap(adata_desc, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}DESC_cell_type.svg")
+            sc.pl.umap(adata_desc, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}DESC_batch_effect.svg")
 
         del adata_desc
 
@@ -863,8 +871,8 @@ class benchmark():
             sc.pl.umap(adata_bbknn, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_bbknn)
-            sc.pl.umap(adata_bbknn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="BBKNN_cell_type.svg")
-            sc.pl.umap(adata_bbknn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="BBKNN_batch_effect.svg")
+            sc.pl.umap(adata_bbknn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}BBKNN_cell_type.svg")
+            sc.pl.umap(adata_bbknn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}BBKNN_batch_effect.svg")
 
         del adata_bbknn
 
@@ -898,10 +906,7 @@ class benchmark():
         model_weight_path = './hGOBP_TOSICA/model-0.pth'
         new_adata = TOSICA.pre(adata_tosica, model_weight_path = model_weight_path,project='hGOBP_TOSICA', laten=True)
 
-        adata_tosica.obsm["TOSICA"] = new_adata
-
-        print(adata_tosica.obsm["TOSICA"].shape)
-        return
+        adata_tosica.obsm["TOSICA"] = new_adata.copy()
 
         del new_adata
         sc.pp.neighbors(adata_tosica, use_rep="TOSICA")
@@ -937,8 +942,8 @@ class benchmark():
             sc.pl.umap(adata_tosica, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_tosica)
-            sc.pl.umap(adata_tosica, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="TOSICA_cell_type.svg")
-            sc.pl.umap(adata_tosica, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="TOSICA_batch_effect.svg")
+            sc.pl.umap(adata_tosica, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}TOSICA_cell_type.svg")
+            sc.pl.umap(adata_tosica, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}TOSICA_batch_effect.svg")
 
         del adata_tosica
 
@@ -1014,8 +1019,8 @@ class benchmark():
             sc.pl.umap(adata_mnn, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_mnn)
-            sc.pl.umap(adata_mnn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="FastMNN_cell_type.svg")
-            sc.pl.umap(adata_mnn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="FastMNN_batch_effect.svg")
+            sc.pl.umap(adata_mnn, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}FastMNN_cell_type.svg")
+            sc.pl.umap(adata_mnn, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}FastMNN_batch_effect.svg")
 
         del adata_mnn
 
@@ -1117,11 +1122,9 @@ class benchmark():
                                               norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path=None,
+                                        pathways_file_path=None,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1130,7 +1133,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
+                                        use_gene2vec_emb=False,
+                                        gene2vec_path=self.gene2vec_path)
         
         # Train
         if train:
@@ -1187,8 +1191,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_batch_effect.svg")
 
         del adata_in_house
 
@@ -1236,11 +1240,9 @@ class benchmark():
                                                 pathway_embedding_dim=50)
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        pathways_file_path=self.pathway_path,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1249,7 +1251,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
+                                        use_gene2vec_emb=False,
+                                        gene2vec_path=self.gene2vec_path)
         
         # Train
         if train:
@@ -1306,8 +1309,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Pathways_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Pathways_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_Pathways_batch_effect.svg")
 
         del adata_in_house
 
@@ -1358,11 +1361,9 @@ class benchmark():
                                                 pathway_embedding_dim=50)
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        pathways_file_path=self.pathway_path,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1371,7 +1372,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
+                                        use_gene2vec_emb=False,
+                                        gene2vec_path=self.gene2vec_path)
         
         # Train
         if train:
@@ -1428,8 +1430,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_with_Pathways_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_with_Pathways_batch_effect.svg")
 
         del adata_in_house
 
@@ -1476,11 +1478,9 @@ class benchmark():
                                                             norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path=None,
+                                        pathways_file_path=None,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1489,7 +1489,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
+                                        use_gene2vec_emb=False,
+                                        gene2vec_path=self.gene2vec_path)
         
         # Train
         if train:
@@ -1546,8 +1547,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Transformer_Encoder_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Transformer_Encoder_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Transformer_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Transformer_Encoder_batch_effect.svg")
 
         del adata_in_house
 
@@ -1596,11 +1597,9 @@ class benchmark():
                                                                             norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        pathways_file_path=self.pathway_path,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=100,
-                                        use_pathway_buckets=False,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1609,7 +1608,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
+                                        use_gene2vec_emb=False,
+                                        gene2vec_path=self.gene2vec_path)
         
         # Train
         if train:
@@ -1666,253 +1666,11 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Transformer_Encoder_with_Pathways_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Transformer_Encoder_with_Pathways_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Transformer_Encoder_with_Pathways_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Transformer_Encoder_with_Pathways_batch_effect.svg")
 
         del adata_in_house
     
-    def in_house_model_tokenized_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Evaluate and visualization on performance of the model_tokenized_pathways.py model on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool, optional
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool, optional
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        save_figure : bool, optional
-            If True, save UMAP plots as SVG files (default is False).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-
-        adata_in_house = self.adata.copy()
-
-        #Model
-        patwhaybuckets = 100
-        model = model_tokenized_pathways.CellType2VecModel(input_dim=300,
-                                                        output_dim=100,
-                                                        drop_out=0.2,
-                                                        act_layer=nn.ReLU,
-                                                        norm_layer=nn.BatchNorm1d,
-                                                        attn_embed_dim=24*4,
-                                                        num_heads=4,
-                                                        mlp_ratio=4,
-                                                        attn_bias=False,
-                                                        attn_drop_out=0.,
-                                                        depth=3,
-                                                        pathway_embedding_dim=50,
-                                                        nn_tokens=patwhaybuckets)
-
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=300,
-                                        pathway_hvg_limit=10,
-                                        pathways_buckets=patwhaybuckets,
-                                        use_pathway_buckets=True,
-                                        save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
-                                        HVG_buckets=1000,
-                                        use_HVG_buckets=False,
-                                        Scaled=False,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
-        
-        # Train
-        if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=42,
-                                batch_size=256,
-                                use_target_weights=True,
-                                use_batch_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
-                                eval_freq=4,
-                                epochs=20,
-                                earlystopping_threshold=3)
-        
-        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.metrics_in_house_model_tokenized_pathways = scib.metrics.metrics(
-            self.adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_Pathways_Model_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_Pathways_Model_effect.svg")
-
-        del adata_in_house
-
-    def in_house_model_tokenized_pathways_hvg_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Evaluate and visualization on performance of the model_tokenized_pathways_hvg_encoder.py model on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool, optional
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool, optional
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        save_figure : bool, optional
-            If True, save UMAP plots as SVG files (default is False).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-
-        adata_in_house = self.adata.copy()
-
-        #Model
-        patwhaybuckets = 100
-        model = model_tokenized_pathways_hvg_encoder.CellType2VecModel(input_dim=300,
-                                                                        HVG_num=4000,
-                                                                        output_dim=100,
-                                                                        drop_out=0.2,
-                                                                        act_layer=nn.ReLU,
-                                                                        norm_layer=nn.BatchNorm1d,
-                                                                        attn_embed_dim=24*4,
-                                                                        num_heads=4,
-                                                                        mlp_ratio=4,
-                                                                        attn_bias=False,
-                                                                        attn_drop_out=0.,
-                                                                        depth=3,
-                                                                        pathway_embedding_dim=50,
-                                                                        nn_tokens=patwhaybuckets)
-
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
-                                        num_pathways=300,
-                                        pathway_hvg_limit=10,
-                                        pathways_buckets=patwhaybuckets,
-                                        use_pathway_buckets=True,
-                                        save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
-                                        HVG_buckets=1000,
-                                        use_HVG_buckets=False,
-                                        Scaled=False,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=False)
-        
-        # Train
-        if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=42,
-                                batch_size=256,
-                                use_target_weights=True,
-                                use_batch_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
-                                eval_freq=4,
-                                epochs=20,
-                                earlystopping_threshold=3)
-        
-        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.metrics_in_house_model_tokenized_pathways_hvg_encoder = scib.metrics.metrics(
-            self.adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_HVG_Encoder_Tokenized_Pathways_Model_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_HVG_Encoder_Tokenized_Pathways_Model_effect.svg")
-
-        del adata_in_house
 
     def in_house_model_tokenized_HVG_transformer(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
@@ -1943,15 +1701,12 @@ class benchmark():
 
         adata_in_house = self.adata.copy()
 
-        patwhaybuckets = 100
-        HVG_buckets_ = 1000
+        HVG_buckets_ = 300
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path=None,
+                                        pathways_file_path=None,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=patwhaybuckets,
-                                        use_pathway_buckets=True,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -1960,10 +1715,11 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=True)
+                                        use_gene2vec_emb=True,
+                                        gene2vec_path=self.gene2vec_path)
         
         #Model
-        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=4000,
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([4000,int(train_env.data_env.X.shape[1])]),
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
@@ -2033,12 +1789,12 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_Model_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_Tokenized_HVG_Transformer_Encoder_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_Tokenized_HVG_Transformer_Encoder_Model_batch_effect.svg")
 
         del adata_in_house
 
-    def in_house_model_tokenized_HVG_transformer_with_tokenized_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def in_house_model_tokenized_HVG_transformer_with_pathways(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
 
@@ -2067,15 +1823,12 @@ class benchmark():
 
         adata_in_house = self.adata.copy()
 
-        patwhaybuckets = 100
-        HVG_buckets_ = 1000
+        HVG_buckets_ = 300
 
         train_env = trainer.train_module(data_path=adata_in_house,
-                                        json_file_path='../../data/processed/pathway_information/all_pathways.json',
+                                        pathways_file_path=self.pathway_path,
                                         num_pathways=300,
                                         pathway_hvg_limit=10,
-                                        pathways_buckets=patwhaybuckets,
-                                        use_pathway_buckets=True,
                                         save_model_path=save_path,
                                         HVG=False,
                                         HVGs=4000,
@@ -2084,7 +1837,8 @@ class benchmark():
                                         Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
-                                        use_gene2vec_emb=True)
+                                        use_gene2vec_emb=True,
+                                        gene2vec_path=self.gene2vec_path)
         
         #Model
         model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=4000,
@@ -2128,7 +1882,7 @@ class benchmark():
         del predictions
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
-        self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways = scib.metrics.metrics(
+        self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways = scib.metrics.metrics(
             self.adata,
             adata_in_house,
             "batch", 
@@ -2159,8 +1913,8 @@ class benchmark():
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_with_Tokenized_Pathways_Model_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="InHouse_Tokenized_HVG_Transformer_Encoder_with_Tokenized_Pathways_Model_batch_effect.svg")
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_batch_effect.svg")
 
         del adata_in_house
 
@@ -2233,17 +1987,11 @@ class benchmark():
         if self.metrics_in_house_model_transformer_encoder_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_transformer_encoder_pathways)
             calculated_metrics_names.append("In-house HVG Transformer Encoder with Pathways Model")
-        if self.metrics_in_house_model_tokenized_pathways is not None:
-            calculated_metrics.append(self.metrics_in_house_model_tokenized_pathways)
-            calculated_metrics_names.append("In-house Tokenized Pathways Model")
-        if self.metrics_in_house_model_tokenized_pathways_hvg_encoder is not None:
-            calculated_metrics.append(self.metrics_in_house_model_tokenized_pathways_hvg_encoder)
-            calculated_metrics_names.append("In-house HVG Encoder with Tokenized Pathways Model")
         if self.metrics_in_house_model_tokenized_HVG_transformer is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer)
             calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder Model")
-        if self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways is not None:
-            calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer_with_tokenized_pathways)
+        if self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways is not None:
+            calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways)
             calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder with Tokenized Pathways Model")
 
         if len(calculated_metrics_names) != 0:
