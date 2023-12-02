@@ -284,6 +284,7 @@ class prep_data(data.Dataset):
         # Remove genes without a gene2vec representation
         self.adata = self.adata[:, gene_symbols_to_use].copy()
         self.X = self.adata.X
+        self.X = torch.tensor(self.X)
         self.hvg_genes = gene_symbols_to_use
 
         # Convert values to a list
@@ -747,6 +748,10 @@ class train_module():
         # Initiate EarlyStopping
         early_stopping = EarlyStopping(earlystopping_threshold)
 
+        # Define gene2vec_tensor if gene2ve is used
+        if self.data_env.use_gene2vec_emb:
+            gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
+
         # Training loop
         best_val_loss = np.inf  
         train_start = time.time()
@@ -755,32 +760,68 @@ class train_module():
             # Training
             model.train()
             train_loss = []
-            #acc_grad_count = len(train_loader)
             for data_inputs, data_labels, data_batches, data_pathways in train_loader:
 
-                data_inputs = data_inputs.to(device)
                 data_labels = data_labels.to(device)
-                data_pathways = data_pathways.to(device)
 
-                optimizer.zero_grad()
-                if self.data_env.use_gene2vec_emb:
-                    gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
-                    preds = model(data_inputs, data_pathways, gene2vec_tensor)
-                else:
-                    preds = model(data_inputs, data_pathways)
+                # Calculate the number of iterations needed
+                num_iterations = (data_inputs.shape[0] + self.batch_size_step_size - 1) // self.batch_size_step_size
 
-                if self.batch_keys is not None:
-                    data_batches = [batch.to(device) for batch in data_batches]
-                    loss = loss_module(preds, data_labels, data_batches) #/ acc_grad_count
-                else:
-                    loss = loss_module(preds, data_labels)#/ acc_grad_count
+                # Store preds without remembering gradient
+                all_train_preds = torch.tensor([]).to(device)
+                if num_iterations > 1:
+                    with torch.no_grad():
+                        for i in range(num_iterations):
+                            start_index = i * self.batch_size_step_size
+                            end_index = (i + 1) * self.batch_size_step_size if i < num_iterations - 1 else data_inputs.shape[0]
 
-                loss.backward()
+                            data_inputs_step = data_inputs[start_index:end_index,:].to(device)
+                            data_pathways_step = data_pathways[start_index:end_index,:].to(device)
+
+                            if self.data_env.use_gene2vec_emb:
+                                preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                            else:
+                                preds = model(data_inputs_step, data_pathways_step)
+
+                            all_train_preds = torch.cat((all_train_preds, preds), dim=0)
+
+                train_loss_temp = []
+                for i in range(num_iterations):
+                    start_index = i * self.batch_size_step_size
+                    end_index = (i + 1) * self.batch_size_step_size if i < num_iterations - 1 else data_inputs.shape[0]
+
+                    data_inputs_step = data_inputs[start_index:end_index,:].to(device)
+                    #data_labels_step = data_labels[start_index:end_index].to(device)
+                    data_pathways_step = data_pathways[start_index:end_index,:].to(device)
+
+                    if self.data_env.use_gene2vec_emb:
+                        preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs_step, data_pathways_step)
+                
+                    #print(f"Works {i}: ",torch.cuda.memory_allocated())
+                    #print("Works: ",torch.cuda.memory_cached())
+
+                    if num_iterations > 1:
+                        all_train_preds_temp = all_train_preds.clone()
+                        all_train_preds_temp[start_index:end_index,:] = preds
+                    else:
+                        all_train_preds_temp = preds
+
+                    if self.batch_keys is not None:
+                        data_batches = [batch.to(device) for batch in data_batches]
+                        loss = loss_module(all_train_preds_temp, data_labels, data_batches) / num_iterations
+                    else:
+                        loss = loss_module(all_train_preds_temp, data_labels) / num_iterations
+
+                    loss.backward()
+
+                    train_loss_temp.append(loss.item())
+
+                train_loss.append(np.sum(train_loss_temp))
+
                 optimizer.step()
-
-                train_loss.append(loss.item())
-            #optimizer.step()
-            #optimizer.zero_grad()
+                optimizer.zero_grad()
 
             # Validation
             if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
@@ -790,21 +831,20 @@ class train_module():
                 with torch.no_grad():
                     for data_inputs, data_labels, data_batches, data_pathways in val_loader:
 
-                        data_inputs = data_inputs.to(device)
-                        data_labels = data_labels.to(device)
-                        data_pathways = data_pathways.to(device)
+                        data_inputs_step = data_inputs.to(device)
+                        data_labels_step = data_labels.to(device)
+                        data_pathways_step = data_pathways.to(device)
 
                         if self.data_env.use_gene2vec_emb:
-                            gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
-                            preds = model(data_inputs, data_pathways, gene2vec_tensor)
+                            preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
                         else:
-                            preds = model(data_inputs, data_pathways)
+                            preds = model(data_inputs_step, data_pathways_step)
 
                         if self.batch_keys is not None:
                             data_batches = [batch.to(device) for batch in data_batches]
-                            loss = loss_module(preds, data_labels, data_batches)
+                            loss = loss_module(preds, data_labels_step, data_batches) 
                         else:
-                            loss = loss_module(preds, data_labels)
+                            loss = loss_module(preds, data_labels_step)
 
                         val_loss.append(loss.item())
                         all_preds.extend(preds.cpu().detach().numpy())
@@ -819,9 +859,6 @@ class train_module():
                 # Print epoch information
                 print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
 
-                # Update learning rate
-                lr_scheduler.step()
-
                 # Apply early stopping
                 if early_stopping.early_stop:
                     print(f"Stopped training using EarlyStopping at epoch {epoch+1}")
@@ -832,6 +869,9 @@ class train_module():
                     best_val_loss = avg_val_loss
                     best_preds = all_preds
                     torch.save(model, f'{out_path}model.pt')
+
+            # Update learning rate
+            lr_scheduler.step()
 
         print()
         print(f"**Finished training**")
@@ -846,6 +886,7 @@ class train_module():
                  device: str=None,
                  seed: int=42,
                  batch_size: int=256,
+                 batch_size_step_size: int=256,
                  use_target_weights: bool=True,
                  use_batch_weights: bool=True,
                  init_temperature: float=0.25,
@@ -873,6 +914,9 @@ class train_module():
         
         batch_size : int, optional
             Batch size for data loading during training (default is 256).
+
+        batch_size_step_size: int, optional
+            Step size to take to reach batch_size samples where the gradient is accumulated after each step and parameters of the model are updated after batch_size samples have been processed (default is 256).
         
         use_target_weights : bool, optional
             If True, calculate target weights based on label frequency (default is True).
@@ -912,6 +956,13 @@ class train_module():
         all_preds : list
             List of predictions.
         """
+
+        if batch_size_step_size > batch_size:
+            raise ValueError("batch_size_step_size must be smaller or equal to batch_size.")
+        
+        self.batch_size_step_size = batch_size_step_size
+        self.batch_size = batch_size
+
 
         if device is not None:
             device = device

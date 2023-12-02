@@ -750,6 +750,7 @@ class benchmark():
             tol=0.001,
             n_neighbors=10,
             batch_size=256,
+                                batch_size_step_size=256,
             louvain_resolution=0.8,
             save_encoder_weights=False,
             #save_dir=tmp_dir,
@@ -1142,6 +1143,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1260,6 +1262,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1381,6 +1384,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1475,7 +1479,8 @@ class benchmark():
                                                             proj_drop_out=0.2,
                                                             depth=1,
                                                             act_layer=nn.ReLU,
-                                                            norm_layer=nn.BatchNorm1d)
+                                                            norm_layer=nn.LayerNorm)
+                                                            #norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=None,
@@ -1594,7 +1599,8 @@ class benchmark():
                                                                             proj_drop_out=0.2,
                                                                             depth=1,
                                                                             act_layer=nn.ReLU,
-                                                                            norm_layer=nn.BatchNorm1d)
+                                                                            norm_layer=nn.LayerNorm)
+                                                                            #norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=self.pathway_path,
@@ -1708,7 +1714,7 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
+                                        HVG=True,
                                         HVGs=4000,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
@@ -1723,7 +1729,7 @@ class benchmark():
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
-                                                        norm_layer=nn.BatchNorm1d,
+                                                        norm_layer=nn.LayerNorm,#nn.BatchNorm1d,
                                                         attn_embed_dim=24*4,
                                                         num_heads=4,
                                                         mlp_ratio=4,
@@ -1740,6 +1746,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1846,7 +1853,7 @@ class benchmark():
                                                                     num_pathways=300,
                                                                     drop_out=0.2,
                                                                     act_layer=nn.ReLU,
-                                                                    norm_layer=nn.BatchNorm1d,
+                                                                    norm_layer=nn.LayerNorm,#nn.BatchNorm1d,
                                                                     attn_embed_dim=24*4,
                                                                     num_heads=4,
                                                                     mlp_ratio=4,
@@ -1864,6 +1871,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
