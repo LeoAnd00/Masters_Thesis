@@ -216,12 +216,12 @@ class AttentionBlock_HVGs(nn.Module):
                                                  attn_drop_out, 
                                                  attn_bias)
         
-        #mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
-        #self.attnblock_mlp = AttentionMlp(in_features=attn_input_dim, 
-        #                                  hidden_features=mlp_hidden_dim, 
-        #                                  out_features=attn_input_dim, 
-        #                                  act_layer=act_layer, 
-        #                                  drop=mlp_drop)
+        mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
+        self.attnblock_mlp = AttentionMlp_HVGs(in_features=attn_input_dim, 
+                                                hidden_features=mlp_hidden_dim, 
+                                                out_features=attn_input_dim, 
+                                                act_layer=act_layer, 
+                                                drop=mlp_drop)
 
     def forward(self, x):
         """
@@ -240,7 +240,7 @@ class AttentionBlock_HVGs(nn.Module):
 
         attn = self.attnblock_attn(self.attnblock_norm1(x))
         x = x + attn
-        #x = x + self.attnblock_mlp(self.attnblock_norm2(x))
+        x = x + self.attnblock_mlp(self.attnblock_norm2(x))
 
         return x
 

@@ -767,7 +767,7 @@ class train_module():
                 # Calculate the number of iterations needed
                 num_iterations = (data_inputs.shape[0] + self.batch_size_step_size - 1) // self.batch_size_step_size
 
-                # Store preds without remembering gradient
+                # Store preds without remembering gradient. Used for calculating loss for sub-parts of the batch.
                 all_train_preds = torch.tensor([]).to(device)
                 if num_iterations > 1:
                     with torch.no_grad():
@@ -791,7 +791,6 @@ class train_module():
                     end_index = (i + 1) * self.batch_size_step_size if i < num_iterations - 1 else data_inputs.shape[0]
 
                     data_inputs_step = data_inputs[start_index:end_index,:].to(device)
-                    #data_labels_step = data_labels[start_index:end_index].to(device)
                     data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
                     if self.data_env.use_gene2vec_emb:
@@ -799,7 +798,7 @@ class train_module():
                     else:
                         preds = model(data_inputs_step, data_pathways_step)
                 
-                    #print(f"Works {i}: ",torch.cuda.memory_allocated())
+                    print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
 
                     if num_iterations > 1:

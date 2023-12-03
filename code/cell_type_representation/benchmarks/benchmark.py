@@ -1470,14 +1470,14 @@ class benchmark():
 
         #Model
         model = model_transformer_encoder.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
-                                                            attn_embed_dim=12,
+                                                            attn_embed_dim=48,
                                                             output_dim=100,
-                                                            num_heads=1,
+                                                            num_heads=2,
                                                             mlp_ratio=4,
                                                             drop_ratio=0.2,
                                                             attn_drop_out=0.0,
                                                             proj_drop_out=0.2,
-                                                            depth=1,
+                                                            depth=2,
                                                             act_layer=nn.ReLU,
                                                             norm_layer=nn.LayerNorm)
                                                             #norm_layer=nn.BatchNorm1d)
@@ -1502,7 +1502,8 @@ class benchmark():
             _ = train_env.train(model=model,
                                 device=None,
                                 seed=42,
-                                batch_size=24,
+                                batch_size=256,
+                                batch_size_step_size=10,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1588,16 +1589,16 @@ class benchmark():
 
         #Model
         model = model_transformer_encoder_with_pathways.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
-                                                                            attn_embed_dim=12,
+                                                                            attn_embed_dim=48,
                                                                             num_pathways=300,
                                                                             pathway_embedding_dim=50,
                                                                             output_dim=100,
-                                                                            num_heads=1,
+                                                                            num_heads=2,
                                                                             mlp_ratio=4,
                                                                             drop_ratio=0.2,
                                                                             attn_drop_out=0.0,
                                                                             proj_drop_out=0.2,
-                                                                            depth=1,
+                                                                            depth=2,
                                                                             act_layer=nn.ReLU,
                                                                             norm_layer=nn.LayerNorm)
                                                                             #norm_layer=nn.BatchNorm1d)
@@ -1622,7 +1623,8 @@ class benchmark():
             _ = train_env.train(model=model,
                                 device=None,
                                 seed=42,
-                                batch_size=24,
+                                batch_size=256,
+                                batch_size_step_size=10,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1715,7 +1717,7 @@ class benchmark():
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
                                         HVG=True,
-                                        HVGs=4000,
+                                        HVGs=2000,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
                                         Scaled=False,
@@ -1725,7 +1727,7 @@ class benchmark():
                                         gene2vec_path=self.gene2vec_path)
         
         #Model
-        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([4000,int(train_env.data_env.X.shape[1])]),
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([2000,int(train_env.data_env.X.shape[1])]),
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
@@ -1746,7 +1748,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=256,
+                                batch_size_step_size=20,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1837,8 +1839,8 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=2000,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
                                         Scaled=False,
@@ -1848,7 +1850,7 @@ class benchmark():
                                         gene2vec_path=self.gene2vec_path)
         
         #Model
-        model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=4000,
+        model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=min([2000,int(train_env.data_env.X.shape[1])]),
                                                                     output_dim=100,
                                                                     num_pathways=300,
                                                                     drop_out=0.2,
@@ -1871,7 +1873,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=256,
+                                batch_size_step_size=20,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
