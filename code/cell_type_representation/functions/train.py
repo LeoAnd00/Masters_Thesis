@@ -798,7 +798,7 @@ class train_module():
                     else:
                         preds = model(data_inputs_step, data_pathways_step)
                 
-                    print(f"Works {i}: ",torch.cuda.memory_allocated())
+                    #print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
 
                     if num_iterations > 1:
