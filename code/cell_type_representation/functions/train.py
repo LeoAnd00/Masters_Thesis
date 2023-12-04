@@ -1000,6 +1000,10 @@ class train_module():
         lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
         out_path = self.save_model_path
 
+        # To run on multiple GPUs:
+        model= nn.DataParallel(model)
+
+        # Train
         loss, preds = self.train_model(model=model, 
                                     optimizer=optimizer, 
                                     lr_scheduler=lr_scheduler, 
