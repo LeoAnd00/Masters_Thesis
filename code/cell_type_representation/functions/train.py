@@ -798,7 +798,7 @@ class train_module():
                     else:
                         preds = model(data_inputs_step, data_pathways_step)
                 
-                    print(f"Works {i}: ",torch.cuda.memory_allocated())
+                    #print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
 
                     if num_iterations > 1:
@@ -1000,6 +1000,11 @@ class train_module():
         lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
         out_path = self.save_model_path
 
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model= nn.DataParallel(model)
+
+        # Train
         loss, preds = self.train_model(model=model, 
                                     optimizer=optimizer, 
                                     lr_scheduler=lr_scheduler, 

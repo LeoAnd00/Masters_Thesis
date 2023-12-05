@@ -1152,9 +1152,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1271,9 +1271,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1393,9 +1393,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1503,7 +1503,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=10,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1512,9 +1512,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1624,7 +1624,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=10,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1633,9 +1633,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1748,7 +1748,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=20,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1757,9 +1757,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1873,7 +1873,7 @@ class benchmark():
                                 device=None,
                                 seed=42,
                                 batch_size=256,
-                                batch_size_step_size=20,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -1882,9 +1882,9 @@ class benchmark():
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
                                 lr_scheduler_maxiters=25,
-                                eval_freq=4,
+                                eval_freq=1,
                                 epochs=20,
-                                earlystopping_threshold=3)
+                                earlystopping_threshold=5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
