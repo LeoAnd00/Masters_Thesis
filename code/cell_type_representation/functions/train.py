@@ -1001,7 +1001,8 @@ class train_module():
         out_path = self.save_model_path
 
         # To run on multiple GPUs:
-        model= nn.DataParallel(model)
+        if torch.cuda.device_count() > 1:
+            model= nn.DataParallel(model)
 
         # Train
         loss, preds = self.train_model(model=model, 
