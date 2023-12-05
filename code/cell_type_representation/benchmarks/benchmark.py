@@ -2002,7 +2002,7 @@ class benchmark():
             calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder Model")
         if self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways)
-            calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder with Tokenized Pathways Model")
+            calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder with Pathways Model")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")
