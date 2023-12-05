@@ -12,6 +12,10 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # Start by runing: cd Masters_Thesis/code/cell_type_representation/
 # Then:
 # Bone marrow: sbatch jobscript_bone_marrow.sh
+# PBMC: sbatch jobscript_pbmc.sh
+# Pancreas: sbatch jobscript_pancreas.sh
+# Kidney: sbatch jobscript_kidney.sh
+# All_merged: sbatch jobscript_all_merged.sh
 
 ### Run on CMD:
 # How to run example (on bone marrow data set): python run_benchmark.py '/mimer/NOBACKUP/groups/naiss2023-6-290/Leo_Andrekson/Masters_Thesis/data/processed/immune_cells/merged/Oetjen_merged.h5ad' 'trained_models/Bone_marrow/' 'benchmarks/results/Bone_marrow/benchmark' '/mimer/NOBACKUP/groups/naiss2023-6-290/Leo_Andrekson/Masters_Thesis/data/processed/pathway_information/all_pathways.json' '/mimer/NOBACKUP/groups/naiss2023-6-290/Leo_Andrekson/Masters_Thesis/data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt' ''
@@ -90,18 +94,18 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
     print("**Start benchmarking In-house Encoder with Pathways method**")
     benchmark_env.in_house_model_encoder_pathways(save_path=f'{model_path}Encoder_with_Pathways/', train=True, umap_plot=False, save_figure=True)
 
-    """print("**Start benchmarking In-house Transformer on HVGs method**")
-    benchmark_env.in_house_model_transformer_encoder(save_path=f'{model_path}Transformer_Encoder/', train=True, umap_plot=False, save_figure=True)
+    #print("**Start benchmarking In-house Transformer on HVGs method**")
+    #benchmark_env.in_house_model_transformer_encoder(save_path=f'{model_path}Transformer_Encoder/', train=True, umap_plot=False, save_figure=True)
 
-    print("**Start benchmarking In-house Transformer on HVGs and Pathways method**")
-    benchmark_env.in_house_model_transformer_encoder_pathways(save_path=f'{model_path}Transformer_Encoder_with_Pathways/', train=True, umap_plot=False, save_figure=True)
+    #print("**Start benchmarking In-house Transformer on HVGs and Pathways method**")
+    #benchmark_env.in_house_model_transformer_encoder_pathways(save_path=f'{model_path}Transformer_Encoder_with_Pathways/', train=True, umap_plot=False, save_figure=True)
 
-    print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
-    benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/', train=True, umap_plot=False, save_figure=True)
+    #print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
+    #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/', train=True, umap_plot=False, save_figure=True)
 
-    print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
-    benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/', train=True, umap_plot=False, save_figure=True)
-    """
+    #print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
+    #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/', train=True, umap_plot=False, save_figure=True)
+    
     benchmark_env.read_csv(name=result_csv_path)
 
     benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
