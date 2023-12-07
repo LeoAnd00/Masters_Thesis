@@ -750,7 +750,6 @@ class benchmark():
             tol=0.001,
             n_neighbors=10,
             batch_size=256,
-                                batch_size_step_size=256,
             louvain_resolution=0.8,
             save_encoder_weights=False,
             #save_dir=tmp_dir,
