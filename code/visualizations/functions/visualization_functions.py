@@ -65,7 +65,7 @@ class VisualizeEnv():
         metrics['Model Type'] = self.metrics.index
 
         # Set up the figure and axis with 4 columns per row
-        ncols = 4
+        ncols = 3
         nrows = -(-len(self.metrics.columns) // ncols)  # Ceiling division
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(15, 5 * nrows), sharey=False)
 
@@ -92,7 +92,7 @@ class VisualizeEnv():
 
             # Plot horizontal bars for each model_type in the specified subplot
             #axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='none', capsize=3, alpha=0.7, height=0.4)
-            axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', color=colors, capsize=3, alpha=0.7, height=0.4)
+            axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', color=colors, capsize=3, alpha=1.0, height=0.4, zorder=2)
 
             # Set labels and title for each subplot
             axs[row_idx, col_idx].set_xlabel('Score')
@@ -100,6 +100,9 @@ class VisualizeEnv():
 
             # Ensure y-axis is visible for each subplot
             axs[row_idx, col_idx].tick_params(left=True)
+
+            # Add grid
+            axs[row_idx, col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1)
 
         # Set common ylabel for the leftmost subplot in each row
         for ax in axs[:, 0]:
