@@ -1,8 +1,11 @@
 channels: 
   - conda-forge
+  - bioconda
   - defaults
 dependencies:
   - python-annoy
+  - mnnpy
   - pip
   - pip:
     - -r requirements.txt
+    - git+https://github.com/JackieHanLab/TOSICA.git
