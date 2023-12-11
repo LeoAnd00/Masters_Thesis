@@ -74,10 +74,12 @@ class benchmark():
         adata.obs["batch"] = adata.obs[batch_key]
 
         self.adata = adata
+        self.original_adata = adata
         self.label_key = label_key
         self.pathway_path = pathway_path
         self.gene2vec_path = gene2vec_path
         self.image_path = image_path
+        self.seed = seed
 
         # Initialize variables
         self.metrics = None
@@ -164,8 +166,8 @@ class benchmark():
         """
         adata_unscaled = self.adata.copy()
 
-        #sc.tl.pca(adata_unscaled, n_comps=n_comps, use_highly_variable=True)
         adata_unscaled.obsm["Unscaled"] = adata_unscaled.X
+
         sc.pp.neighbors(adata_unscaled, use_rep="Unscaled")
 
         self.metrics_unscaled = scib.metrics.metrics(
@@ -672,6 +674,7 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
         adata_combat = self.adata.copy()
+
         corrected_data = sc.pp.combat(adata_combat, key="batch", inplace=False)
 
         adata_combat.obsm["ComBat"] = corrected_data
@@ -750,7 +753,6 @@ class benchmark():
             tol=0.001,
             n_neighbors=10,
             batch_size=256,
-                                batch_size_step_size=256,
             louvain_resolution=0.8,
             save_encoder_weights=False,
             #save_dir=tmp_dir,
@@ -1048,7 +1050,7 @@ class benchmark():
         )
 
         # Note: set seed for reproducibility of results
-        trainer = trvaep.Trainer(model, adata_trvae, condition_key="batch", seed=42)
+        trainer = trvaep.Trainer(model, adata_trvae, condition_key="batch", seed=self.seed)
 
         trainer.train_trvae(300, 1024, early_patience=50) 
 
@@ -1141,7 +1143,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1151,10 +1153,10 @@ class benchmark():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
+                                lr_scheduler_maxiters=110,#25,
                                 eval_freq=1,
-                                epochs=20,
-                                earlystopping_threshold=5)
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1163,7 +1165,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_encoder = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1260,7 +1262,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1270,10 +1272,10 @@ class benchmark():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
+                                lr_scheduler_maxiters=110,#25,
                                 eval_freq=1,
-                                epochs=20,
-                                earlystopping_threshold=5)
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1282,7 +1284,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_pathways = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1382,7 +1384,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1392,10 +1394,10 @@ class benchmark():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
+                                lr_scheduler_maxiters=110,#25,
                                 eval_freq=1,
-                                epochs=20,
-                                earlystopping_threshold=5)
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1404,7 +1406,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_encoder_pathways = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1469,26 +1471,26 @@ class benchmark():
         adata_in_house = self.adata.copy()
 
         #Model
-        model = model_transformer_encoder.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
-                                                            attn_embed_dim=48,
+        model = model_transformer_encoder.CellType2VecModel(input_dim=2000,#adata_in_house.X.shape[1],
+                                                            attn_embed_dim=24,
                                                             output_dim=100,
-                                                            num_heads=2,
+                                                            num_heads=1,
                                                             mlp_ratio=4,
                                                             drop_ratio=0.2,
                                                             attn_drop_out=0.0,
                                                             proj_drop_out=0.2,
-                                                            depth=2,
+                                                            depth=1,
                                                             act_layer=nn.ReLU,
-                                                            norm_layer=nn.LayerNorm)
-                                                            #norm_layer=nn.BatchNorm1d)
+                                                            #norm_layer=nn.LayerNorm)
+                                                            norm_layer=nn.BatchNorm1d)
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=None,
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=2000,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1501,7 +1503,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1523,7 +1525,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_transformer_encoder = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1622,7 +1624,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1644,7 +1646,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_transformer_encoder_pathways = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1709,7 +1711,8 @@ class benchmark():
 
         adata_in_house = self.adata.copy()
 
-        HVG_buckets_ = 300
+        HVG_buckets_ = 1000
+        HVGs_num = 2000
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=None,
@@ -1717,7 +1720,7 @@ class benchmark():
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
                                         HVG=True,
-                                        HVGs=2000,
+                                        HVGs=HVGs_num,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
                                         Scaled=False,
@@ -1727,11 +1730,11 @@ class benchmark():
                                         gene2vec_path=self.gene2vec_path)
         
         #Model
-        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([2000,int(train_env.data_env.X.shape[1])]),
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
                                                         output_dim=100,
                                                         drop_out=0.2,
                                                         act_layer=nn.ReLU,
-                                                        norm_layer=nn.LayerNorm,#nn.BatchNorm1d,
+                                                        norm_layer=nn.LayerNorm,#nn.BatchNorm1d, LayerNorm
                                                         attn_embed_dim=24*4,
                                                         num_heads=4,
                                                         mlp_ratio=4,
@@ -1746,7 +1749,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1756,10 +1759,10 @@ class benchmark():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
+                                lr_scheduler_maxiters=110,#25,
                                 eval_freq=1,
-                                epochs=20,
-                                earlystopping_threshold=5)
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
@@ -1768,7 +1771,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_tokenized_HVG_transformer = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1871,7 +1874,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -1893,7 +1896,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_in_house,
             "batch", 
             self.label_key,
