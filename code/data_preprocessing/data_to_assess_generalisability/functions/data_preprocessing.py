@@ -1121,6 +1121,9 @@ class Merge():
         # Filter out unknown labeled cells
         adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
+        # Some data cleaning
+        del adata.layers['log1p_counts']
+
         # Download
         adata.write("../../../data/processed/data_to_assess_generalisability/bone_marrow_human/Assess_generalisability_bone_marrow.h5ad")
 
