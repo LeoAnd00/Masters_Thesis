@@ -36,7 +36,7 @@ class VisualizeEnv():
         self.metrics.columns = ["ASW | Bio", 
                                 "ASW | Batch", 
                                 "PCR | Batch",
-                                "Isolated Label Silhouette | Bio",
+                                "Isolated Label ASW | Bio",
                                 "GC | Batch",
                                 "NMI | Bio",
                                 "ARI | Bio",
@@ -46,7 +46,7 @@ class VisualizeEnv():
                                 "Overall | Bio",
                                 "Overall"]
 
-    def BarPlotVisualization(self, image_path: str=None):
+    def BarPlotVisualization(self, image_path: str=None, version: int=1):
         """
         Generate a bar plot visualization for each metric, displaying the mean values
         with error bars representing standard deviation across different model types.
@@ -55,7 +55,9 @@ class VisualizeEnv():
         --------
         image_path : str, optional 
             If provided, the plot will be saved as an SVG file with the specified file path/name (.svg is added by the function at the end). Defaults to None (meaning no image will be downloaded).
-        
+        version : int, optional
+            Which plot option to chose (Options: 1, 2, 3)
+            
         Returns
         -------
         None
@@ -91,8 +93,12 @@ class VisualizeEnv():
             colors = visual_metrics['Model Type'].map(color_dict)
 
             # Plot horizontal bars for each model_type in the specified subplot
-            #axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='none', capsize=3, alpha=0.7, height=0.4)
-            axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', color=colors, capsize=3, alpha=1.0, height=0.4, zorder=2)
+            if version == 1:
+                axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', color=colors, capsize=3, alpha=1.0, height=0.4, zorder=2)
+            elif version == 2:
+                axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='blue', capsize=3, alpha=1.0, height=0.4, zorder=2)
+            elif version == 3:
+                axs[row_idx, col_idx].barh(visual_metrics['Model Type'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='none', capsize=3, alpha=0.7, height=0.4, zorder=2)
 
             # Set labels and title for each subplot
             axs[row_idx, col_idx].set_xlabel('Score')

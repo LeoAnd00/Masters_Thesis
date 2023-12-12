@@ -952,6 +952,9 @@ class Merge():
         # Filter out unknown labeled cells
         adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
+        # Some data cleaning
+        del adata.layers['log1p_counts']
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/Oetjen_merged.h5ad")
 
@@ -1086,36 +1089,11 @@ class Merge():
         # Filter out unknown labeled cells
         adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
+        # Some data cleaning
+        del adata.layers['log1p_counts']
+
         # Download
         adata.write("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
-
-        del adata
-
-    def Immune_cells_merge_all(self):
-        file_paths = '../../../data/processed/immune_cells/merged/'
-
-        filenames = ['Oetjen_merged.h5ad', 'Freytag_merged.h5ad', 'Sun_merged.h5ad', '10X_merged.h5ad']
-
-        adata = []
-        for k, name in enumerate(filenames):
-            file = file_paths + name
-            adata_temp = sc.read(file, cache=True)
-            adata.append(adata_temp) 
-
-        adata = adata[0].concatenate(adata[1:], batch_key='sample_ID', index_unique=None)
-
-        adata.obs.index.rename('barcode', inplace=True)
-        # Assign adata.X to be the preprocessed unnormalized data
-        adata.X = adata.layers['pp_counts']
-
-        # Normalize
-        adata = log1p_normalize(adata)
-
-        # Filter out unknown labeled cells
-        adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
-
-        # Download
-        adata.write("../../../data/processed/immune_cells/merged/Immune_cells_merged_all.h5ad")
 
         del adata
 
@@ -1150,6 +1128,9 @@ class Merge():
         # Filter out unknown labeled cells
         adata = adata[(adata.obs["cell_type"] != "Unknown"),:].copy()
 
+        # Some data cleaning
+        del adata.layers['log1p_counts']
+
         # Download
         adata.write("../../../data/processed/kidney_cells/Muto_merged.h5ad")
 
@@ -1159,9 +1140,7 @@ class Merge():
         file_paths = '../../../data/processed/'
 
         filenames = ['immune_cells/merged/Oetjen_merged.h5ad', 
-                     'immune_cells/merged/Freytag_merged.h5ad', 
-                     'immune_cells/merged/Sun_merged.h5ad', 
-                     'immune_cells/merged/10X_merged.h5ad', 
+                     'immune_cells/merged/PBMC_merged_all.h5ad', 
                      'pancreas_cells/pancreas_1_adata.h5ad',
                      'kidney_cells/Muto_merged.h5ad']
 
@@ -1179,6 +1158,9 @@ class Merge():
 
         # Normalize
         adata = log1p_normalize(adata)
+
+        # Some data cleaning
+        del adata.layers['log1p_counts']
 
         # Download
         adata.write("../../../data/processed/merged/merged_all.h5ad")
@@ -1281,7 +1263,6 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
     merge_env.Sun_merge()
     merge_env.merge_10X()
     merge_env.PBMC_merge_all()
-    merge_env.Immune_cells_merge_all()
     merge_env.Muto_merge()
     merge_env.merge_all()
 
@@ -1293,7 +1274,7 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
         os.remove("../../../data/processed/immune_cells/bone_marrow_human/BM_3_adata.h5ad")
         os.remove("../../../data/processed/immune_cells/bone_marrow_human/BM_4_adata.h5ad")
         os.remove("../../../data/processed/immune_cells/bone_marrow_human/BM_5_adata.h5ad")
-        os.remove("../../../data/processed/immune_cells/merged/Oetjen_merged.h5ad")
+        #os.remove("../../../data/processed/immune_cells/merged/Oetjen_merged.h5ad")
 
         # PBMC
         os.remove("../../../data/processed/immune_cells/pbmcs_human/PBMCs_1_adata.h5ad")
@@ -1305,10 +1286,7 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
         os.remove("../../../data/processed/immune_cells/merged/Freytag_merged.h5ad")
         os.remove("../../../data/processed/immune_cells/merged/Sun_merged.h5ad")
         os.remove("../../../data/processed/immune_cells/merged/10X_merged.h5ad")
-        os.remove("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
-
-        # All immune cells
-        os.remove("../../../data/processed/immune_cells/merged/Immune_cells_merged_all.h5ad")
+        #os.remove("../../../data/processed/immune_cells/merged/PBMC_merged_all.h5ad")
 
         # Pancreas
         os.remove("../../../data/processed/pancreas_cells/pancreas_1_adata.h5ad")
@@ -1317,7 +1295,7 @@ def auto_preprocessing_and_labeling(resolution: str = "0.8", delete: bool = Fals
         os.remove("../../../data/processed/kidney_cells/kidney_1_adata.h5ad")
         os.remove("../../../data/processed/kidney_cells/kidney_2_adata.h5ad")
         os.remove("../../../data/processed/kidney_cells/kidney_3_adata.h5ad")
-        os.remove("../../../data/processed/kidney_cells/Muto_merged.h5ad")
+        #os.remove("../../../data/processed/kidney_cells/Muto_merged.h5ad")
 
 
 

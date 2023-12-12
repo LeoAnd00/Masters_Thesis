@@ -1,9 +1,9 @@
 import argparse
 from functions import data_preprocessing as dp
 
-# Run in cmd to not delete all intermediate AnnData objects: cd code\data_preprocessing\automated_preprocess 
+# Run in cmd to not delete all intermediate AnnData objects: cd code\data_preprocessing\data_to_assess_generalisability 
 #                                                            python auto_pp.py --resolution 0.8
-# Run in cmd for deleting all intermediate AnnData objects: cd code\data_preprocessing\automated_preprocess
+# Run in cmd for deleting all intermediate AnnData objects: cd code\data_preprocessing\data_to_assess_generalisability
 #                                                           python auto_pp.py --resolution 0.8 --flag
 
 def main(resolution, flag):
