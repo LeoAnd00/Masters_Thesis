@@ -86,6 +86,7 @@ class benchmark():
         self.pathway_path = pathway_path
         self.gene2vec_path = gene2vec_path
         self.image_path = image_path
+        self.seed = seed
 
         # Initialize variables
         self.metrics = None
@@ -137,6 +138,7 @@ class benchmark():
         random_integers = random.sample(range(len(unique_batches)), num_patients_for_testing)
         random_integers = unique_batches[random_integers]
         self.test_adata = self.adata[np.isin(encoded_batch, random_integers), :].copy()
+        self.original_test_adata = self.adata[np.isin(encoded_batch, random_integers), :].copy()
 
         unique_batches_remaining = np.delete(unique_batches, random_integers)
         random_integers = random.sample(range(len(unique_batches_remaining)), num_patients_for_training)
@@ -532,7 +534,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -555,7 +557,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_encoder = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -652,7 +654,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -675,7 +677,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_pathways = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -775,7 +777,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=256,
                                 use_target_weights=True,
@@ -798,7 +800,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_encoder_pathways = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -895,7 +897,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=10,
                                 use_target_weights=True,
@@ -918,7 +920,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_transformer_encoder = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1017,7 +1019,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=10,
                                 use_target_weights=True,
@@ -1040,7 +1042,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_transformer_encoder_pathways = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1141,7 +1143,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=20,
                                 use_target_weights=True,
@@ -1164,7 +1166,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_tokenized_HVG_transformer = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,
@@ -1267,7 +1269,7 @@ class benchmark():
         if train:
             _ = train_env.train(model=model,
                                 device=None,
-                                seed=42,
+                                seed=self.seed,
                                 batch_size=256,
                                 batch_size_step_size=20,
                                 use_target_weights=True,
@@ -1290,7 +1292,7 @@ class benchmark():
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
         self.metrics_in_house_model_tokenized_HVG_transformer_with_pathways = scib.metrics.metrics(
-            self.test_adata,
+            self.original_test_adata,
             adata_in_house,
             "batch", 
             self.label_key,

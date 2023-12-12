@@ -53,19 +53,28 @@ def main(data_path: str, model: str, model_path: str, result_csv_path: str, path
                 print("Start evaluating PCA transformed data")
                 print()
                 benchmark_env.pca(save_figure=False, umap_plot=False)
-            
+
             # Calculate for model
             if model == 'Encoder':
                 
                 print(f"Start training model with {train_num} patients and seed {seed}")
                 print()
 
-                benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/', train=True, umap_plot=False, save_figure=False)
+                benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/', train=False, umap_plot=False, save_figure=False)
 
                 benchmark_env.make_benchamrk_results_dataframe(counter="", min_max_normalize=False)
 
                 benchmark_env.metrics["train_num"] = [train_num]*benchmark_env.metrics.shape[0]
                 benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
+
+                if train_num == num_patients_for_training_list[0]:
+                    num_replicates = len(num_patients_for_training_list) - 1
+                    replicated_unintegrated = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'Unintegrated']] * num_replicates, ignore_index=False, axis="rows")
+                    replicated_pca = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'PCA']] * num_replicates, ignore_index=False, axis="rows")
+                    benchmark_env.metrics = pd.concat([benchmark_env.metrics, replicated_unintegrated, replicated_pca], ignore_index=False, axis="rows")
+
+                    benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'Unintegrated'] = num_patients_for_training_list
+                    benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'PCA'] = num_patients_for_training_list
 
                 if counter > 1:
                     benchmark_env.read_csv(name=result_csv_path)
