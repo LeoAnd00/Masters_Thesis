@@ -34,7 +34,7 @@ def main(data_path: str, model: str, model_path: str, result_csv_path: str, path
             benchmark_env = benchmark(data_path=data_path, 
                                     pathway_path=pathway_path,
                                     gene2vec_path=gene2vec_path,
-                                    image_path=image_path,
+                                    image_path=f'{image_path}train_num_{train_num}_seed_{seed}_',
                                     batch_key="patientID", 
                                     HVG=True, 
                                     HVGs=4000, 
@@ -60,7 +60,7 @@ def main(data_path: str, model: str, model_path: str, result_csv_path: str, path
                 print(f"Start training model with {train_num} patients and seed {seed}")
                 print()
 
-                benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/', train=False, umap_plot=False, save_figure=False)
+                benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/train_num_{train_num}_seed_{seed}_', train=False, umap_plot=False, save_figure=False)
 
                 benchmark_env.make_benchamrk_results_dataframe(counter="", min_max_normalize=False)
 
