@@ -83,10 +83,6 @@ class benchmark():
 
         self.adata = adata
 
-        # Some data cleaning
-        self.adata.var = pd.DataFrame(self.adata.var["gene_id"], index=self.adata.var.index)
-        del self.adata.layers['log1p_counts']
-
         self.label_key = label_key
         self.pathway_path = pathway_path
         self.gene2vec_path = gene2vec_path
