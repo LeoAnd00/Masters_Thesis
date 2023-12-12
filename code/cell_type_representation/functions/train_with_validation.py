@@ -1153,7 +1153,12 @@ class train_module():
 
         # Define gene2vec_tensor if gene2ve is used
         if self.data_env.use_gene2vec_emb:
-            gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
+            gene2vec_tensor = self.data_env.gene2vec_tensor
+            if torch.cuda.device_count() > 1:
+                for i in range(1, torch.cuda.device_count()):
+                    gene2vec_tensor = torch.cat((gene2vec_tensor, self.data_env.gene2vec_tensor), dim=0)
+            gene2vec_tensor = gene2vec_tensor.to(device)
+            #gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
 
         # Training loop
         best_val_loss = np.inf  
@@ -1181,10 +1186,7 @@ class train_module():
                             data_inputs_step = data_inputs[start_index:end_index,:].to(device)
                             data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
-                            if self.data_env.use_gene2vec_emb:
-                                preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
-                            else:
-                                preds = model(data_inputs_step, data_pathways_step)
+                            preds = model(data_inputs_step, data_pathways_step)
 
                             all_train_preds = torch.cat((all_train_preds, preds), dim=0)
 
@@ -1196,10 +1198,7 @@ class train_module():
                     data_inputs_step = data_inputs[start_index:end_index,:].to(device)
                     data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
-                    if self.data_env.use_gene2vec_emb:
-                        preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
-                    else:
-                        preds = model(data_inputs_step, data_pathways_step)
+                    preds = model(data_inputs_step, data_pathways_step)
                 
                     #print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
@@ -1237,10 +1236,7 @@ class train_module():
                         data_labels_step = data_labels.to(device)
                         data_pathways_step = data_pathways.to(device)
 
-                        if self.data_env.use_gene2vec_emb:
-                            preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
-                        else:
-                            preds = model(data_inputs_step, data_pathways_step)
+                        preds = model(data_inputs_step, data_pathways_step)
 
                         if self.batch_keys is not None:
                             data_batches = [batch.to(device) for batch in data_batches]
@@ -1467,6 +1463,15 @@ class train_module():
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
 
+        # Define gene2vec_tensor if gene2ve is used
+        if self.data_env.use_gene2vec_emb:
+            gene2vec_tensor = self.data_env.gene2vec_tensor
+            if torch.cuda.device_count() > 1:
+                for i in range(1, torch.cuda.device_count()):
+                    gene2vec_tensor = torch.cat((gene2vec_tensor, self.data_env.gene2vec_tensor), dim=0)
+            gene2vec_tensor = gene2vec_tensor.to(device)
+            #gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
+
         preds = []
         model.eval()
         with torch.no_grad():
@@ -1475,10 +1480,7 @@ class train_module():
                 data_inputs = data_inputs.to(device)
                 data_pathways = data_pathways.to(device)
 
-                if self.data_env.use_gene2vec_emb:
-                    pred = model(data_inputs, data_pathways, self.data_env.gene2vec_tensor)
-                else:
-                    pred = model(data_inputs, data_pathways)
+                pred = model(data_inputs, data_pathways)
 
                 preds.extend(pred.cpu().detach().numpy())
 
