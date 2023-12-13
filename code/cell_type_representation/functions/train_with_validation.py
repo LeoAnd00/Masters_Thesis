@@ -154,6 +154,7 @@ class prep_data(data.Dataset):
 
         # Convert expression level to buckets, suitable for nn.Embbeding() used in certain transformer models
         if use_HVG_buckets:
+            self.X_not_tokenized = self.X.clone()
             self.X = self.bucketize_expression_levels(self.X, HVG_buckets)  
 
         # Pathway information
@@ -363,7 +364,9 @@ class prep_data(data.Dataset):
         else:
             batches = torch.tensor([])
 
-        if self.pathways_file_path is not None:
+        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        elif self.pathways_file_path is not None:
             data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
@@ -1519,13 +1522,15 @@ class prep_test_data(data.Dataset):
         self.X = self.adata.X
         self.X = torch.tensor(self.X)
         self.pathways_file_path = prep_data_env.pathways_file_path
+        self.use_HVG_buckets = prep_data_env.use_HVG_buckets
 
         # Pathway information
         if self.pathways_file_path is not None:
             self.pathway_mask = prep_data_env.pathway_mask
         
         if prep_data_env.use_HVG_buckets:
-            self.training_expression_levels = prep_data_env.X
+            self.training_expression_levels = prep_data_env.X_not_tokenized
+            self.X_not_tokenized = self.X.clone()
             self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets)  
 
     def bucketize_expression_levels(self, expression_levels, num_buckets):
@@ -1619,7 +1624,9 @@ class prep_test_data(data.Dataset):
 
         data_point = self.X[idx]
 
-        if self.pathways_file_path is not None:
+        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        elif self.pathways_file_path is not None:
             data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])

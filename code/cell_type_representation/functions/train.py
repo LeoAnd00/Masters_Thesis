@@ -1131,6 +1131,7 @@ class prep_test_data(data.Dataset):
         self.X = self.adata.X
         self.X = torch.tensor(self.X)
         self.pathways_file_path = prep_data_env.pathways_file_path
+        self.use_HVG_buckets = prep_data_env.use_HVG_buckets
 
         # Pathway information
         if self.pathways_file_path is not None:
