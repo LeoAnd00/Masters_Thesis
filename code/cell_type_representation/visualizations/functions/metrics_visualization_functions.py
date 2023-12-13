@@ -71,11 +71,13 @@ class VisualizeEnv():
         nrows = -(-len(self.metrics.columns) // ncols)  # Ceiling division
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(15, 5 * nrows), sharey=False)
 
-        # Get unique model types
-        unique_model_types = metrics['Model Type'].unique()
+        # Get unique model types in order of performance on Overall metric
+        metrics_temp = metrics.groupby(['Model Type'])["Overall"].agg(['mean', 'std']).reset_index()
+        metrics_temp = metrics_temp.sort_values(by='mean')
+        unique_model_types = metrics_temp['Model Type'].unique()
 
         # Define a colormap based on unique model types
-        cmap = cm.get_cmap('tab20', len(unique_model_types))
+        cmap = cm.get_cmap('viridis', len(unique_model_types))
 
         for i, metric in enumerate(reversed(self.metrics.columns)):
             # Calculate the row and column indices
