@@ -106,20 +106,31 @@ def main(data_path: str, model: str, model_path: str, result_csv_path: str, path
     # Plot all model types in the same plot
     for model_type, color in color_dict.items():
         model_df = grouped_df[grouped_df['Model Type'].str.contains(model_type)]
-        plt.errorbar(
-            model_df['train_num'],
-            model_df['mean'],
-            yerr=model_df['std'],
-            fmt='-o',
-            label=model_type,
-            color=color,
-            markersize=8,
-            marker='s',
-            capsize=5,  # Adjust the length of the horizontal lines at the top and bottom of the error bars
-            capthick=2,      # Adjust the thickness of the horizontal lines
-            alpha=0.5,        # Adjust the transparency of the plot
-            linewidth=2      # Adjust the thickness of the line connecting the points
-        )
+
+        # Add jitter to x-coordinates for each individual point
+        jittered_x = model_df['train_num'] + np.random.normal(scale=0.1, size=len(model_df))
+        jittered_x.reset_index(drop=True, inplace=True) 
+
+        # Plot each data point separately
+        for i in range(len(model_df)):
+            plt.errorbar(
+                jittered_x[i],
+                model_df['mean'].iloc[i],
+                yerr=model_df['std'].iloc[i],
+                fmt='o',  # Use 'o' for markers only, without lines
+                linestyle='',
+                label=model_type if i == 0 else "",  # Label only the first point for each model type
+                color=color,
+                markersize=8,
+                capsize=5,
+                capthick=2,
+                alpha=1.0,
+                linewidth=2,  # Set linewidth to 0 for markers only
+            )
+
+    # Set xticks to only include the desired values
+    plt.xticks(model_df['train_num'].unique())
+
     plt.xlabel('Nr. of Patients for Training')
     plt.ylabel('Overall Metric')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
