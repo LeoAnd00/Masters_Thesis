@@ -77,7 +77,7 @@ class VisualizeEnv():
         unique_model_types = metrics_temp['Model Type'].unique()
 
         # Define a colormap based on unique model types
-        cmap = cm.get_cmap('viridis', len(unique_model_types))
+        cmap = cm.get_cmap('tab20', len(unique_model_types))
 
         for i, metric in enumerate(reversed(self.metrics.columns)):
             # Calculate the row and column indices
@@ -89,7 +89,7 @@ class VisualizeEnv():
             visual_metrics = visual_metrics.sort_values(by='mean')
 
             # Map each model type to a color using the colormap
-            color_dict = {model_type: cmap(j / (len(unique_model_types) - 1)) for j, model_type in enumerate(unique_model_types)}
+            color_dict = {model_type: cmap(1 - j / (len(unique_model_types) - 1)) for j, model_type in enumerate(unique_model_types)}
 
             # Map the colors to the model types in the sorted order
             colors = visual_metrics['Model Type'].map(color_dict)
