@@ -170,7 +170,7 @@ class benchmark():
         sc.pp.neighbors(adata_unscaled, use_rep="Unscaled")
 
         self.metrics_unscaled = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_unscaled,
             "batch", 
             self.label_key,
@@ -237,7 +237,7 @@ class benchmark():
         sc.pp.neighbors(adata_pca, use_rep="PCA")
 
         self.metrics_pca = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_pca,
             "batch", 
             self.label_key,
@@ -312,7 +312,7 @@ class benchmark():
         sc.pp.neighbors(adata_scanorama, use_rep="Scanorama")
 
         self.metrics_scanorama = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_scanorama,
             "batch", 
             self.label_key,
@@ -381,7 +381,7 @@ class benchmark():
         sc.pp.neighbors(adata_harmony, use_rep="Harmony")
 
         self.metrics_harmony = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_harmony,
             "batch", 
             self.label_key,
@@ -453,7 +453,7 @@ class benchmark():
         sc.pp.neighbors(adata_scvi, use_rep="scVI")
 
         self.metrics_scvi = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_scvi,
             "batch", 
             self.label_key,
@@ -538,7 +538,7 @@ class benchmark():
         sc.pp.neighbors(adata_scANVI, use_rep="scANVI")
 
         self.metrics_scanvi = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_scANVI,
             "batch", 
             self.label_key,
@@ -615,7 +615,7 @@ class benchmark():
         sc.pp.neighbors(adata_scgen, use_rep="scGen")
 
         self.metrics_scgen = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_scgen,
             "batch", 
             self.label_key,
@@ -681,7 +681,7 @@ class benchmark():
         sc.pp.neighbors(adata_combat, use_rep="ComBat")
 
         self.metrics_combat = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_combat,
             "batch", 
             self.label_key,
@@ -768,7 +768,7 @@ class benchmark():
         sc.pp.neighbors(adata_desc, use_rep="DESC")
 
         self.metrics_desc = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_desc,
             "batch", 
             self.label_key,
@@ -842,7 +842,7 @@ class benchmark():
         sc.pp.neighbors(adata_bbknn, use_rep="BBKNN")
 
         self.metrics_bbknn = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_bbknn,
             "batch", 
             self.label_key,
@@ -913,7 +913,7 @@ class benchmark():
         sc.pp.neighbors(adata_tosica, use_rep="TOSICA")
 
         self.metrics_tosica = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_tosica,
             "batch", 
             self.label_key,
@@ -990,7 +990,7 @@ class benchmark():
         sc.pp.neighbors(adata_mnn, use_rep="FastMNN")
 
         self.metrics_fastmnn = scib.metrics.metrics(
-            self.adata,
+            self.original_adata,
             adata_mnn,
             "batch", 
             self.label_key,
