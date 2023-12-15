@@ -275,11 +275,19 @@ class prep_data(data.Dataset):
         missing_gene_symbols = []
         gene_symbol_list = list(self.gene2vec_dic.keys())
         gene_symbols_to_use = []
+        #for gene_symbol in self.adata.var.index:
+        #    if gene_symbol in gene_symbol_list:
+        #        gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+        #        gene_symbols_to_use.append(gene_symbol)
+        #    else:
+        #        missing_gene_symbols.append(gene_symbol)
         for gene_symbol in self.adata.var.index:
             if gene_symbol in gene_symbol_list:
                 gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
                 gene_symbols_to_use.append(gene_symbol)
             else:
+                gene_embeddings_dic[gene_symbol] = torch.zeros((200,1))
+                gene_symbols_to_use.append(gene_symbol)
                 missing_gene_symbols.append(gene_symbol)
 
         # Remove genes without a gene2vec representation
@@ -355,6 +363,8 @@ class prep_data(data.Dataset):
 
         if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
             data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+            data_pathways = self.X_not_tokenized[idx] 
         elif self.pathways_file_path is not None:
             data_pathways = self.X[idx] * self.pathway_mask
         else:
@@ -1235,6 +1245,8 @@ class prep_test_data(data.Dataset):
 
         if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
             data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+            data_pathways = self.X_not_tokenized[idx] 
         elif self.pathways_file_path is not None:
             data_pathways = self.X[idx] * self.pathway_mask
         else:

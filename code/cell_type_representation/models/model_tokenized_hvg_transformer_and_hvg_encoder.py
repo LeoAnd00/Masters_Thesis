@@ -377,23 +377,37 @@ class OutputEncoder(nn.Module):
         self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
         self.norm_layer1 = norm_layer(int(input_dim/2))
         self.linear1_act = act_layer()
-        self.linear2 = nn.Linear(int(input_dim/2), num_HVGs_transformer)
-        self.norm_layer2 = norm_layer(num_HVGs_transformer)
-        self.dropout2 = nn.Dropout(drop_out)
+        self.linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
+        self.norm_layer2 = norm_layer(int(input_dim/4))
+        self.dropout1 = nn.Dropout(drop_out)
         self.linear2_act = act_layer()
-        self.output = nn.Linear(num_HVGs_transformer, output_dim)
+        self.output = nn.Linear(int(input_dim/4), output_dim)
+
+        self.linear1_transformer = nn.Linear(int(input_dim), int(input_dim/2))
+        self.norm_layer1_transformer = norm_layer(int(input_dim/2))
+        self.linear1_act_transformer = act_layer()
+        self.dropout1_transformer = nn.Dropout(drop_out)
+        self.linear2_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
 
     def forward(self, x, x_transformer):
         x = self.norm_layer_in(x)
         x = self.linear1(x)
         x = self.norm_layer1(x)
         x = self.linear1_act(x)
-        x = self.dropout2(x)
+        x = self.dropout1(x)
         x = self.linear2(x)
+
+        x_transformer = self.linear1_transformer(x_transformer)
+        x_transformer = self.norm_layer1_transformer(x_transformer)
+        x_transformer = self.linear1_act_transformer(x_transformer)
+        x_transformer = self.dropout1_transformer(x_transformer)
+        x_transformer = self.linear2_transformer(x_transformer)
+
         x += x_transformer
         x = self.norm_layer2(x)
         x = self.linear2_act(x)
         x = self.output(x)
+        
         return x
 
 class CellType2VecModel(nn.Module):
@@ -489,7 +503,7 @@ class CellType2VecModel(nn.Module):
                                             norm_layer=norm_layer,
                                             drop_out=drop_out)
 
-    def forward(self, x, pathways, gene2vec_emb):
+    def forward(self, x, x_not_tokenized, gene2vec_emb):
         """
         Forward pass of the CellType2Vec model.
 
@@ -511,7 +525,7 @@ class CellType2VecModel(nn.Module):
         else:
             x_transformer = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)))
 
-        x = self.output_encoder(x, x_transformer)
+        x = self.output_encoder(x_not_tokenized, x_transformer)
 
         return x
 
