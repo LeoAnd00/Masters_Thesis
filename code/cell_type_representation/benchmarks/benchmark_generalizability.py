@@ -1590,6 +1590,7 @@ class benchmark():
         This method exports the performance metrics dataframe to a CSV file.
         """
         self.metrics.to_csv(f'{name}.csv', index=True, header=True)
+        self.metrics = None
 
     def read_csv(self, name: str='benchmarks/results/Benchmark_results'):
         """
