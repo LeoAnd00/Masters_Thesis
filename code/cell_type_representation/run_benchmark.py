@@ -58,13 +58,13 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
     print("**Initiate Benchmark**")
 
-    num_seeds = 5
+    num_seeds = 1
     random_seeds = list(range(42, 42 + num_seeds))
 
     for seed in random_seeds:
 
         # Load data 
-        benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=image_path, batch_key="patientID", HVG=True, HVGs=4000, Scaled=False, seed=seed)
+        benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=f'{image_path}seed_{seed}_', batch_key="patientID", HVG=True, HVGs=4000, Scaled=False, seed=seed)
 
         #print("**Start benchmarking unintegrated data**")
         #benchmark_env.unintegrated(umap_plot=False,save_figure=True)
@@ -114,7 +114,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
         #print("**Start benchmarking In-house Encoder method**")
         #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/seed_{seed}_', train=True, umap_plot=False, save_figure=True)
         #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Testing/seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-        #read_save(benchmark_env, f'{result_csv_path}_seed_{seed}', read=False)
+        #read_save(benchmark_env, f'{result_csv_path}_seed_{seed}', read=True)
 
         #print("**Start benchmarking In-house Pathways method**")
         #benchmark_env.in_house_model_pathways(save_path=f'{model_path}Pathways/seed_{seed}_', train=True, umap_plot=False, save_figure=True)
@@ -136,6 +136,10 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
         print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
         benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/seed_{seed}_', train=True, umap_plot=False, save_figure=True)
         read_save(benchmark_env, f'{result_csv_path}_seed_{seed}', read=False)
+
+        #print("**Start benchmarking In-house Transformer on Tokenized HVGs and HVG Encoder**")
+        #benchmark_env.in_house_model_tokenized_hvg_transformer_and_hvg_encoder(save_path=f'{model_path}Tokenized_HVG_Transformer_with_HVG_Encoder/seed_{seed}_', train=True, umap_plot=False, save_figure=True)
+        #read_save(benchmark_env, f'{result_csv_path}_seed_{seed}', read=True)
 
         #print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
         #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/seed_{seed}_', train=True, umap_plot=False, save_figure=True)
