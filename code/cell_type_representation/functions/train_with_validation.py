@@ -162,7 +162,8 @@ class prep_data(data.Dataset):
         # Convert expression level to buckets, suitable for nn.Embbeding() used in certain transformer models
         if use_HVG_buckets:
             self.X_not_tokenized = self.X.clone()
-            self.X = self.bucketize_expression_levels(self.X, HVG_buckets)  
+            #self.X = self.bucketize_expression_levels(self.X, HVG_buckets)  
+            self.X = self.bucketize_expression_levels_per_gene(self.X, HVG_buckets) 
 
         # Pathway information
         # Load the JSON data into a Python dictionary
@@ -1568,7 +1569,8 @@ class prep_test_data(data.Dataset):
         if prep_data_env.use_HVG_buckets:
             self.training_expression_levels = prep_data_env.X_not_tokenized
             self.X_not_tokenized = self.X.clone()
-            self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets)  
+            #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
+            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets) 
 
     def bucketize_expression_levels(self, expression_levels, num_buckets):
         """
