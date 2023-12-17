@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import re
 import numpy as np
+import random
 from IPython.display import display
 
 
@@ -35,13 +36,13 @@ class VisualizeEnv():
         all_dataframes = []
         for file in files:
             HVGs = re.search(pattern, file)
-            metrics = pd.read_csv(f'{file}.csv', index_col=0)
+            metrics = pd.read_csv(f'{file}.csv', index_col=0).drop_duplicates()
             metrics["HVGs"] = int(HVGs.group(1))
             all_dataframes.append(metrics)
 
         self.metrics = pd.concat(all_dataframes, axis=0)
-        self.metrics = self.metrics.iloc[:,-2:]
-        self.metrics.columns = ["Overall","HVGs"]
+        self.metrics = self.metrics.iloc[:,-4:]
+        self.metrics.columns = ["Overall Batch","Overall Bio","Overall","HVGs"]
 
     def visualize_results(self, bg_color: str="Blues"):
         """
@@ -64,14 +65,21 @@ class VisualizeEnv():
         styled_metrics = metrics.style.background_gradient(cmap=bg_color)
         display(styled_metrics)
 
-    def ErrorBarPlot(self, image_path: str=None):
+    def ErrorBarPlot(self, image_path: str=None, seed: int=42, metric_to_visualize: str="Overall"):
+
+        # Ensure reproducibility
+        def rep_seed(seed):
+            np.random.seed(seed)
+            random.seed(seed)
+            
+        rep_seed(seed)
 
         metrics = self.metrics.copy()
         metrics['Model Type'] = self.metrics.index
-        metrics = metrics.groupby(['Model Type','HVGs'])['Overall'].agg(['mean', 'std']).reset_index()
+        metrics = metrics.groupby(['Model Type','HVGs'])[metric_to_visualize].agg(['mean', 'std']).reset_index()
 
         # Define a colormap
-        cmap = cm.get_cmap('viridis', len(metrics['Model Type'].unique()))
+        cmap = cm.get_cmap('tab20', len(metrics['Model Type'].unique()))
 
         # Create a dictionary to map model types to unique colors
         color_dict = dict(zip(metrics['Model Type'].unique(), [cmap(i) for i in range(len(metrics['Model Type'].unique()))]))
@@ -80,14 +88,20 @@ class VisualizeEnv():
         fig, ax = plt.subplots(figsize=(15, 9))
 
         # Replace 'HVGs' with a sequence of integers for plotting
-        metrics['HVGs_temp'] = range(1, len(metrics['HVGs'].unique()) + 1)
+        HVGs_range = range(1, len(metrics['HVGs'].unique()) + 1)
+        metrics['HVGs_temp'] = np.zeros(len(metrics['HVGs']))
+        for idx, HVG_range in enumerate(metrics['HVGs'].unique()):
+            metrics['HVGs_temp'][metrics['HVGs']==HVG_range] = [HVGs_range[idx]]*len(metrics['HVGs_temp'][metrics['HVGs']==HVG_range])
 
         # Plot all model types in the same plot
         for model_type, color in color_dict.items():
             model_df = metrics[metrics['Model Type'].str.contains(model_type)]
+
+            # Reset the index
+            model_df = model_df.reset_index(drop=True)
             
             # Add jitter to x-coordinates for each individual point
-            jittered_x = model_df['HVGs_temp'] + np.random.normal(scale=0.2, size=len(model_df))
+            jittered_x = model_df['HVGs_temp'] + np.random.normal(scale=0.06, size=len(model_df))
 
             # Plot each data point separately
             for i in range(len(model_df)):
@@ -112,7 +126,7 @@ class VisualizeEnv():
         #plt.xticks(model_df['HVGs'].unique())
 
         plt.xlabel('Nr. of HVGs')
-        plt.ylabel('Overall Metric')
+        plt.ylabel(f'{metric_to_visualize} Metric')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
         plt.title('HVG Impact Assessment')
 
