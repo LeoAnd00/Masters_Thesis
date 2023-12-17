@@ -2013,10 +2013,10 @@ class benchmark():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=25,
+                                lr_scheduler_maxiters=110,#25,
                                 eval_freq=1,
-                                epochs=20,
-                                earlystopping_threshold=5)
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
         
         predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
