@@ -111,6 +111,13 @@ class prep_data(data.Dataset):
         self.feature_means = None
         self.feature_stdevs = None
 
+        # Import gene2vec embeddings
+        if use_gene2vec_emb:
+            gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
+            # Create a dictionary
+            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+            self.gene2vec_tensor = self.make_gene2vec_embedding()
+
         # Filter highly variable genes if specified
         if HVG:
             sc.pp.highly_variable_genes(self.adata, n_top_genes=HVGs, flavor="cell_ranger")
@@ -126,11 +133,11 @@ class prep_data(data.Dataset):
         self.labels = self.adata.obs[self.target_key]
 
         # Import gene2vec embeddings
-        if use_gene2vec_emb:
-            gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
-            # Create a dictionary
-            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
-            self.gene2vec_tensor = self.make_gene2vec_embedding()
+        #if use_gene2vec_emb:
+        #    gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
+        #    # Create a dictionary
+        #    self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+        #    self.gene2vec_tensor = self.make_gene2vec_embedding()
 
         if Scaled:
             self.adata.X, self.feature_means, self.feature_stdevs = dp.scale_data(self.adata.X, return_mean_and_std=True)
@@ -286,20 +293,40 @@ class prep_data(data.Dataset):
         missing_gene_symbols = []
         gene_symbol_list = list(self.gene2vec_dic.keys())
         gene_symbols_to_use = []
-        #for gene_symbol in self.adata.var.index:
-        #    if gene_symbol in gene_symbol_list:
-        #        gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
-        #        gene_symbols_to_use.append(gene_symbol)
-        #    else:
-        #        missing_gene_symbols.append(gene_symbol)
-        for gene_symbol in self.adata.var.index:
-            if gene_symbol in gene_symbol_list:
-                gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
-                gene_symbols_to_use.append(gene_symbol)
-            else:
-                gene_embeddings_dic[gene_symbol] = torch.zeros((200,1))
-                gene_symbols_to_use.append(gene_symbol)
-                missing_gene_symbols.append(gene_symbol)
+        
+        # Get top self.HVGs number of HVGs that has a defined Gene2vec embedding
+        if self.HVG:
+            adata_temp = self.adata.copy()
+            sc.pp.highly_variable_genes(adata_temp, n_top_genes=len(adata_temp.var.index), flavor="cell_ranger")
+            
+            # Get the normalized dispersion values
+            norm_dispersion_values = adata_temp.var['dispersions_norm'].values
+
+            # Create a DataFrame with gene names and corresponding norm dispersion values
+            gene_df = pd.DataFrame({'gene': adata_temp.var.index, 'norm_dispersion': norm_dispersion_values})
+
+            # Sort the DataFrame based on norm dispersion values
+            sorted_gene_df = gene_df.sort_values(by='norm_dispersion', ascending=False)
+
+            # Get the sorted gene names
+            sorted_gene_names = sorted_gene_df['gene'].values
+
+            for gene_symbol in sorted_gene_names:
+                if gene_symbol in gene_symbol_list:
+                    gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+                    gene_symbols_to_use.append(gene_symbol)
+                else:
+                    missing_gene_symbols.append(gene_symbol)
+                # Break ones the requested number of HVGs has been reached
+                if len(gene_symbols_to_use) == self.HVGs:
+                    break
+        else:
+            for gene_symbol in self.adata.var.index:
+                if gene_symbol in gene_symbol_list:
+                    gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+                    gene_symbols_to_use.append(gene_symbol)
+                else:
+                    missing_gene_symbols.append(gene_symbol)
 
         # Remove genes without a gene2vec representation
         self.adata = self.adata[:, gene_symbols_to_use].copy()
