@@ -1303,11 +1303,19 @@ class train_module():
                     print(f"Stopped training using EarlyStopping at epoch {epoch+1}")
                     break
 
-                # Save model if performance have improved
+                # Save model if performance has improved
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
                     best_preds = all_preds
+                    
+                    # Move the model to CPU before saving
+                    model.to('cpu')
+                    
+                    # Save the entire model to a file
                     torch.save(model, f'{out_path}model.pt')
+                    
+                    # Move the model back to the original device
+                    model.to(device)
 
             # Update learning rate
             lr_scheduler.step()
