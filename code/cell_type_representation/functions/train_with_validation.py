@@ -1312,7 +1312,9 @@ class train_module():
                     model.to('cpu')
                     
                     # Save the entire model to a file
-                    torch.save(model, f'{out_path}model.pt')
+                    #torch.save(model, f'{out_path}model.pt')
+                    #torch.save(model.state_dict(), f'{out_path}model.pt')
+                    torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
                     
                     # Move the model back to the original device
                     model.to(device)
@@ -1479,7 +1481,7 @@ class train_module():
         return all_preds
     
     
-    def predict(self, data_, model_path: str, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
         """
         Generate latent represntations for data using the trained model.
 
@@ -1489,6 +1491,8 @@ class train_module():
             An AnnData object containing data for prediction.
         model_path : str
             The path to the directory where the trained model is saved.
+        model : nn.Module
+            If the model is saved as torch.save(model.state_dict(), f'{out_path}model.pt') one have to input a instance of the model. If torch.save(model, f'{out_path}model.pt') was used then leave this as None (default is None).
         batch_size : int, optional
             Batch size for data loading during prediction (default is 32).
         device : str or None, optional
@@ -1507,7 +1511,13 @@ class train_module():
         else:
             device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        model = torch.load(f'{model_path}model.pt')
+        if model == None:
+            model = torch.load(f'{model_path}model.pt')
+        else:
+            model.load_state_dict(torch.load(f'{model_path}model.pt'))
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model= nn.DataParallel(model)
         model.to(device)
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)

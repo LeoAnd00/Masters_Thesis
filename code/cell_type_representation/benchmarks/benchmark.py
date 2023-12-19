@@ -81,6 +81,7 @@ class benchmark():
         self.gene2vec_path = gene2vec_path
         self.image_path = image_path
         self.seed = seed
+        self.HVGs = HVGs
 
         # Initialize variables
         self.metrics = None
@@ -1119,10 +1120,10 @@ class benchmark():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         #Model
-        model = model_encoder.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
+        model = model_encoder.CellType2VecModel(input_dim=self.HVGs,
                                               output_dim=100,
                                               drop_out=0.2,
                                               act_layer=nn.ReLU,
@@ -1133,8 +1134,8 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1231,10 +1232,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         #Model
-        model = model_pathway.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
+        model = model_pathway.CellType2VecModel(input_dim=self.HVGs,
                                                 attn_embed_dim=24*4,
                                                 output_dim=100,
                                                 num_pathways=300,
@@ -1252,8 +1253,8 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1351,10 +1352,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         #Model
-        model = model_encoder_with_pathway.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
+        model = model_encoder_with_pathway.CellType2VecModel(input_dim=self.HVGs,
                                                 attn_embed_dim=24*4,
                                                 output_dim=100,
                                                 num_pathways=300,
@@ -1374,8 +1375,8 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1472,10 +1473,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
         
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         #Model
-        model = model_transformer_encoder.CellType2VecModel(input_dim=2000,#adata_in_house.X.shape[1],
+        model = model_transformer_encoder.CellType2VecModel(input_dim=self.HVGs,#adata_in_house.X.shape[1],
                                                             attn_embed_dim=24,
                                                             output_dim=100,
                                                             num_heads=1,
@@ -1494,7 +1495,7 @@ class benchmark():
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
                                         HVG=True,
-                                        HVGs=2000,
+                                        HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1591,10 +1592,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
         
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         #Model
-        model = model_transformer_encoder_with_pathways.CellType2VecModel(input_dim=adata_in_house.X.shape[1],
+        model = model_transformer_encoder_with_pathways.CellType2VecModel(input_dim=self.HVGs,
                                                                             attn_embed_dim=48,
                                                                             num_pathways=300,
                                                                             pathway_embedding_dim=50,
@@ -1614,8 +1615,8 @@ class benchmark():
                                         num_pathways=300,
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
-                                        HVG=False,
-                                        HVGs=4000,
+                                        HVG=True,
+                                        HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
                                         Scaled=False,
@@ -1713,10 +1714,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         HVG_buckets_ = 1000
-        HVGs_num = 2000
+        HVGs_num = self.HVGs
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=None,
@@ -1768,7 +1769,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        predictions = train_env.predict(data_=adata_in_house, model_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
@@ -1837,10 +1838,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
         HVG_buckets_ = 1000
-        HVGs_num = 2000
+        HVGs_num = self.HVGs
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=None,
@@ -1962,9 +1963,10 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        adata_in_house = self.adata.copy()
+        adata_in_house = self.original_adata.copy()
 
-        HVG_buckets_ = 300
+        HVG_buckets_ = 1000
+        HVGs_num = self.HVGs
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         pathways_file_path=self.pathway_path,
@@ -1972,7 +1974,7 @@ class benchmark():
                                         pathway_gene_limit=10,
                                         save_model_path=save_path,
                                         HVG=True,
-                                        HVGs=2000,
+                                        HVGs=HVGs_num,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
                                         Scaled=False,
@@ -1982,7 +1984,7 @@ class benchmark():
                                         gene2vec_path=self.gene2vec_path)
         
         #Model
-        model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=min([2000,int(train_env.data_env.X.shape[1])]),
+        model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
                                                                     output_dim=100,
                                                                     num_pathways=300,
                                                                     drop_out=0.2,
