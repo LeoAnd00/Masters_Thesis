@@ -8,6 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import torch.nn as nn
+from tqdm import tqdm
+from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
 class VisualizeEnv():
 
@@ -46,11 +49,28 @@ class VisualizeEnv():
         self.data_env = self.train_env.data_env
         
         self.pred_adata = sc.read(pred_path, cache=True)
-        self.attention_matrices = self.predict(data_=self.pred_adata, model_path=model_path, batch_size=batch_size)
+
+        # Define model
+        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([HVGs,int(self.data_env.X.shape[1])]),
+                                                        output_dim=100,
+                                                        drop_out=0.2,
+                                                        act_layer=nn.ReLU,
+                                                        norm_layer=nn.LayerNorm,#nn.BatchNorm1d, LayerNorm
+                                                        attn_embed_dim=24*4,
+                                                        num_heads=4,
+                                                        mlp_ratio=4,
+                                                        attn_bias=False,
+                                                        attn_drop_out=0.,
+                                                        depth=3,
+                                                        nn_tokens=HVG_buckets_,
+                                                        nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
+                                                        use_gene2vec_emb=True)
+
+        self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
 
         print(list(self.attention_matrices.keys()))
         
-    def predict(self, data_, model_path: str, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
         """
         Generate latent represntations for data using the trained model.
 
@@ -60,6 +80,8 @@ class VisualizeEnv():
             An AnnData object containing data for prediction.
         model_path : str
             The path to the directory where the trained model is saved.
+        model : nn.Module
+            If the model is saved as torch.save(model.state_dict(), f'{out_path}model.pt') one have to input a instance of the model. If torch.save(model, f'{out_path}model.pt') was used then leave this as None (default is None).
         batch_size : int, optional
             Batch size for data loading during prediction (default is 32).
         device : str or None, optional
@@ -78,7 +100,13 @@ class VisualizeEnv():
         else:
             device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        model = torch.load(f'{model_path}.pt')
+        if model == None:
+            model = torch.load(f'{model_path}.pt')
+        else:
+            model.load_state_dict(torch.load(f'{model_path}.pt'))
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model= nn.DataParallel(model)
         model.to(device)
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
@@ -104,15 +132,26 @@ class VisualizeEnv():
 
         model.eval()
         with torch.no_grad():
-            for data_inputs, data_labels, data_pathways in data_loader:
+            for data_inputs, data_labels, data_pathways in tqdm(data_loader):
 
                 data_inputs = data_inputs.to(device)
+                data_labels = list(data_labels)
                 data_pathways = data_pathways.to(device)
 
                 _, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=True)
 
-                for label in torch.unique(data_labels):
-                    attn_matrices[label] = attn_matrices[label] + torch.sum(torch.stack(attn_matrix[data_labels==label]), dim=0) / target_counts[label]
+                for label in (list(set(data_labels))):
+
+                    mask = torch.tensor([data_label == label for data_label in data_labels])
+
+                    average_along_attention_head_dim = torch.mean(attn_matrix[mask,:,:,:], dim=1)
+
+                    sum_along_samples = torch.sum(average_along_attention_head_dim, dim=0).to('cpu')
+
+                    attn_matrices[label] = attn_matrices[label] + sum_along_samples / target_counts[label]
+                
+                print(attn_matrices[list(set(data_labels))[0]][:5,:5])
+                break
         
         for key, value in attn_matrices.items():
             attn_matrices[key] = value.numpy()
@@ -132,20 +171,18 @@ class VisualizeEnv():
             top_row_indices = np.argsort(row_sums)[-num_positions:]
             top_col_indices = np.argsort(col_sums)[-num_positions:]
 
-            gene_names = self.data_env.hvg_genes[top_row_indices]
+            gene_names_row = self.data_env.hvg_genes[top_row_indices]
+            gene_names_col = self.data_env.hvg_genes[top_col_indices]
 
-            # Create a set of unique positions
-            selected_positions = set((i, j) for i in top_row_indices for j in top_col_indices)
+            return gene_names_row, gene_names_col
 
-            return selected_positions, gene_names
-
-        selected_positions, gene_names = select_positions_based_on_sum(self.attention_matrices[cell_type], num_positions=num_of_top_genes)
+        gene_names_row, gene_names_col = select_positions_based_on_sum(self.attention_matrices[cell_type], num_positions=num_of_top_genes)
 
         # Create a dataframe for seaborn
         df = pd.DataFrame(data=self.attention_matrices[cell_type], index=self.data_env.hvg_genes, columns=self.data_env.hvg_genes)
 
         # Select the top genes
-        df = df.loc[gene_names, gene_names]
+        df = df.loc[gene_names_row, gene_names_row]
 
         # Visualize the heatmap with seaborn
         plt.figure(figsize=(12, 10))
