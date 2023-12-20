@@ -10,6 +10,7 @@ import seaborn as sns
 import pandas as pd
 import torch.nn as nn
 from tqdm import tqdm
+from scipy.spatial.distance import pdist, squareform
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
 class VisualizeEnv():
@@ -18,6 +19,7 @@ class VisualizeEnv():
         pass
 
     def MakeAttentionMatrix(self, 
+                            attention_matrix_or_just_env: bool,
                             train_path: str, 
                             pred_path: str, 
                             gene2vec_path: str,
@@ -66,9 +68,10 @@ class VisualizeEnv():
                                                         nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
                                                         use_gene2vec_emb=True)
 
-        self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
+        if attention_matrix_or_just_env:
+            self.attention_matrices, self.latent_space_dictionary = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
 
-        print(list(self.attention_matrices.keys()))
+            print(list(self.attention_matrices.keys()))
         
     def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
         """
@@ -129,6 +132,8 @@ class VisualizeEnv():
         matrix_size = (len(self.data_env.hvg_genes), len(self.data_env.hvg_genes)) 
         # Create a dictionary with unique targets as keys and matrices as values
         attn_matrices = {target: torch.zeros(matrix_size) for target in unique_targets}
+        # Create a dictionary with unique targets as keys and latent space representations as values
+        latent_space_dictionary = {target: torch.zeros(100) for target in unique_targets}
 
         model.eval()
         with torch.no_grad():
@@ -138,10 +143,11 @@ class VisualizeEnv():
                 data_labels = list(data_labels)
                 data_pathways = data_pathways.to(device)
 
-                _, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=True)
+                latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=True)
 
                 for label in (list(set(data_labels))):
-
+                    
+                    # Attention matrices
                     mask = torch.tensor([data_label == label for data_label in data_labels])
 
                     average_along_attention_head_dim = torch.mean(attn_matrix[mask,:,:,:], dim=1)
@@ -149,40 +155,70 @@ class VisualizeEnv():
                     sum_along_samples = torch.sum(average_along_attention_head_dim, dim=0).to('cpu')
 
                     attn_matrices[label] = attn_matrices[label] + sum_along_samples / target_counts[label]
+
+                    # Latent space representations
+                    latent_space_sum_along_samples = torch.sum(latent_space, dim=0).to('cpu')
+
+                    latent_space_dictionary[label] = latent_space_dictionary[label] + latent_space_sum_along_samples / target_counts[label]
                 
-                print(attn_matrices[list(set(data_labels))[0]][:5,:5])
-                break
+                #print(attn_matrices[list(set(data_labels))[0]][:5,:5])
+                #break
         
         for key, value in attn_matrices.items():
             attn_matrices[key] = value.numpy()
+        for key, value in latent_space_dictionary.items():
+            latent_space_dictionary[key] = value.numpy()
 
-        return attn_matrices
+        return attn_matrices, latent_space_dictionary
     
     def GetCellTypeNames(self):
         print(list(self.attention_matrices.keys()))
+
+    def DownloadAttentionMatrixDictionary(self, name: str="AttetionMatrixDictionary"):
+
+        # Save the dictionary to a NumPy .npz file
+        np.savez(f'attention_matrices/{name}.npz', **self.attention_matrices)
+
+    def LoadAttentionMatrixDictionary(self, name: str="AttetionMatrixDictionary"):
     
-    def HeatMapVisualization(self, cell_type: str, num_of_top_genes: int = 100):
-        def select_positions_based_on_sum(attention_matrix, num_positions=100):
+        # Load the dictionary back from the .npz file
+        self.attention_matrices = np.load(f'attention_matrices/{name}.npz')
+
+    def DownloadLatentSpaceDictionary(self, name: str="LatentSpaceDictionary"):
+
+        # Save the dictionary to a NumPy .npz file
+        np.savez(f'latent_space_dictionary/{name}.npz', **self.latent_space_dictionary)
+
+    def LoadLatentSpaceDictionary(self, name: str="LatentSpaceDictionary"):
+    
+        # Load the dictionary back from the .npz file
+        self.latent_space_dictionary = np.load(f'latent_space_dictionary/{name}.npz')
+
+    
+    def HeatMapVisualization(self, cell_type: str, num_of_top_genes: int = 50):
+        def select_positions_based_on_sum(attention_matrix, num_positions=50):
             # Calculate row and column sums
-            row_sums = np.sum(attention_matrix, axis=1)
-            col_sums = np.sum(attention_matrix, axis=0)
+            row_sums = np.sum(attention_matrix, axis=1) / np.sum(attention_matrix)
+            col_sums = np.sum(attention_matrix, axis=0) / np.sum(attention_matrix)
 
             # Get indices of the top rows and columns
             top_row_indices = np.argsort(row_sums)[-num_positions:]
             top_col_indices = np.argsort(col_sums)[-num_positions:]
 
             gene_names_row = self.data_env.hvg_genes[top_row_indices]
+            row_sums = row_sums[top_row_indices]
             gene_names_col = self.data_env.hvg_genes[top_col_indices]
+            col_sums = col_sums[top_col_indices]
 
-            return gene_names_row, gene_names_col
+            return gene_names_row, row_sums, gene_names_col, col_sums
 
-        gene_names_row, gene_names_col = select_positions_based_on_sum(self.attention_matrices[cell_type], num_positions=num_of_top_genes)
+        gene_names_row, row_sums, gene_names_col, col_sums = select_positions_based_on_sum(self.attention_matrices[cell_type], num_positions=num_of_top_genes)
 
         # Create a dataframe for seaborn
         df = pd.DataFrame(data=self.attention_matrices[cell_type], index=self.data_env.hvg_genes, columns=self.data_env.hvg_genes)
 
         # Select the top genes
-        df = df.loc[gene_names_row, gene_names_row]
+        df = df.loc[gene_names_col, gene_names_col]
 
         # Visualize the heatmap with seaborn
         plt.figure(figsize=(12, 10))
@@ -194,6 +230,151 @@ class VisualizeEnv():
 
         plt.title(f'Attention Matrix Heatmap of Top {num_of_top_genes} Genes for {cell_type}')
         plt.show()
+
+    def BarPlotVisualization(self, cell_type: str="Classical Monocytes", row_or_col: str="col", num_of_top_genes: int = 50, color: str="green"):
+        matrix = self.attention_matrices[cell_type]
+
+        # Calculate the sum of each row and column
+        row_sums = np.sum(matrix, axis=1)
+        col_sums = np.sum(matrix, axis=0)
+
+        # Get indices of the top rows and columns
+        top_row_indices = np.argsort(row_sums)[-num_of_top_genes:]
+        top_col_indices = np.argsort(col_sums)[-num_of_top_genes:]
+
+        # Calculate the relative sum (percentage) for each row and column
+        relative_row_sums = row_sums[top_row_indices] / np.sum(row_sums)
+        relative_col_sums = col_sums[top_col_indices] / np.sum(col_sums)
+
+        # Gene names
+        gene_names_row = self.data_env.hvg_genes[top_row_indices]
+        gene_names_col = self.data_env.hvg_genes[top_col_indices]
+
+        # Plot horizontal bar plots for relative sums
+        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*2/10)))
+
+        if row_or_col == "row":
+            axes.barh(gene_names_row, relative_row_sums, color=color)
+            axes.set_title('Relative Sum of Row Genes')
+            axes.set_xlabel('Relative Sum')
+            axes.set_ylabel('Gene')
+        elif row_or_col == "col":
+            axes.barh(gene_names_col, relative_col_sums, color=color)
+            axes.set_title('Relative Sum of Column Genes')
+            axes.set_xlabel('Relative Sum')
+            axes.set_ylabel('Gene')
+
+        plt.tight_layout()
+        plt.show()
+
+    def BarPlotOfIndividualGenes(self, cell_type: str="Classical Monocytes", gene: str="LYZ", num_of_top_genes: int = 50, color: str="blue"):
+
+        df = pd.DataFrame(data=self.attention_matrices[cell_type], index=self.data_env.hvg_genes, columns=self.data_env.hvg_genes)
+
+        # Select the top genes
+        df = df.loc[gene, :] / np.sum(df.loc[gene, :])
+
+        top_indices = np.argsort(df)[-num_of_top_genes:]
+
+        df = df[top_indices]
+        gene_names= self.data_env.hvg_genes[top_indices]
+
+        # Plot horizontal bar plots for relative sums
+        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*2/10)))
+
+        axes.barh(gene_names, df, color=color)
+        axes.set_title(f'Attention between {gene} and top {num_of_top_genes} genes with highest attention score')
+        axes.set_xlabel('Relative attention')
+        axes.set_ylabel('Gene')
+
+        plt.tight_layout()
+        plt.show()
+
+    def VisualizeCellTypeCorrelations(self, attention_or_latent: str="attention"):
+        
+        if attention_or_latent == "attention":
+            data = self.attention_matrices
+        elif attention_or_latent == "latent":
+            data = self.latent_space_dictionary
+        
+        # Make a dictionary containing the vector representations of each cell type where each dimesnion is a gene.
+        cell_type_vectors = {}
+        for cell_type in list(data.keys()):
+
+            matrix = data[cell_type]
+
+            if attention_or_latent == "attention":
+                # Calculate the sum of each column
+                col = np.sum(matrix, axis=0)
+            elif attention_or_latent == "latent":
+                col = matrix
+
+            # Calculate the relative sum (percentage) for each column
+            relative_sums = col / np.sum(col)
+
+            # drop Erythroid-like and erythroid precursor cells due to the bigg values
+            if (attention_or_latent == "latent") and (cell_type == 'Erythroid-like and erythroid precursor cells'):
+                continue
+
+            cell_type_vectors[cell_type] = relative_sums
+
+        # Calculate the eucledian distance between all cell type vectors to create a distance matrix
+        cell_types = list(cell_type_vectors.keys())
+        vectors = [cell_type_vectors[cell_type] for cell_type in cell_types]
+
+        # Calculate pairwise Euclidean distances
+        distance_matrix = squareform(pdist(vectors, metric='euclidean'))
+
+        # Create a heatmap to visualize the distance matrix
+        plt.figure(figsize=(10, 8))
+        heatmap = plt.imshow(distance_matrix, cmap='viridis', interpolation='nearest')
+
+        plt.colorbar(heatmap, label='Euclidean Distance')
+        plt.xticks(range(len(cell_types)), cell_types, rotation=45, ha='right')  # Adjust rotation and alignment
+        plt.yticks(range(len(cell_types)), cell_types)
+        plt.title('Cell Type Correlations')
+        plt.tight_layout()  # Adjust layout for better spacing
+        plt.show()
+
+    def GeneVsCellTypeVisualization(self, num_of_top_genes: int = 20):
+        
+        df_all = []
+        all_top_indices = []
+        for cell_type in list(self.attention_matrices.keys()):
+
+            df = pd.DataFrame(data=self.attention_matrices[cell_type], index=self.data_env.hvg_genes, columns=self.data_env.hvg_genes)
+
+            col = np.sum(df, axis=0)
+            
+            relative_sums = col / np.sum(col)
+
+            if cell_type == list(self.attention_matrices.keys())[0]:
+                df_all = pd.DataFrame(data=relative_sums, index=self.data_env.hvg_genes, columns=[cell_type])
+            else:
+                temp = pd.DataFrame(data=relative_sums, index=self.data_env.hvg_genes, columns=[cell_type])
+                df_all = pd.concat([df_all, temp], axis=1)
+
+            top_indices = np.argsort(relative_sums)[-num_of_top_genes:]
+            all_top_indices.extend(top_indices)
+
+        unique_top_indices = list(set(all_top_indices))
+        df = df_all.iloc[unique_top_indices,:]
+        gene_names= df.index.tolist()
+        cell_types = df.columns.tolist()
+
+        print(f"Number of genes: {len(gene_names)}")
+
+        # Create a heatmap to visualize 
+        plt.figure(figsize=(int(2*num_of_top_genes), 26))
+        heatmap = plt.imshow(df, cmap='viridis', interpolation='nearest')
+
+        plt.colorbar(heatmap, label='Relative attention')
+        plt.xticks(range(len(cell_types)), cell_types, rotation=45, ha='right')  # Adjust rotation and alignment
+        plt.yticks(range(len(gene_names)), gene_names)
+        plt.title('Cell Type Correlations to Genes')
+        plt.tight_layout()  # Adjust layout for better spacing
+        plt.show()
+
 
 class prep_test_data(data.Dataset):
     """
