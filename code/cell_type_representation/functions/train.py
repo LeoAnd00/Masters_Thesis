@@ -105,6 +105,13 @@ class prep_data(data.Dataset):
         self.use_HVG_buckets = use_HVG_buckets
         self.use_gene2vec_emb = use_gene2vec_emb
 
+        # Import gene2vec embeddings
+        if use_gene2vec_emb:
+            gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
+            # Create a dictionary
+            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+            self.gene2vec_tensor = self.make_gene2vec_embedding()
+
         # Filter highly variable genes if specified
         if HVG:
             sc.pp.highly_variable_genes(self.adata, n_top_genes=HVGs, flavor="cell_ranger")
@@ -120,11 +127,11 @@ class prep_data(data.Dataset):
         self.labels = self.adata.obs[self.target_key]
 
         # Import gene2vec embeddings
-        if use_gene2vec_emb:
-            gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
-            # Create a dictionary
-            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
-            self.gene2vec_tensor = self.make_gene2vec_embedding()
+        #if use_gene2vec_emb:
+        #    gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
+        #    # Create a dictionary
+        #    self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+        #    self.gene2vec_tensor = self.make_gene2vec_embedding()
 
         if Scaled:
             self.adata.X, self.feature_means, self.feature_stdevs = dp.scale_data(self.adata.X, return_mean_and_std=True)
@@ -149,7 +156,8 @@ class prep_data(data.Dataset):
         # Convert expression level to buckets, suitable for nn.Embbeding() used in certain transformer models
         if use_HVG_buckets:
             self.X_not_tokenized = self.X.clone()
-            self.X = self.bucketize_expression_levels(self.X, HVG_buckets)  
+            #self.X = self.bucketize_expression_levels(self.X, HVG_buckets)  
+            self.X = self.bucketize_expression_levels_per_gene(self.X, HVG_buckets)  
 
         # Pathway information
         # Load the JSON data into a Python dictionary
@@ -275,20 +283,40 @@ class prep_data(data.Dataset):
         missing_gene_symbols = []
         gene_symbol_list = list(self.gene2vec_dic.keys())
         gene_symbols_to_use = []
-        for gene_symbol in self.adata.var.index:
-            if gene_symbol in gene_symbol_list:
-                gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
-                gene_symbols_to_use.append(gene_symbol)
-            else:
-                missing_gene_symbols.append(gene_symbol)
-        #for gene_symbol in self.adata.var.index:
-        #    if gene_symbol in gene_symbol_list:
-        #        gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
-        #        gene_symbols_to_use.append(gene_symbol)
-        #    else:
-        #        gene_embeddings_dic[gene_symbol] = torch.zeros((200,1))
-        #        gene_symbols_to_use.append(gene_symbol)
-        #        missing_gene_symbols.append(gene_symbol)
+
+        # Get top self.HVGs number of HVGs that has a defined Gene2vec embedding
+        if self.HVG:
+            adata_temp = self.adata.copy()
+            sc.pp.highly_variable_genes(adata_temp, n_top_genes=len(adata_temp.var.index), flavor="cell_ranger")
+            
+            # Get the normalized dispersion values
+            norm_dispersion_values = adata_temp.var['dispersions_norm'].values
+
+            # Create a DataFrame with gene names and corresponding norm dispersion values
+            gene_df = pd.DataFrame({'gene': adata_temp.var.index, 'norm_dispersion': norm_dispersion_values})
+
+            # Sort the DataFrame based on norm dispersion values
+            sorted_gene_df = gene_df.sort_values(by='norm_dispersion', ascending=False)
+
+            # Get the sorted gene names
+            sorted_gene_names = sorted_gene_df['gene'].values
+
+            for gene_symbol in sorted_gene_names:
+                if gene_symbol in gene_symbol_list:
+                    gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+                    gene_symbols_to_use.append(gene_symbol)
+                else:
+                    missing_gene_symbols.append(gene_symbol)
+                # Break ones the requested number of HVGs has been reached
+                if len(gene_symbols_to_use) == self.HVGs:
+                    break
+        else:
+            for gene_symbol in self.adata.var.index:
+                if gene_symbol in gene_symbol_list:
+                    gene_embeddings_dic[gene_symbol] = self.gene2vec_dic[gene_symbol]
+                    gene_symbols_to_use.append(gene_symbol)
+                else:
+                    missing_gene_symbols.append(gene_symbol)
 
         # Remove genes without a gene2vec representation
         self.adata = self.adata[:, gene_symbols_to_use].copy()
@@ -881,11 +909,21 @@ class train_module():
                     print(f"Stopped training using EarlyStopping at epoch {epoch+1}")
                     break
 
-                # Save model if performance have improved
+                # Save model if performance has improved
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
                     best_preds = all_preds
-                    torch.save(model, f'{out_path}model.pt')
+                    
+                    # Move the model to CPU before saving
+                    model.to('cpu')
+                    
+                    # Save the entire model to a file
+                    #torch.save(model, f'{out_path}model.pt')
+                    #torch.save(model.state_dict(), f'{out_path}model.pt')
+                    torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
+                    
+                    # Move the model back to the original device
+                    model.to(device)
 
             # Update learning rate
             lr_scheduler.step()
@@ -1049,7 +1087,7 @@ class train_module():
         return all_preds
     
     
-    def predict(self, data_, model_path: str, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
         """
         Generate latent represntations for data using the trained model.
 
@@ -1059,6 +1097,8 @@ class train_module():
             An AnnData object containing data for prediction.
         model_path : str
             The path to the directory where the trained model is saved.
+        model : nn.Module
+            If the model is saved as torch.save(model.state_dict(), f'{out_path}model.pt') one have to input a instance of the model. If torch.save(model, f'{out_path}model.pt') was used then leave this as None (default is None).
         batch_size : int, optional
             Batch size for data loading during prediction (default is 32).
         device : str or None, optional
@@ -1077,7 +1117,13 @@ class train_module():
         else:
             device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        model = torch.load(f'{model_path}model.pt')
+        if model == None:
+            model = torch.load(f'{model_path}model.pt')
+        else:
+            model.load_state_dict(torch.load(f'{model_path}model.pt'))
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model= nn.DataParallel(model)
         model.to(device)
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
@@ -1150,7 +1196,8 @@ class prep_test_data(data.Dataset):
         if prep_data_env.use_HVG_buckets:
             self.training_expression_levels = prep_data_env.X_not_tokenized
             self.X_not_tokenized = self.X.clone()
-            self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets)  
+            #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
+            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
 
     def bucketize_expression_levels(self, expression_levels, num_buckets):
         """

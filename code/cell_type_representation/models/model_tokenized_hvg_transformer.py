@@ -6,43 +6,6 @@ from torch.nn.parameter import Parameter
 from torch.nn import init
 import pandas as pd
 
-
-
-class CustomScaleModule(torch.nn.Module):
-    """
-    Inspired by the nn.Linear function: https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear 
-    \nOne-to-one unique scaling of each input (bias if wanted) into a new space, out_features times, making a matrix output
-    """
-
-    def __init__(self, in_features: int, out_features: int, bias: bool=True):
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = Parameter(torch.empty((in_features, out_features)))
-        if bias:
-            self.bias = Parameter(torch.empty(in_features))
-        else:
-            self.register_parameter('bias', None)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
-        # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
-        # https://github.com/pytorch/pytorch/issues/57109
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            init.uniform_(self.bias, -bound, bound)
-
-    def forward(self, input):
-
-        output = input * self.weight
-        output = torch.sum(output, dim=2)
-        if self.bias is not None:
-            output += self.bias
-
-        return output
     
 def scaled_dot_product(q, k, v):
     """
@@ -78,7 +41,6 @@ class MultiheadAttention(nn.Module):
         self.head_dim = embed_dim // num_heads
 
         self.qkv_proj = nn.Linear(input_dim, 3*embed_dim, bias=attn_bias)
-        #self.qkv_proj = CustomScaleModule(input_dim, 3*embed_dim, bias=attn_bias) # Use when having a vector input instead of matrix
         self.o_proj = nn.Linear(embed_dim, output_dim)
         self.attn_dropout1 = nn.Dropout(attn_drop_out)
 
@@ -94,8 +56,7 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, x, return_attention=False):
         batch_size, seq_length, _ = x.size()
-        #batch_size, seq_length = x.size() # Use when having a vector input instead of matrix
-        qkv = self.qkv_proj(x)#.to_sparse()
+        qkv = self.qkv_proj(x)
 
         # Separate Q, K, V from linear output
         qkv = qkv.reshape(batch_size, seq_length, self.num_heads, 3*self.head_dim)
@@ -247,7 +208,7 @@ class AttentionBlock(nn.Module):
         self.act_layer_out_attn=nn.ReLU()
         self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
-    def forward(self, x):
+    def forward(self, x, return_attention=False):
         """
         Forward pass of the attention block.
 
@@ -262,14 +223,22 @@ class AttentionBlock(nn.Module):
             Output tensor after processing through the attention block.
         """
 
-        attn = self.attnblock_attn(self.attnblock_norm1(x))
+        if return_attention:
+            attn, attn_matrix = self.attnblock_attn(self.attnblock_norm1(x), return_attention=return_attention)
+        else:
+            attn = self.attnblock_attn(self.attnblock_norm1(x))
+
         if self.last is False:
             x = x + attn
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
-            # Essentially removes the additional dimension if it's the last attention block
+            # Removes the additional dimension if it's the last attention block
             x = self.linear_out2(self.act_layer_out(self.linear_out(x))).squeeze() + self.linear_out2_attn(self.act_layer_out_attn(self.linear_out_attn(attn))).squeeze()
-        return x
+        
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 
 
 class HVGTransformer(nn.Module):
@@ -309,15 +278,15 @@ class HVGTransformer(nn.Module):
 
     Attributes
     ----------
-    pathways_input : nn.Linear
-        Linear layer for pathway data input.
+    x_embbed_input : nn.Linear
+        Linear layer for tokenized HVG data input.
     blocks : nn.ModuleList
-        List of AttentionBlock modules for processing pathway data.
+        List of AttentionBlock modules for processing HVG data.
 
     Methods
     -------
     forward(pathways)
-        Forward pass of the Pathway Transformer model.
+        Forward pass of the HVG Transformer model.
     """
 
     def __init__(self, 
@@ -335,7 +304,7 @@ class HVGTransformer(nn.Module):
                  norm_layer=nn.LayerNorm):
         super().__init__()
 
-        self.pathways_input = nn.Embedding(nn_tokens, nn_embedding_dim)
+        self.x_embbed_input = nn.Embedding(nn_tokens, nn_embedding_dim)
 
         if depth >= 2:
             self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=nn_embedding_dim, 
@@ -377,14 +346,16 @@ class HVGTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=True)])
 
-    def forward(self, pathways, gene2vec_emb):
+    def forward(self, x, gene2vec_emb, return_attention=False):
         """
-        Forward pass of the Pathway Transformer model.
+        Forward pass of the transformer model.
 
         Parameters
         ----------
-        pathways : torch.Tensor
-            Input tensor containing pathway data.
+        x : torch.Tensor
+            Tokenized expression levels.
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
 
         Returns
         -------
@@ -392,12 +363,18 @@ class HVGTransformer(nn.Module):
             Output tensor after processing through the Pathway Transformer model.
         """
 
-        pathways = self.pathways_input(pathways)
-        pathways += gene2vec_emb
-        for layer in self.blocks:
-            pathways = layer(pathways)
+        x = self.x_embbed_input(x)
+        x += gene2vec_emb
+        for idx, layer in enumerate(self.blocks):
+            if return_attention and idx == 0:
+                x, attn_matrix = layer(x, return_attention)
+            else:
+                x = layer(x, False)
 
-        return pathways
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
     
 
 class OutputEncoder(nn.Module):
@@ -462,11 +439,11 @@ class CellType2VecModel(nn.Module):
     depth : int, optional
         The number of attention blocks in the model (default is 3).
     act_layer : nn.Module, optional
-        The activation function layer to use (default is nn.ReLU).
+        The activation function layer to use for the output encoder (default is nn.ReLU).
     norm_layer : nn.Module, optional
-        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
+        The normalization layer to use for the output encoder, either nn.LayerNorm or nn.BatchNorm1d (default is nn.LayerNorm).
     use_gene2vec_emb : bool, optional
-        Whether to use gene2vec embbedings or not.
+        Whether to use gene2vec embbedings or not (default is True).
 
     Attributes
     ----------
@@ -477,7 +454,7 @@ class CellType2VecModel(nn.Module):
 
     Methods
     -------
-    forward(x, pathways)
+    forward(x, pathways, gene2vec_emb)
         Forward pass of the CellType2Vec model.
     """
 
@@ -487,15 +464,15 @@ class CellType2VecModel(nn.Module):
                  output_dim: int=100,
                  drop_out: float=0.2,
                  nn_embedding_dim: int=200,
-                 nn_tokens: int=300,
+                 nn_tokens: int=1000,
                  num_heads: int=4,
                  mlp_ratio: float=4.,
                  attn_bias: bool=False,
                  attn_drop_out: float=0.0,
                  depth: int=3,
                  act_layer=nn.ReLU,
-                 norm_layer=nn.BatchNorm1d,
-                 use_gene2vec_emb: bool=False):
+                 norm_layer=nn.LayerNorm,
+                 use_gene2vec_emb: bool=True):
         super().__init__()
 
         self.use_gene2vec_emb = use_gene2vec_emb
@@ -520,16 +497,20 @@ class CellType2VecModel(nn.Module):
                                             norm_layer=norm_layer,
                                             drop_out=drop_out)
 
-    def forward(self, x, pathways, gene2vec_emb):
+    def forward(self, x, pathways, gene2vec_emb, return_attention=False):
         """
         Forward pass of the CellType2Vec model.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor for the model.
+            Tokenized expression levels.
         pathways : torch.Tensor
             Input tensor containing pathway data. (Not used by this model)
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
+        return_attention : bool, optional
+            Whether to return the attention matrix between the input HVGs.
 
         Returns
         -------
@@ -537,17 +518,22 @@ class CellType2VecModel(nn.Module):
             Output tensor representing cell type embeddings.
         """
 
-        # Output encoder 
-        #print("Shape: ", x.shape)
-        #print("Shape: ", gene2vec_emb.shape)
-        #ksajhakdj
-        #x = torch.cat((x, pathways), dim=1)
+
         if self.use_gene2vec_emb:
-            x = self.hvg_transformer(x, gene2vec_emb)
+            if return_attention:
+                x, attn_matrix = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            else:
+                x = self.hvg_transformer(x, gene2vec_emb, return_attention)
         else:
-            x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)))
-        #pathways = torch.cat((x, pathways), dim=1)
+            if return_attention:
+                x, attn_matrix = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
+            else:
+                x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
+
         x = self.output_encoder(x)
 
-        return x
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 

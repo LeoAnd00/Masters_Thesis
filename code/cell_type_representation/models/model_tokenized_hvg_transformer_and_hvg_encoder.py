@@ -373,6 +373,7 @@ class OutputEncoder(nn.Module):
                  drop_out: float=0.0):
         super().__init__()
 
+        input_dim = int(2*input_dim)
         self.norm_layer_in = norm_layer(int(input_dim))
         self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
         self.norm_layer1 = norm_layer(int(input_dim/2))
@@ -383,13 +384,16 @@ class OutputEncoder(nn.Module):
         self.linear2_act = act_layer()
         self.output = nn.Linear(int(input_dim/4), output_dim)
 
-        self.linear1_transformer = nn.Linear(int(input_dim), int(input_dim/2))
-        self.norm_layer1_transformer = norm_layer(int(input_dim/2))
-        self.linear1_act_transformer = act_layer()
+        self.linear1_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
+        #self.norm_layer1_transformer = norm_layer(int(input_dim/4))
+        #self.linear1_act_transformer = act_layer()
         self.dropout1_transformer = nn.Dropout(drop_out)
-        self.linear2_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
+        #self.linear2_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
 
     def forward(self, x, x_transformer):
+        
+        x = torch.cat((x, x_transformer), dim=1)
+
         x = self.norm_layer_in(x)
         x = self.linear1(x)
         x = self.norm_layer1(x)
@@ -398,10 +402,10 @@ class OutputEncoder(nn.Module):
         x = self.linear2(x)
 
         x_transformer = self.linear1_transformer(x_transformer)
-        x_transformer = self.norm_layer1_transformer(x_transformer)
-        x_transformer = self.linear1_act_transformer(x_transformer)
+        #x_transformer = self.norm_layer1_transformer(x_transformer)
+        #x_transformer = self.linear1_act_transformer(x_transformer)
         x_transformer = self.dropout1_transformer(x_transformer)
-        x_transformer = self.linear2_transformer(x_transformer)
+        #x_transformer = self.linear2_transformer(x_transformer)
 
         x += x_transformer
         x = self.norm_layer2(x)
