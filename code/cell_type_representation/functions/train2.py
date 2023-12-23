@@ -397,6 +397,8 @@ class prep_data(data.Dataset):
 
         # Replace NaN values with 0
         average_distance_df = average_distance_df.fillna(0)
+        # Normalize to get relative distance
+        average_distance_df = average_distance_df/average_distance_df.max().max()
 
         return average_distance_df
 
@@ -628,11 +630,23 @@ class CustomSNNLoss(nn.Module):
         mask = (cell_type_centroids_distances_matrix_filter != 0.0)
         mask = torch.tensor(mask.values, dtype=torch.float32)
         average_distance_matrix_input = torch.mul(mask, average_distance_matrix_input)
+        average_distance_matrix_input = average_distance_matrix_input / torch.max(average_distance_matrix_input)
 
         cell_type_centroids_distances_matrix_filter = torch.tensor(cell_type_centroids_distances_matrix_filter.values, dtype=torch.float32)
 
+        # Only use non-zero elemnts for loss calculation
+        non_zero_mask = cell_type_centroids_distances_matrix_filter != 0
+        average_distance_matrix_input = average_distance_matrix_input[non_zero_mask]
+        cell_type_centroids_distances_matrix_filter = cell_type_centroids_distances_matrix_filter[non_zero_mask]
+
         # Step 4: Calculate the MSE between target centroids and current centroids
-        loss = F.mse_loss(average_distance_matrix_input, cell_type_centroids_distances_matrix_filter)
+        # Set to zero if loss can't be calculated, like if there's only one cell type per batch effect element
+        loss = 0
+        try:
+            loss = F.mse_loss(average_distance_matrix_input, cell_type_centroids_distances_matrix_filter)
+        except:
+            loss = 0
+            pass
 
         return loss
 
@@ -676,6 +690,8 @@ class CustomSNNLoss(nn.Module):
                 positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                 negativ_sum = torch.sum(negativ_samples)
                 loss = -torch.log(positiv_sum / (positiv_sum + negativ_sum))
+                # New loss:
+                #loss = -torch.log(1/positiv_sum)
                 loss_dict[str(target)] = torch.cat((loss_dict[str(target)], loss.unsqueeze(0)))
 
         del cosine_similarity_matrix
@@ -747,7 +763,7 @@ class CustomSNNLoss(nn.Module):
                 loss_batch = torch.tensor([0.0]).to(self.device)
 
             # Apply weights to the two loss contributions
-            loss = 0.9*loss_target + 0.1*loss_batch + loss_centorid
+            loss = 0.9*loss_target + 0.1*loss_batch + 1.0*loss_centorid 
 
             return loss
         else:
