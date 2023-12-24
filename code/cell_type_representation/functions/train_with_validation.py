@@ -15,6 +15,8 @@ import time as time
 import pandas as pd
 import torch.optim as optim
 from sklearn.model_selection import StratifiedKFold
+from sklearn.decomposition import PCA
+from scipy.spatial.distance import euclidean
 
 
 class prep_data(data.Dataset):
@@ -61,7 +63,10 @@ class prep_data(data.Dataset):
     
     use_gene2vec_emb : bool, optional
         Whether to use gene2vec representations when training the HVG Transformer model relying on tokenization. use_HVG_buckets must be set to True for the use of gene2vec to work.
-        
+    
+    model_output_dim : int, optional
+        Output dimension from the model to be used.
+
     Methods
     -------
     __len__()
@@ -93,7 +98,8 @@ class prep_data(data.Dataset):
                  use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
                  batch_keys: list=None,
-                 use_gene2vec_emb: bool=False):
+                 use_gene2vec_emb: bool=False,
+                 model_output_dim: int=100):
         
         self.adata = adata
         self.target_key = target_key
@@ -146,6 +152,9 @@ class prep_data(data.Dataset):
         # Encode the target information
         self.label_encoder = LabelEncoder()
         self.target = self.label_encoder.fit_transform(self.labels)
+
+        # Calculate the avergae centroid distance between cell type clusters of PCA transformed data
+        self.cell_type_centroids_distances_matrix = self.cell_type_centroid_distances(n_components=model_output_dim)
 
         # Encode the batch effect information for each batch key
         if self.batch_keys is not None:
@@ -360,6 +369,61 @@ class prep_data(data.Dataset):
         #gene_embeddings_tensor = torch.transpose(torch.tensor(values_list))'''
 
         return gene_embeddings_tensor
+    
+    def cell_type_centroid_distances(self, n_components: int=100):
+        """
+        Calculate the average centroid distances between different cell types across batch effects using PCA.
+
+        Parameters
+        -------
+        n_components : int, optional 
+            Number of principal components to retain after PCA (default is 100).
+
+        Returns
+        -------
+            average_distance_df: DataFrame containing the normalized average centroid distances between different cell types.
+        """
+
+        # Step 1: Perform PCA on AnnData.X
+        pca = PCA(n_components=n_components)
+        adata = self.adata.copy()  # Make a copy of the original AnnData object
+        adata_pca = pca.fit_transform(adata.X)
+
+        # Step 2: Calculate centroids for each cell type cluster of each batch effect
+        centroids = {}
+        for batch_effect in adata.obs['batch'].unique():
+            for cell_type in adata.obs['cell_type'].unique():
+                mask = (adata.obs['batch'] == batch_effect) & (adata.obs['cell_type'] == cell_type)
+                centroid = np.mean(adata_pca[mask], axis=0)
+                centroids[(batch_effect, cell_type)] = centroid
+
+        # Step 3: Calculate the average centroid distance between all batch effects
+        average_distance_matrix = np.zeros((len(adata.obs['cell_type'].unique()), len(adata.obs['cell_type'].unique())))
+        for i, cell_type_i in enumerate(adata.obs['cell_type'].unique()):
+            for j, cell_type_j in enumerate(adata.obs['cell_type'].unique()):
+                distances = []
+                for batch_effect in adata.obs['batch'].unique():
+                    centroid_i = torch.tensor(centroids[(batch_effect, cell_type_i)], dtype=torch.float32, requires_grad=False)
+                    centroid_j = torch.tensor(centroids[(batch_effect, cell_type_j)], dtype=torch.float32, requires_grad=False)
+                    try:
+                        #distance = euclidean(centroids[(batch_effect, cell_type_i)], centroids[(batch_effect, cell_type_j)])
+                        distance = torch.norm(centroid_j - centroid_i, p=2)
+                        if not torch.isnan(distance).any():
+                            distances.append(distance)
+                    except: # Continue if centroids[(batch_effect, cell_type_i)] doesn't exist
+                        continue
+                average_distance = np.mean(distances)
+                average_distance_matrix[i, j] = average_distance
+
+        # Convert average_distance_matrix into a DataFrame
+        average_distance_df = pd.DataFrame(average_distance_matrix, index=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()), columns=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()))
+
+        # Replace NaN values with 0
+        average_distance_df = average_distance_df.fillna(0)
+        # Normalize to get relative distance
+        average_distance_df = average_distance_df/average_distance_df.max().max()
+
+        return average_distance_df
 
     def __len__(self):
         """
@@ -858,6 +922,7 @@ class CustomSNNLoss(nn.Module):
     """
 
     def __init__(self, 
+                 cell_type_centroids_distances_matrix,
                  use_target_weights: bool=True, 
                  use_batch_weights: bool=True, 
                  targets=None, 
@@ -883,6 +948,7 @@ class CustomSNNLoss(nn.Module):
         self.use_target_weights = use_target_weights
         self.use_batch_weights = use_batch_weights
         self.batch_keys = batch_keys
+        self.cell_type_centroids_distances_matrix = cell_type_centroids_distances_matrix
 
         # Calculate weights for the loss based on label frequency
         if self.use_target_weights:
@@ -915,6 +981,62 @@ class CustomSNNLoss(nn.Module):
         class_weight_dict = {class_label: weight for class_label, weight in enumerate(class_weights)}
 
         return class_weight_dict
+    
+    def cell_type_centroid_distances(self, X, cell_type_vector):
+        """
+        Calculate the Mean Squared Error (MSE) loss between target centroids and current centroids based on cell type information.
+
+        Parameters:
+        X : torch.tensor
+            Input data matrix with each row representing a data point and each column representing a feature.
+        
+        cell_type_vector : torch.tensor
+            A vector containing the cell type annotations for each data point in X.
+
+        Returns:
+            loss: The MSE loss between target centroids and current centroids.
+        """
+
+        # Step 1: Calculate centroids for each cell type cluster 
+        centroids = {}
+        for cell_type in cell_type_vector.unique():
+            mask = (cell_type_vector == cell_type)
+            centroid = torch.mean(X[mask], axis=0)
+            centroids[cell_type.item()] = centroid
+
+        # Step 2: Calculate the average centroid distance between all cell types
+        average_distance_matrix_input = torch.zeros((len(cell_type_vector.unique()), len(cell_type_vector.unique())))
+        for i, cell_type_i in enumerate(cell_type_vector.unique()):
+            for j, cell_type_j in enumerate(cell_type_vector.unique()):
+                centroid_i = centroids[cell_type_i.item()]
+                centroid_j = centroids[cell_type_j.item()]
+                average_distance = torch.norm(centroid_j - centroid_i, p=2)
+                average_distance_matrix_input[i, j] = average_distance
+
+        # Replace values with 0 if they were 0 in the PCA centorid matrix
+        cell_type_centroids_distances_matrix_filter = self.cell_type_centroids_distances_matrix.loc[cell_type_vector.unique().tolist(),cell_type_vector.unique().tolist()]
+        mask = (cell_type_centroids_distances_matrix_filter != 0.0)
+        mask = torch.tensor(mask.values, dtype=torch.float32)
+        average_distance_matrix_input = torch.mul(mask, average_distance_matrix_input)
+        average_distance_matrix_input = average_distance_matrix_input / torch.max(average_distance_matrix_input)
+
+        cell_type_centroids_distances_matrix_filter = torch.tensor(cell_type_centroids_distances_matrix_filter.values, dtype=torch.float32)
+
+        # Only use non-zero elemnts for loss calculation
+        non_zero_mask = cell_type_centroids_distances_matrix_filter != 0
+        average_distance_matrix_input = average_distance_matrix_input[non_zero_mask]
+        cell_type_centroids_distances_matrix_filter = cell_type_centroids_distances_matrix_filter[non_zero_mask]
+
+        # Step 3: Calculate the MSE between target centroids and current centroids
+        # Set to zero if loss can't be calculated, like if there's only one cell type per batch effect element for all elements
+        loss = 0
+        try:
+            loss = F.mse_loss(average_distance_matrix_input, cell_type_centroids_distances_matrix_filter)
+        except:
+            loss = 0
+            pass
+
+        return loss
 
     def forward(self, input, targets, batches=None):
         """
@@ -956,6 +1078,8 @@ class CustomSNNLoss(nn.Module):
                 positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                 negativ_sum = torch.sum(negativ_samples)
                 loss = -torch.log(positiv_sum / (positiv_sum + negativ_sum))
+                # New loss:
+                #loss = -torch.log(1/positiv_sum)
                 loss_dict[str(target)] = torch.cat((loss_dict[str(target)], loss.unsqueeze(0)))
 
         del cosine_similarity_matrix
@@ -975,6 +1099,9 @@ class CustomSNNLoss(nn.Module):
 
         # Calculate the sum loss accross cell types
         loss_target = torch.sum(torch.stack(weighted_losses))
+
+        ### Minimize difference between PCA cell type centorid of data and centroids of cell types in latent space
+        loss_centorid = self.cell_type_centroid_distances(input, targets)
 
         ### Batch effect loss
 
@@ -1024,11 +1151,11 @@ class CustomSNNLoss(nn.Module):
                 loss_batch = torch.tensor([0.0]).to(self.device)
 
             # Apply weights to the two loss contributions
-            loss = 0.9*loss_target + 0.1*loss_batch
+            loss = 0.9*loss_target + 0.1*loss_batch + 1.0*loss_centorid 
 
             return loss
         else:
-            return loss_target
+            return loss_target + loss_centorid
     
 
 class train_module():
@@ -1441,7 +1568,15 @@ class train_module():
         print(f"Number of parameters: {total_params}")
 
         # Define custom SNN loss
-        loss_module = CustomSNNLoss(use_target_weights=use_target_weights, use_batch_weights=use_batch_weights, targets=torch.tensor(self.data_env.target), batches=self.data_env.encoded_batches, batch_keys=self.batch_keys, temperature=init_temperature, min_temperature=min_temperature, max_temperature=max_temperature)
+        loss_module = CustomSNNLoss(cell_type_centroids_distances_matrix=self.data_env.cell_type_centroids_distances_matrix,
+                                    use_target_weights=use_target_weights, 
+                                    use_batch_weights=use_batch_weights, 
+                                    targets=torch.tensor(self.data_env.target), 
+                                    batches=self.data_env.encoded_batches, 
+                                    batch_keys=self.batch_keys, 
+                                    temperature=init_temperature, 
+                                    min_temperature=min_temperature, 
+                                    max_temperature=max_temperature)
         
         # Define Adam optimer
         optimizer = optim.Adam([{'params': model.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
@@ -1481,7 +1616,7 @@ class train_module():
         return all_preds
     
     
-    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, return_attention: bool=False):
         """
         Generate latent represntations for data using the trained model.
 
@@ -1539,7 +1674,13 @@ class train_module():
                 data_inputs = data_inputs.to(device)
                 data_pathways = data_pathways.to(device)
 
-                pred = model(data_inputs, data_pathways)
+                if self.data_env.use_gene2vec_emb:
+                    if return_attention:
+                        _, pred = model(data_inputs, data_pathways, gene2vec_tensor, return_attention)
+                    else:
+                        pred = model(data_inputs, data_pathways, gene2vec_tensor, return_attention)
+                else:
+                    pred = model(data_inputs, data_pathways)
 
                 preds.extend(pred.cpu().detach().numpy())
 
@@ -1588,7 +1729,7 @@ class prep_test_data(data.Dataset):
             self.training_expression_levels = prep_data_env.X_not_tokenized
             self.X_not_tokenized = self.X.clone()
             #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
-            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets) 
+            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
 
     def bucketize_expression_levels(self, expression_levels, num_buckets):
         """
