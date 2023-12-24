@@ -360,6 +360,18 @@ class prep_data(data.Dataset):
         return gene_embeddings_tensor
 
     def cell_type_centroid_distances(self, n_components: int=100):
+        """
+        Calculate the average centroid distances between different cell types across batch effects using PCA.
+
+        Parameters
+        -------
+        n_components : int, optional 
+            Number of principal components to retain after PCA (default is 100).
+
+        Returns
+        -------
+            average_distance_df: DataFrame containing the normalized average centroid distances between different cell types.
+        """
 
         # Step 1: Perform PCA on AnnData.X
         pca = PCA(n_components=n_components)
@@ -608,15 +620,28 @@ class CustomSNNLoss(nn.Module):
         return class_weight_dict
 
     def cell_type_centroid_distances(self, X, cell_type_vector):
+        """
+        Calculate the Mean Squared Error (MSE) loss between target centroids and current centroids based on cell type information.
 
-        # Step 2: Calculate centroids for each cell type cluster of each batch effect
+        Parameters:
+        X : torch.tensor
+            Input data matrix with each row representing a data point and each column representing a feature.
+        
+        cell_type_vector : torch.tensor
+            A vector containing the cell type annotations for each data point in X.
+
+        Returns:
+            loss: The MSE loss between target centroids and current centroids.
+        """
+
+        # Step 1: Calculate centroids for each cell type cluster 
         centroids = {}
         for cell_type in cell_type_vector.unique():
             mask = (cell_type_vector == cell_type)
             centroid = torch.mean(X[mask], axis=0)
             centroids[cell_type.item()] = centroid
 
-        # Step 3: Calculate the average centroid distance between all batch effects
+        # Step 2: Calculate the average centroid distance between all cell types
         average_distance_matrix_input = torch.zeros((len(cell_type_vector.unique()), len(cell_type_vector.unique())))
         for i, cell_type_i in enumerate(cell_type_vector.unique()):
             for j, cell_type_j in enumerate(cell_type_vector.unique()):
@@ -639,8 +664,8 @@ class CustomSNNLoss(nn.Module):
         average_distance_matrix_input = average_distance_matrix_input[non_zero_mask]
         cell_type_centroids_distances_matrix_filter = cell_type_centroids_distances_matrix_filter[non_zero_mask]
 
-        # Step 4: Calculate the MSE between target centroids and current centroids
-        # Set to zero if loss can't be calculated, like if there's only one cell type per batch effect element
+        # Step 3: Calculate the MSE between target centroids and current centroids
+        # Set to zero if loss can't be calculated, like if there's only one cell type per batch effect element for all elements
         loss = 0
         try:
             loss = F.mse_loss(average_distance_matrix_input, cell_type_centroids_distances_matrix_filter)
