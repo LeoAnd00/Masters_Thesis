@@ -59,6 +59,11 @@ class VisualizeEnv():
         """
         metrics = self.metrics.copy()
         metrics['Model Type'] = self.metrics.index
+        # Replace model names
+        metrics['Model Type'][metrics['Model Type'] == "In-house HVG Encoder Model"] = "Model 1"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder Model"] = "Model 2"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with HVG Encoder"] = "Model 3"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with Pathways Model"] = "Model 4"
         metrics = metrics.groupby(['Model Type','HVGs']).agg(['mean', 'std']).reset_index()
         metrics = metrics.sort_values(('Overall', 'mean'), ascending=False)
        
@@ -76,6 +81,11 @@ class VisualizeEnv():
 
         metrics = self.metrics.copy()
         metrics['Model Type'] = self.metrics.index
+        # Replace model names
+        metrics['Model Type'][metrics['Model Type'] == "In-house HVG Encoder Model"] = "Model 1"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder Model"] = "Model 2"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with HVG Encoder"] = "Model 3"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with Pathways Model	"] = "Model 4"
         metrics = metrics.groupby(['Model Type','HVGs'])[metric_to_visualize].agg(['mean', 'std']).reset_index()
 
         # Define a colormap
@@ -128,7 +138,7 @@ class VisualizeEnv():
         plt.xlabel('Nr. of HVGs')
         plt.ylabel(f'{metric_to_visualize} Metric')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
-        plt.title('HVG Impact Assessment')
+        #plt.title('HVG Impact Assessment')
 
         # Turn off grid lines
         plt.grid(False)

@@ -65,6 +65,12 @@ class VisualizeEnv():
 
         metrics = self.metrics.copy()
         metrics['Model Type'] = self.metrics.index
+        # Replace model names
+        metrics['Model Type'][metrics['Model Type'] == "In-house HVG Encoder Model"] = "Model 1"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder Model"] = "Model 2"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with HVG Encoder"] = "Model 3"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with Pathways Model"] = "Model 4"
+        
 
         # Set up the figure and axis with 4 columns per row
         ncols = 3
@@ -140,6 +146,12 @@ class VisualizeEnv():
         """
         metrics = self.metrics.copy()
         metrics['Model Type'] = self.metrics.index
+        # Replace model names
+        metrics['Model Type'][metrics['Model Type'] == "In-house HVG Encoder Model"] = "Model 1"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder Model"] = "Model 2"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with HVG Encoder"] = "Model 3"
+        metrics['Model Type'][metrics['Model Type'] == "In-house Tokenized HVG Transformer Encoder with Pathways Model"] = "Model 4"
+        
         metrics = metrics.groupby(['Model Type']).agg(['mean', 'std']).reset_index()
         metrics = metrics.sort_values(('Overall', 'mean'), ascending=False)
        

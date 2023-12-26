@@ -10,6 +10,7 @@ import seaborn as sns
 import pandas as pd
 import torch.nn as nn
 from tqdm import tqdm
+import scib
 from scipy.spatial.distance import pdist, squareform
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
@@ -30,6 +31,7 @@ class VisualizeEnv():
                             HVG_buckets_: int=1000,
                             batch_size: int=32):
         
+        self.label_key = target_key
         self.train_adata = sc.read(train_path, cache=True)
         self.train_adata.obs["batch"] = self.train_adata.obs[batch_key]
 
@@ -52,24 +54,25 @@ class VisualizeEnv():
         
         self.pred_adata = sc.read(pred_path, cache=True)
 
-        # Define model
-        model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([HVGs,int(self.data_env.X.shape[1])]),
-                                                        output_dim=100,
-                                                        drop_out=0.2,
-                                                        act_layer=nn.ReLU,
-                                                        norm_layer=nn.LayerNorm,#nn.BatchNorm1d, LayerNorm
-                                                        attn_embed_dim=24*4,
-                                                        num_heads=4,
-                                                        mlp_ratio=4,
-                                                        attn_bias=False,
-                                                        attn_drop_out=0.,
-                                                        depth=3,
-                                                        nn_tokens=HVG_buckets_,
-                                                        nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
-                                                        use_gene2vec_emb=True)
-
         if attention_matrix_or_just_env:
-            self.attention_matrices, self.latent_space_dictionary = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
+
+            # Define model
+            model = model_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([HVGs,int(self.data_env.X.shape[1])]),
+                                                            output_dim=100,
+                                                            drop_out=0.2,
+                                                            act_layer=nn.ReLU,
+                                                            norm_layer=nn.LayerNorm,#nn.BatchNorm1d, LayerNorm
+                                                            attn_embed_dim=24*4,
+                                                            num_heads=4,
+                                                            mlp_ratio=4,
+                                                            attn_bias=False,
+                                                            attn_drop_out=0.,
+                                                            depth=3,
+                                                            nn_tokens=HVG_buckets_,
+                                                            nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
+                                                            use_gene2vec_emb=True)
+            
+            self.attention_matrices, self.attn_latent_space_matrix = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
 
             print(list(self.attention_matrices.keys()))
         
@@ -132,8 +135,8 @@ class VisualizeEnv():
         matrix_size = (len(self.data_env.hvg_genes), len(self.data_env.hvg_genes)) 
         # Create a dictionary with unique targets as keys and matrices as values
         attn_matrices = {target: torch.zeros(matrix_size) for target in unique_targets}
-        # Create a dictionary with unique targets as keys and latent space representations as values
-        latent_space_dictionary = {target: torch.zeros(100) for target in unique_targets}
+        # Create a matrix containing the attention latent space representation for each sample
+        attn_latent_space_matrix = []
 
         model.eval()
         with torch.no_grad():
@@ -156,20 +159,17 @@ class VisualizeEnv():
 
                     attn_matrices[label] = attn_matrices[label] + sum_along_samples / target_counts[label]
 
-                    # Latent space representations
-                    latent_space_sum_along_samples = torch.sum(latent_space, dim=0).to('cpu')
-
-                    latent_space_dictionary[label] = latent_space_dictionary[label] + latent_space_sum_along_samples / target_counts[label]
-                
-                #print(attn_matrices[list(set(data_labels))[0]][:5,:5])
-                #break
+                # Attention latent space
+                #average_along_attention_head_dim = torch.mean(attn_matrix, dim=1)
+                #attention_representation = torch.sum(average_along_attention_head_dim, axis=1)
+                #relative_attention_representation = attention_representation / torch.sum(attention_representation, axis=1, keepdim=True)
+                #attn_latent_space_matrix.extend(relative_attention_representation.cpu().detach().numpy())
         
         for key, value in attn_matrices.items():
             attn_matrices[key] = value.numpy()
-        for key, value in latent_space_dictionary.items():
-            latent_space_dictionary[key] = value.numpy()
+        attn_latent_space_matrix = np.array(attn_latent_space_matrix)
 
-        return attn_matrices, latent_space_dictionary
+        return attn_matrices, attn_latent_space_matrix
     
     def GetCellTypeNames(self):
         print(list(self.attention_matrices.keys()))
@@ -178,22 +178,14 @@ class VisualizeEnv():
 
         # Save the dictionary to a NumPy .npz file
         np.savez(f'attention_matrices/{name}.npz', **self.attention_matrices)
+        self.attn_latent_space_matrix = self.attn_latent_space_matrix.astype(float)
+        np.save(f'attention_matrices/{name}_matrix.npy', self.attn_latent_space_matrix, allow_pickle=False)
 
     def LoadAttentionMatrixDictionary(self, name: str="AttetionMatrixDictionary"):
     
         # Load the dictionary back from the .npz file
         self.attention_matrices = np.load(f'attention_matrices/{name}.npz')
-
-    def DownloadLatentSpaceDictionary(self, name: str="LatentSpaceDictionary"):
-
-        # Save the dictionary to a NumPy .npz file
-        np.savez(f'latent_space_dictionary/{name}.npz', **self.latent_space_dictionary)
-
-    def LoadLatentSpaceDictionary(self, name: str="LatentSpaceDictionary"):
-    
-        # Load the dictionary back from the .npz file
-        self.latent_space_dictionary = np.load(f'latent_space_dictionary/{name}.npz')
-
+        self.attn_latent_space_matrix = np.load(f'attention_matrices/{name}_matrix.npy')
     
     def HeatMapVisualization(self, cell_type: str, num_of_top_genes: int = 50):
         def select_positions_based_on_sum(attention_matrix, num_positions=50):
@@ -221,7 +213,7 @@ class VisualizeEnv():
         df = df.loc[gene_names_col, gene_names_col]
 
         # Visualize the heatmap with seaborn
-        plt.figure(figsize=(12, 10))
+        plt.figure(figsize=(24, 20))
         sns.heatmap(df, cmap='plasma', annot=False, linewidths=.5, fmt=".2f", cbar_kws={'label': 'Attention'})
 
         # Set axis titles
@@ -251,7 +243,7 @@ class VisualizeEnv():
         gene_names_col = self.data_env.hvg_genes[top_col_indices]
 
         # Plot horizontal bar plots for relative sums
-        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*2/10)))
+        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*3/10)))
 
         if row_or_col == "row":
             axes.barh(gene_names_row, relative_row_sums, color=color)
@@ -280,7 +272,7 @@ class VisualizeEnv():
         gene_names= self.data_env.hvg_genes[top_indices]
 
         # Plot horizontal bar plots for relative sums
-        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*2/10)))
+        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*3/10)))
 
         axes.barh(gene_names, df, color=color)
         axes.set_title(f'Attention between {gene} and top {num_of_top_genes} genes with highest attention score')
@@ -290,12 +282,9 @@ class VisualizeEnv():
         plt.tight_layout()
         plt.show()
 
-    def VisualizeCellTypeCorrelations(self, attention_or_latent: str="attention"):
+    def VisualizeCellTypeCorrelations(self):
         
-        if attention_or_latent == "attention":
-            data = self.attention_matrices
-        elif attention_or_latent == "latent":
-            data = self.latent_space_dictionary
+        data = self.attention_matrices
         
         # Make a dictionary containing the vector representations of each cell type where each dimesnion is a gene.
         cell_type_vectors = {}
@@ -303,18 +292,11 @@ class VisualizeEnv():
 
             matrix = data[cell_type]
 
-            if attention_or_latent == "attention":
-                # Calculate the sum of each column
-                col = np.sum(matrix, axis=0)
-            elif attention_or_latent == "latent":
-                col = matrix
+            # Calculate the sum of each column
+            col = np.sum(matrix, axis=0)
 
             # Calculate the relative sum (percentage) for each column
             relative_sums = col / np.sum(col)
-
-            # drop Erythroid-like and erythroid precursor cells due to the bigg values
-            if (attention_or_latent == "latent") and (cell_type == 'Erythroid-like and erythroid precursor cells'):
-                continue
 
             cell_type_vectors[cell_type] = relative_sums
 
@@ -326,7 +308,7 @@ class VisualizeEnv():
         distance_matrix = squareform(pdist(vectors, metric='euclidean'))
 
         # Create a heatmap to visualize the distance matrix
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(20, 16))
         heatmap = plt.imshow(distance_matrix, cmap='viridis', interpolation='nearest')
 
         plt.colorbar(heatmap, label='Euclidean Distance')
