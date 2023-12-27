@@ -2,11 +2,14 @@
 import warnings
 from benchmarks.benchmark import benchmark as benchmark
 import argparse
+import random
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+random.seed(42)
 
 ### Commands to run on Alvis cluster
 # Start by runing: cd Masters_Thesis/code/cell_type_representation/
@@ -52,50 +55,68 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
     print("**Initiate HVG Investiagtion**")
 
-    HVGs_list = [100, 200, 500, 1000, 1500, 2000]#, 3000, 4000]
-    random_seeds = [42, 43, 44, 45, 46]
+    HVGs_list = [1500, 2000, 3000, 4000]#[100, 200, 500, 1000, 1500, 2000, 3000, 4000]
+    random_seeds = [42]#[42, 43, 44, 45, 46]
 
-    for seed in random_seeds:
+    for idx, seed in enumerate(random_seeds):
         for HVGs in HVGs_list:
+            while True:  # Keep trying new seeds until no error occurs
+                try:
+                    # Load data 
+                    benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=image_path, batch_key="patientID", HVG=True, HVGs=HVGs, Scaled=False, seed=seed)
 
-            # Load data 
-            benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=image_path, batch_key="patientID", HVG=True, HVGs=HVGs, Scaled=False, seed=random_seeds[0])
+                    """
+                    # These ones don't vary with random seed, so only train these ones per HVGs
+                    if seed == random_seeds[0]:
+                        print("**Start benchmarking unintegrated data**")
+                        benchmark_env.unintegrated(umap_plot=False,save_figure=False)
+                        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)
 
-            """
-            # These ones don't vary with random seed, so only train these ones per HVGs
-            if seed == random_seeds[0]:
-                print("**Start benchmarking unintegrated data**")
-                benchmark_env.unintegrated(umap_plot=False,save_figure=False)
-                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)
+                        print("**Start benchmarking PCA method**")
+                        benchmark_env.pca(umap_plot=False,save_figure=False)
+                        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)
 
-                print("**Start benchmarking PCA method**")
-                benchmark_env.pca(umap_plot=False,save_figure=False)
-                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)
+                        print("**Start benchmarking Harmony method**")
+                        benchmark_env.harmony(umap_plot=False,save_figure=False)
+                        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)"""
 
-                print("**Start benchmarking Harmony method**")
-                benchmark_env.harmony(umap_plot=False,save_figure=False)
-                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[0]}', read=False)"""
+                    # The rest needs to be trained for each random seed
+                    """print("**Start benchmarking scVI method**")
+                    vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
 
-            # The rest needs to be trained for each random seed
-            """print("**Start benchmarking scVI method**")
-            vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking scANVI method**")
+                    benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
 
-            print("**Start benchmarking scANVI method**")
-            benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking scGen method**")
+                    benchmark_env.scgen(umap_plot=False,save_figure=False)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)"""
 
-            print("**Start benchmarking scGen method**")
-            benchmark_env.scgen(umap_plot=False,save_figure=False)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print(f"**Start {HVGs} HVG Investiagtion In-house Encoder method**")
+                    benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Invetigate_HVGs/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
+                    #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                    #read_save(benchmark_env, f'{result_csv_path}_Testing_{HVGs}_HVGs_seed_{seed}', read=False)
 
-            print(f"**Start {HVGs} HVG Investiagtion In-house Encoder method**")
-            benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Invetigate_HVGs/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)"""
+                    #if HVGs <= 2000:
+                    #    print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
+                    #    benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/Invetigate_HVGs/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
+                    #    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=True)
 
-            print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
-            benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/Invetigate_HVGs/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=True)
+                    # If no error occurs, break out of the while loop
+                    break
+                except Exception as e:
+                    # Handle the exception (you can print or log the error if needed)
+                    print(f"Error occurred: {e}")
+
+                    # Generate a new random seed not in random_seeds list
+                    while True:
+                        new_seed = random.randint(1, 10000)
+                        if new_seed not in random_seeds:
+                            break
+                    print(f"Trying a new random seed: {new_seed}")
+                    seed = new_seed
 
     print("**HVG Investiagtion Finished**")
 

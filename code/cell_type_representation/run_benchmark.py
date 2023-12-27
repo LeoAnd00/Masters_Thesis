@@ -2,11 +2,14 @@
 import warnings
 from benchmarks.benchmark import benchmark as benchmark
 import argparse
+import random
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+random.seed(42)
 
 ### Commands to run on Alvis cluster
 # Start by runing: cd Masters_Thesis/code/cell_type_representation/
@@ -60,97 +63,115 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
     HVGs = 2000
     num_seeds = 1
-    random_seeds = list(range(42, 42 + num_seeds))
+    random_seeds = list(range(46, 46 + num_seeds))
 
-    for seed in random_seeds:
-        print("seed: ", seed)
+    for idx, seed in enumerate(random_seeds):
+        while True:  # Keep trying new seeds until no error occurs
+            try:
+                print("seed: ", seed)
 
-        # Load data 
-        benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=f'{image_path}{HVGs}_HVGs_seed_{seed}', batch_key="patientID", HVG=True, HVGs=HVGs, Scaled=False, seed=seed)
+                # Load data 
+                benchmark_env = benchmark(data_path=data_path, pathway_path=pathway_path, gene2vec_path=gene2vec_path, image_path=f'{image_path}{HVGs}_HVGs_seed_{random_seeds[idx]}', batch_key="patientID", HVG=True, HVGs=HVGs, Scaled=False, seed=seed)
 
-        # These methods doesn't change with random seed, hence only need to train once
-        #if seed == random_seeds[0]:
-        if seed == 42:
+                # These methods doesn't change with random seed, hence only need to train once
+                #if seed == random_seeds[0]:
+                """if seed == 42:
 
-            print("**Start benchmarking unintegrated data**")
-            benchmark_env.unintegrated(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking unintegrated data**")
+                    benchmark_env.unintegrated(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-            print("**Start benchmarking PCA method**")
-            benchmark_env.pca(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking PCA method**")
+                    benchmark_env.pca(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-            print("**Start benchmarking Scanorama method**")
-            benchmark_env.scanorama(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking Scanorama method**")
+                    benchmark_env.scanorama(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-            print("**Start benchmarking Harmony method**")
-            benchmark_env.harmony(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking Harmony method**")
+                    benchmark_env.harmony(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-            print("**Start benchmarking ComBat method**")
-            benchmark_env.combat(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking ComBat method**")
+                    benchmark_env.combat(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-            print("**Start benchmarking DESC method**")
-            benchmark_env.desc(umap_plot=False,save_figure=True)
-            read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                    print("**Start benchmarking DESC method**")
+                    benchmark_env.desc(umap_plot=False,save_figure=True)
+                    read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        print("**Start benchmarking scVI method**")
-        vae = benchmark_env.scvi(umap_plot=False,save_figure=True)
-        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                print("**Start benchmarking scVI method**")
+                vae = benchmark_env.scvi(umap_plot=False,save_figure=True)
+                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        print("**Start benchmarking scANVI method**")
-        benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=True)
-        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                print("**Start benchmarking scANVI method**")
+                benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=True)
+                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        print("**Start benchmarking scGen method**")
-        benchmark_env.scgen(umap_plot=False,save_figure=True)
-        read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                print("**Start benchmarking scGen method**")
+                benchmark_env.scgen(umap_plot=False,save_figure=True)
+                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)"""
 
-        #print("**Start benchmarking FastMNN method**")
-        #benchmark_env.fastmnn(umap_plot=False,save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking FastMNN method**")
+                #benchmark_env.fastmnn(umap_plot=False,save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking TOSICA method**")
-        #benchmark_env.tosica(umap_plot=False,save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking TOSICA method**")
+                #benchmark_env.tosica(umap_plot=False,save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Encoder method**")
-        #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking In-house Encoder method**")
+                #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                #read_save(benchmark_env, f'{result_csv_path}_Testing_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Pathways method**")
-        #benchmark_env.in_house_model_pathways(save_path=f'{model_path}Pathways/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #benchmark_env.in_house_model_pathways(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking In-house Pathways method**")
+                #benchmark_env.in_house_model_pathways(save_path=f'{model_path}Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #benchmark_env.in_house_model_pathways(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Encoder with Pathways method**")
-        #benchmark_env.in_house_model_encoder_pathways(save_path=f'{model_path}Encoder_with_Pathways/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking In-house Encoder with Pathways method**")
+                #benchmark_env.in_house_model_encoder_pathways(save_path=f'{model_path}Encoder_with_Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Transformer on HVGs method**")
-        #benchmark_env.in_house_model_transformer_encoder(save_path=f'{model_path}Transformer_Encoder/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking In-house Transformer on HVGs method**")
+                #benchmark_env.in_house_model_transformer_encoder(save_path=f'{model_path}Transformer_Encoder/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Transformer on HVGs and Pathways method**")
-        #benchmark_env.in_house_model_transformer_encoder_pathways(save_path=f'{model_path}Transformer_Encoder_with_Pathways/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
+                #print("**Start benchmarking In-house Transformer on HVGs and Pathways method**")
+                #benchmark_env.in_house_model_transformer_encoder_pathways(save_path=f'{model_path}Transformer_Encoder_with_Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
-        #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=False)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=False)
-        #read_save(benchmark_env, f'{result_csv_path}_Testing_{HVGs}_HVGs_seed_{seed}', read=False)
+                print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
+                benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
+                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                #read_save(benchmark_env, f'{result_csv_path}_Testing_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-        #print("**Start benchmarking In-house Transformer on Tokenized HVGs and HVG Encoder**")
-        #benchmark_env.in_house_model_tokenized_hvg_transformer_and_hvg_encoder(save_path=f'{model_path}Tokenized_HVG_Transformer_with_HVG_Encoder/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=True)
+                #print("**Start benchmarking In-house Transformer on Tokenized HVGs and HVG Encoder**")
+                #benchmark_env.in_house_model_tokenized_hvg_transformer_and_hvg_encoder(save_path=f'{model_path}Tokenized_HVG_Transformer_with_HVG_Encoder/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
 
-        #print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
-        #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/{HVGs}_HVGs_seed_{seed}', train=True, umap_plot=False, save_figure=True)
-        #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{seed}', read=True)
+                #print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
+                #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+
+                # If no error occurs, break out of the while loop
+                break
+            except Exception as e:
+                # Handle the exception (you can print or log the error if needed)
+                print(f"Error occurred: {e}")
+
+                # Generate a new random seed not in random_seeds list
+                while True:
+                    new_seed = random.randint(1, 10000)
+                    if new_seed not in random_seeds:
+                        break
+
+                print(f"Trying a new random seed: {new_seed}")
+                seed = new_seed
 
     print("**Benchmark Finished**")
 

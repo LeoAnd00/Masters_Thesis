@@ -210,7 +210,7 @@ class AttentionBlock(nn.Module):
         self.act_layer_out_attn=nn.ReLU()
         self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
-    def forward(self, x):
+    def forward(self, x, return_attention=False):
         """
         Forward pass of the attention block.
 
@@ -225,14 +225,22 @@ class AttentionBlock(nn.Module):
             Output tensor after processing through the attention block.
         """
 
-        attn = self.attnblock_attn(self.attnblock_norm1(x))
+        if return_attention:
+            attn, attn_matrix = self.attnblock_attn(self.attnblock_norm1(x), return_attention=return_attention)
+        else:
+            attn = self.attnblock_attn(self.attnblock_norm1(x))
+
         if self.last is False:
             x = x + attn
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
-            # Essentially removes the additional dimension if it's the last attention block
+            # Removes the additional dimension if it's the last attention block
             x = self.linear_out2(self.act_layer_out(self.linear_out(x))).squeeze() + self.linear_out2_attn(self.act_layer_out_attn(self.linear_out_attn(attn))).squeeze()
-        return x
+        
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 
 
 class HVGTransformer(nn.Module):
@@ -298,7 +306,7 @@ class HVGTransformer(nn.Module):
                  norm_layer=nn.LayerNorm):
         super().__init__()
 
-        self.pathways_input = nn.Embedding(nn_tokens, nn_embedding_dim)
+        self.x_embbed_input = nn.Embedding(nn_tokens, nn_embedding_dim)
 
         if depth >= 2:
             self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=nn_embedding_dim, 
@@ -340,14 +348,16 @@ class HVGTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=True)])
 
-    def forward(self, pathways, gene2vec_emb):
+    def forward(self, x, gene2vec_emb, return_attention=False):
         """
-        Forward pass of the Pathway Transformer model.
+        Forward pass of the transformer model.
 
         Parameters
         ----------
-        pathways : torch.Tensor
-            Input tensor containing pathway data.
+        x : torch.Tensor
+            Tokenized expression levels.
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
 
         Returns
         -------
@@ -355,12 +365,18 @@ class HVGTransformer(nn.Module):
             Output tensor after processing through the Pathway Transformer model.
         """
 
-        pathways = self.pathways_input(pathways)
-        pathways += gene2vec_emb
-        for layer in self.blocks:
-            pathways = layer(pathways)
+        x = self.x_embbed_input(x)
+        x += gene2vec_emb
+        for idx, layer in enumerate(self.blocks):
+            if return_attention and idx == 0:
+                x, attn_matrix = layer(x, return_attention)
+            else:
+                x = layer(x, False)
 
-        return pathways
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
     
 
 class OutputEncoder(nn.Module):
@@ -382,13 +398,15 @@ class OutputEncoder(nn.Module):
         self.norm_layer2 = norm_layer(int(input_dim/4))
         self.dropout1 = nn.Dropout(drop_out)
         self.linear2_act = act_layer()
-        self.output = nn.Linear(int(input_dim/4), output_dim)
+        self.dropout2 = nn.Dropout(drop_out)
+        self.linear3 = nn.Linear(int(input_dim/4), int(input_dim/8))
+        self.norm_layer3 = norm_layer(int(input_dim/8))
+        self.dropout3 = nn.Dropout(drop_out)
+        self.linear3_act = act_layer()
+        self.output = nn.Linear(int(input_dim/8), output_dim)
 
         self.linear1_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
-        #self.norm_layer1_transformer = norm_layer(int(input_dim/4))
-        #self.linear1_act_transformer = act_layer()
         self.dropout1_transformer = nn.Dropout(drop_out)
-        #self.linear2_transformer = nn.Linear(int(input_dim/2), int(input_dim/4))
 
     def forward(self, x, x_transformer):
         
@@ -402,14 +420,15 @@ class OutputEncoder(nn.Module):
         x = self.linear2(x)
 
         x_transformer = self.linear1_transformer(x_transformer)
-        #x_transformer = self.norm_layer1_transformer(x_transformer)
-        #x_transformer = self.linear1_act_transformer(x_transformer)
         x_transformer = self.dropout1_transformer(x_transformer)
-        #x_transformer = self.linear2_transformer(x_transformer)
 
         x += x_transformer
         x = self.norm_layer2(x)
         x = self.linear2_act(x)
+        x = self.dropout2(x)
+        x = self.linear3(x)
+        x = self.norm_layer3(x)
+        x = self.linear3_act(x)
         x = self.output(x)
         
         return x
@@ -507,16 +526,20 @@ class CellType2VecModel(nn.Module):
                                             norm_layer=norm_layer,
                                             drop_out=drop_out)
 
-    def forward(self, x, x_not_tokenized, gene2vec_emb):
+    def forward(self, x, x_not_tokenized, gene2vec_emb, return_attention=False):
         """
         Forward pass of the CellType2Vec model.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor for the model.
-        pathways : torch.Tensor
-            Input tensor containing pathway data. (Not used by this model)
+            Tokenized expression levels.
+        x_not_tokenized : torch.Tensor
+            Input tensor containing non-tokenized expression levels.
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
+        return_attention : bool, optional
+            Whether to return the attention matrix between the input HVGs.
 
         Returns
         -------
@@ -524,12 +547,22 @@ class CellType2VecModel(nn.Module):
             Output tensor representing cell type embeddings.
         """
 
+
         if self.use_gene2vec_emb:
-            x_transformer = self.hvg_transformer(x, gene2vec_emb)
+            if return_attention:
+                x_transformer, attn_matrix = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            else:
+                x_transformer = self.hvg_transformer(x, gene2vec_emb, return_attention)
         else:
-            x_transformer = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)))
+            if return_attention:
+                x_transformer, attn_matrix = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
+            else:
+                x_transformer = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
 
         x = self.output_encoder(x_not_tokenized, x_transformer)
 
-        return x
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 
