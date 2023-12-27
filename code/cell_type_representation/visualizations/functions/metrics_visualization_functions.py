@@ -7,7 +7,7 @@ from IPython.display import display
 class VisualizeEnv():
 
     def __init__(self):
-        pass
+        self.color_dict = None
 
     def read_csv(self, files: list):
         """
@@ -85,6 +85,11 @@ class VisualizeEnv():
         # Define a colormap based on unique model types
         cmap = cm.get_cmap('tab20', len(unique_model_types))
 
+        # Map each model type to a color using the colormap
+        if self.color_dict is None:
+            self.color_dict = {model_type: cmap(1 - j / (len(unique_model_types) - 1)) for j, model_type in enumerate(unique_model_types)}
+
+
         for i, metric in enumerate(reversed(self.metrics.columns)):
             # Calculate the row and column indices
             row_idx = i // ncols
@@ -94,11 +99,8 @@ class VisualizeEnv():
             visual_metrics = metrics.groupby(['Model Type'])[metric].agg(['mean', 'std']).reset_index()
             visual_metrics = visual_metrics.sort_values(by='mean')
 
-            # Map each model type to a color using the colormap
-            color_dict = {model_type: cmap(1 - j / (len(unique_model_types) - 1)) for j, model_type in enumerate(unique_model_types)}
-
             # Map the colors to the model types in the sorted order
-            colors = visual_metrics['Model Type'].map(color_dict)
+            colors = visual_metrics['Model Type'].map(self.color_dict)
 
             # Plot horizontal bars for each model_type in the specified subplot
             if version == 1:
