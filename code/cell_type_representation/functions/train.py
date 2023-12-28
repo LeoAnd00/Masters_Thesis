@@ -956,6 +956,10 @@ class train_module():
                             else:
                                 preds = model(data_inputs_step, data_pathways_step)
 
+                            # Check and fix the number of dimensions
+                            if preds.dim() == 1:
+                                preds = preds.unsqueeze(0)  # Add a dimension along axis 0
+
                             all_train_preds = torch.cat((all_train_preds, preds), dim=0)
 
                 train_loss_temp = []
@@ -979,6 +983,10 @@ class train_module():
                         all_train_preds_temp[start_index:end_index,:] = preds
                     else:
                         all_train_preds_temp = preds
+
+                    # Check and fix the number of dimensions
+                    if all_train_preds_temp.dim() == 1:
+                        all_train_preds_temp = all_train_preds_temp.unsqueeze(0)  # Add a dimension along axis 0
 
                     if self.batch_keys is not None:
                         data_batches = [batch.to(device) for batch in data_batches]
@@ -1011,6 +1019,10 @@ class train_module():
                             preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
                         else:
                             preds = model(data_inputs_step, data_pathways_step)
+
+                        # Check and fix the number of dimensions
+                        if preds.dim() == 1:
+                            preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
                         if self.batch_keys is not None:
                             data_batches = [batch.to(device) for batch in data_batches]
@@ -1288,7 +1300,13 @@ class train_module():
                 else:
                     pred = model(data_inputs, data_pathways)
 
-                preds.extend(pred.cpu().detach().numpy())
+                pred = pred.cpu().detach().numpy()
+
+                # Ensure all tensors have at least two dimensions
+                if pred.ndim == 1:
+                    pred = np.expand_dims(pred, axis=0)  # Add a dimension along axis 0
+
+                preds.extend(pred)
 
         return np.array(preds)
 

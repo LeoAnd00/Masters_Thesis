@@ -1354,7 +1354,14 @@ class train_module():
                             data_inputs_step = data_inputs[start_index:end_index,:].to(device)
                             data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
-                            preds = model(data_inputs_step, data_pathways_step)
+                            if self.data_env.use_gene2vec_emb:
+                                preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                            else:
+                                preds = model(data_inputs_step, data_pathways_step)
+
+                            # Check and fix the number of dimensions
+                            if preds.dim() == 1:
+                                preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
                             all_train_preds = torch.cat((all_train_preds, preds), dim=0)
 
@@ -1366,7 +1373,10 @@ class train_module():
                     data_inputs_step = data_inputs[start_index:end_index,:].to(device)
                     data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
-                    preds = model(data_inputs_step, data_pathways_step)
+                    if self.data_env.use_gene2vec_emb:
+                        preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs_step, data_pathways_step)
                 
                     #print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
@@ -1376,6 +1386,10 @@ class train_module():
                         all_train_preds_temp[start_index:end_index,:] = preds
                     else:
                         all_train_preds_temp = preds
+
+                    # Check and fix the number of dimensions
+                    if all_train_preds_temp.dim() == 1:
+                        all_train_preds_temp = all_train_preds_temp.unsqueeze(0)  # Add a dimension along axis 0
 
                     if self.batch_keys is not None:
                         data_batches = [batch.to(device) for batch in data_batches]
@@ -1404,7 +1418,14 @@ class train_module():
                         data_labels_step = data_labels.to(device)
                         data_pathways_step = data_pathways.to(device)
 
-                        preds = model(data_inputs_step, data_pathways_step)
+                        if self.data_env.use_gene2vec_emb:
+                            preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                        else:
+                            preds = model(data_inputs_step, data_pathways_step)
+
+                        # Check and fix the number of dimensions
+                        if preds.dim() == 1:
+                            preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
                         if self.batch_keys is not None:
                             data_batches = [batch.to(device) for batch in data_batches]
@@ -1682,7 +1703,13 @@ class train_module():
                 else:
                     pred = model(data_inputs, data_pathways)
 
-                preds.extend(pred.cpu().detach().numpy())
+                pred = pred.cpu().detach().numpy()
+
+                # Ensure all tensors have at least two dimensions
+                if pred.ndim == 1:
+                    pred = np.expand_dims(pred, axis=0)  # Add a dimension along axis 0
+
+                preds.extend(pred)
 
         return np.array(preds)
 
