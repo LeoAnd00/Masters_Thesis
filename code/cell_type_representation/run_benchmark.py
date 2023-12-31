@@ -63,7 +63,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
     HVGs = 2000
     num_seeds = 1
-    random_seeds = list(range(46, 46 + num_seeds))
+    random_seeds = list(range(42, 42 + num_seeds))
 
     for idx, seed in enumerate(random_seeds):
         while True:  # Keep trying new seeds until no error occurs
@@ -144,10 +144,10 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                 #benchmark_env.in_house_model_transformer_encoder_pathways(save_path=f'{model_path}Transformer_Encoder_with_Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
                 #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-                print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
-                benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #print("**Start benchmarking In-house Transformer on Tokenized HVGs**")
+                #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=False, umap_plot=False, save_figure=True)
                 #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Testing/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
-                read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
                 #read_save(benchmark_env, f'{result_csv_path}_Testing_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
                 #print("**Start benchmarking In-house Transformer on Tokenized HVGs and HVG Encoder**")
@@ -157,6 +157,8 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                 #print("**Start benchmarking In-house Transformer on Tokenized HVGs and pathways**")
                 #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Tokenized_HVG_Transformer_with_Pathways/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
                 #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Testing/Tokenized_HVG_Transformer_with_Pathways_{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
+                #read_save(benchmark_env, f'{result_csv_path}Tokenized_HVG_Transformer_with_Pathways_Testing_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
                 # If no error occurs, break out of the while loop
                 break
@@ -172,6 +174,8 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
                 print(f"Trying a new random seed: {new_seed}")
                 seed = new_seed
+
+                break
 
     print("**Benchmark Finished**")
 
