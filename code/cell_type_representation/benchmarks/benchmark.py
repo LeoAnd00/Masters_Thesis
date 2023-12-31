@@ -1745,7 +1745,7 @@ class benchmark():
                                                         mlp_ratio=4,
                                                         attn_bias=False,
                                                         attn_drop_out=0.,
-                                                        depth=3,
+                                                        depth=1,
                                                         nn_tokens=HVG_buckets_,
                                                         nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
                                                         use_gene2vec_emb=True)
@@ -1768,7 +1768,7 @@ class benchmark():
                                 eval_freq=1,
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
-        
+
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -2020,7 +2020,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
+        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
         adata_in_house.obsm["In_house"] = predictions
 
         del predictions
