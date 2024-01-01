@@ -1745,7 +1745,7 @@ class benchmark():
                                                         mlp_ratio=4,
                                                         attn_bias=False,
                                                         attn_drop_out=0.,
-                                                        depth=1,
+                                                        depth=3,
                                                         nn_tokens=HVG_buckets_,
                                                         nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
                                                         use_gene2vec_emb=True)
