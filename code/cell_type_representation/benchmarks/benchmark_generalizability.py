@@ -146,6 +146,7 @@ class benchmark():
         unique_batches_remaining = np.delete(unique_batches, random_integers)
         random_integers = random.sample(range(len(unique_batches_remaining)), num_patients_for_training)
         random_integers = unique_batches_remaining[random_integers]
+        self.original_adata = self.adata[np.isin(encoded_batch, random_integers), :].copy()
         self.adata = self.adata[np.isin(encoded_batch, random_integers), :].copy()
 
         if HVG:
@@ -160,6 +161,9 @@ class benchmark():
             self.adata.X, mean, std = dp.scale_data(self.adata.X, return_mean_and_std=True)
             self.test_adata.X = dp.scale_data(self.test_adata.X, feature_means=mean, feature_stdevs=std)
 
+        # Make sure all cell types in test data exists in train data
+        self.original_test_adata = self.original_test_adata[self.test_adata.obs["cell_type"].isin(self.adata.obs["cell_type"].unique()), :]
+        self.test_adata = self.test_adata[self.test_adata.obs["cell_type"].isin(self.adata.obs["cell_type"].unique()), :]
         # Settings for visualizations
         sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=12)
         self.celltype_title = 'Cell type'

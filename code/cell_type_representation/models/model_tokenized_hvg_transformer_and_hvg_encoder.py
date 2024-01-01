@@ -559,6 +559,8 @@ class CellType2VecModel(nn.Module):
             else:
                 x_transformer = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
 
+        if x_transformer.dim() == 1:
+            x_transformer = x_transformer.unsqueeze(0)  # Add a dimension along axis 0
         x = self.output_encoder(x_not_tokenized, x_transformer)
 
         if return_attention:

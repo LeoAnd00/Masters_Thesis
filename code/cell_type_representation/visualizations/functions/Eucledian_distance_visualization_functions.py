@@ -14,7 +14,6 @@ import scib
 from sklearn.decomposition import PCA
 import torch.nn.functional as F
 from scipy.spatial.distance import pdist, squareform
-from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 
 class VisualizeEnv():
 

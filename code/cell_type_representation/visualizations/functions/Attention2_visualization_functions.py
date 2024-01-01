@@ -72,9 +72,7 @@ class VisualizeEnv():
                                                             nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
                                                             use_gene2vec_emb=True)
             
-            self.attention_matrices, self.attn_latent_space_matrix = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
-
-            print(list(self.attention_matrices.keys()))
+            self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
         
     def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
         """
@@ -139,6 +137,8 @@ class VisualizeEnv():
         attn_latent_space_matrix = []
 
         model.eval()
+        preds = []
+        labels = []
         with torch.no_grad():
             counter = 0
             for data_inputs, data_labels, data_pathways in tqdm(data_loader):
@@ -150,48 +150,70 @@ class VisualizeEnv():
 
                 latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=True)
 
-                for label in (list(set(data_labels))):
-                    
-                    # Attention matrices
-                    mask = torch.tensor([data_label == label for data_label in data_labels])
+                pred = attn_matrix.cpu().detach().numpy()
 
-                    average_along_attention_head_dim = torch.mean(attn_matrix[mask,:,:,:], dim=1)
+                # Ensure all tensors have at least two dimensions
+                if pred.ndim == 1:
+                    pred = np.expand_dims(pred, axis=0)  # Add a dimension along axis 0
 
-                    sum_along_samples = torch.sum(average_along_attention_head_dim, dim=0).to('cpu')
-                    #sum_along_samples = torch.sum(attn_matrix[mask,:,:], dim=0).to('cpu')
+                preds.extend(pred)
+                labels.extend(data_labels)
 
-                    attn_matrices[label] = attn_matrices[label] + sum_along_samples / target_counts[label]
-
-                if counter == 5:
+                if counter == 10:
                     break
 
-                # Attention latent space
-                #average_along_attention_head_dim = torch.mean(attn_matrix, dim=1)
-                #attention_representation = torch.sum(average_along_attention_head_dim, axis=1)
-                #relative_attention_representation = attention_representation / torch.sum(attention_representation, axis=1, keepdim=True)
-                #attn_latent_space_matrix.extend(relative_attention_representation.cpu().detach().numpy())
-        
-        for key, value in attn_matrices.items():
-            attn_matrices[key] = value.numpy()
-        attn_latent_space_matrix = np.array(attn_latent_space_matrix)
+        preds = np.array(preds)
+        preds_adata = sc.AnnData(X=preds)
+        preds_adata.index = self.data_env.hvg_genes
+        preds_adata.obs["cell_type"] = labels
 
-        return attn_matrices, attn_latent_space_matrix
+        return preds_adata
     
     def GetCellTypeNames(self):
         print(list(self.attention_matrices.keys()))
 
     def DownloadAttentionMatrixDictionary(self, name: str="AttetionMatrixDictionary"):
 
-        # Save the dictionary to a NumPy .npz file
-        np.savez(f'attention_matrices/{name}.npz', **self.attention_matrices)
-        self.attn_latent_space_matrix = self.attn_latent_space_matrix.astype(float)
-        np.save(f'attention_matrices/{name}_matrix.npy', self.attn_latent_space_matrix, allow_pickle=False)
+        # Download
+        self.attention_matrices.write(f"attention_matrices/{name}.h5ad")
 
     def LoadAttentionMatrixDictionary(self, name: str="AttetionMatrixDictionary"):
     
         # Load the dictionary back from the .npz file
-        self.attention_matrices = np.load(f'attention_matrices/{name}.npz')
-        self.attn_latent_space_matrix = np.load(f'attention_matrices/{name}_matrix.npy')
+        self.attention_matrices = sc.read(f"attention_matrices/{name}.h5ad", cache=True)
+
+    def RankGenes(self):
+        adata = self.attention_matrices.copy()
+        # Count the occurrences of each cell type in the 'cell_type' variable
+        cell_type_counts = adata.obs["cell_type"].value_counts()
+
+        # Extract cell types with counts greater than or equal to 2
+        cell_types_to_keep = cell_type_counts[cell_type_counts >= 2].index
+
+        # Filter samples based on the selected cell types
+        adata = adata[adata.obs["cell_type"].isin(cell_types_to_keep),:].copy()
+
+        sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
+        dc_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
+        for idx in range(len(dc_pathway.columns)):
+            indexes = dc_pathway.iloc[:,idx].astype(int).tolist()
+            dc_pathway.iloc[:,idx] = self.data_env.hvg_genes[indexes]
+        print(dc_pathway.head(10))
+
+    def RankOriginalGenes(self):
+        adata = self.pred_adata[:, self.data_env.hvg_genes].copy()
+        # Count the occurrences of each cell type in the 'cell_type' variable
+        cell_type_counts = adata.obs["cell_type"].value_counts()
+
+        # Extract cell types with counts greater than or equal to 2
+        cell_types_to_keep = cell_type_counts[cell_type_counts >= 2].index
+
+        # Filter samples based on the selected cell types
+        adata = adata[adata.obs["cell_type"].isin(cell_types_to_keep),:].copy()
+
+        sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
+        dc_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
+        print(dc_pathway.head(10))
     
     def HeatMapVisualization(self, cell_type: str, num_of_top_genes: int = 50):
         def select_positions_based_on_sum(attention_matrix, num_positions=50):
@@ -230,37 +252,44 @@ class VisualizeEnv():
         plt.show()
 
     def BarPlotVisualization(self, cell_type: str="Classical Monocytes", row_or_col: str="col", num_of_top_genes: int = 50, color: str="green"):
-        matrix = self.attention_matrices[cell_type]
+        matrix = self.attention_matrices[self.attention_matrices.obs["cell_type"] == cell_type,:]
 
-        # Calculate the sum of each row and column
-        row_sums = np.sum(matrix, axis=1)
-        col_sums = np.sum(matrix, axis=0)
-
-        # Get indices of the top rows and columns
-        top_row_indices = np.argsort(row_sums)[-num_of_top_genes:]
-        top_col_indices = np.argsort(col_sums)[-num_of_top_genes:]
-
-        # Calculate the relative sum (percentage) for each row and column
-        relative_row_sums = row_sums[top_row_indices] / np.sum(row_sums)
-        relative_col_sums = col_sums[top_col_indices] / np.sum(col_sums)
+        mean_score = np.mean(matrix.X, axis=0)
+        top_indices = np.argsort(mean_score)[-num_of_top_genes:]
+        mean_score = mean_score[top_indices]
 
         # Gene names
-        gene_names_row = self.data_env.hvg_genes[top_row_indices]
-        gene_names_col = self.data_env.hvg_genes[top_col_indices]
+        gene_names = self.data_env.hvg_genes[top_indices]
 
         # Plot horizontal bar plots for relative sums
         fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*3/10)))
 
-        if row_or_col == "row":
-            axes.barh(gene_names_row, relative_row_sums, color=color)
-            axes.set_title('Relative Sum of Row Genes')
-            axes.set_xlabel('Relative Sum')
-            axes.set_ylabel('Gene')
-        elif row_or_col == "col":
-            axes.barh(gene_names_col, relative_col_sums, color=color)
-            axes.set_title('Relative Sum of Column Genes')
-            axes.set_xlabel('Relative Sum')
-            axes.set_ylabel('Gene')
+        axes.barh(gene_names, mean_score, color=color)
+        axes.set_title('Mean Attention Score of Gene')
+        axes.set_xlabel('Attention Score')
+        axes.set_ylabel('Gene')
+
+        plt.tight_layout()
+        plt.show()
+
+    def RawExpressionsBarPlotVisualization(self, cell_type: str="Classical Monocytes", row_or_col: str="col", num_of_top_genes: int = 50, color: str="green"):
+        matrix = self.pred_adata[:, self.data_env.hvg_genes].copy()
+        matrix = matrix[matrix.obs["cell_type"] == cell_type,:]
+
+        mean_score = np.mean(matrix.X, axis=0)
+        top_indices = np.argsort(mean_score)[-num_of_top_genes:]
+        mean_score = mean_score[top_indices]
+
+        # Gene names
+        gene_names = self.data_env.hvg_genes[top_indices]
+
+        # Plot horizontal bar plots for relative sums
+        fig, axes = plt.subplots(1, 1, figsize=(8, int(num_of_top_genes*3/10)))
+
+        axes.barh(gene_names, mean_score, color=color)
+        axes.set_title('Raw Expression of Gene')
+        axes.set_xlabel('Normalized Expression Value')
+        axes.set_ylabel('Gene')
 
         plt.tight_layout()
         plt.show()
