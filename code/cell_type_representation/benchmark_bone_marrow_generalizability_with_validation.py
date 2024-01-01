@@ -37,7 +37,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                                     image_path=f'train_num_{train_num}_seed_{seed}_',
                                     batch_key="patientID", 
                                     HVG=True, 
-                                    HVGs=4000, 
+                                    HVGs=2000, 
                                     num_patients_for_testing=4,
                                     num_patients_for_training=train_num,
                                     Scaled=False, 
