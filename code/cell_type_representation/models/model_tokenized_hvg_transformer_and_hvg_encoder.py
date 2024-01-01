@@ -468,7 +468,7 @@ class CellType2VecModel(nn.Module):
     act_layer : nn.Module, optional
         The activation function layer to use (default is nn.ReLU).
     norm_layer : nn.Module, optional
-        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
+        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.LayerNorm).
     use_gene2vec_emb : bool, optional
         Whether to use gene2vec embbedings or not.
 
@@ -499,7 +499,7 @@ class CellType2VecModel(nn.Module):
                  attn_drop_out: float=0.0,
                  depth: int=3,
                  act_layer=nn.ReLU,
-                 norm_layer=nn.BatchNorm1d,
+                 norm_layer=nn.LayerNorm,
                  use_gene2vec_emb: bool=False):
         super().__init__()
 

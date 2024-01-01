@@ -18,6 +18,20 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: str, gene2vec_path: str):
     """
+    Execute the generalizability benchmark pipeline. Selects 4 samples for testing and uses the
+    remaining 16 samples for training, but at different amounts (4,8,12,16).
+
+    Parameters:
+    - data_path (str): File path to the AnnData object containing expression data and metadata.
+    - model_path (str): Directory path to save the trained model and predictions.
+    - result_csv_path (str): File path to save the benchmark results as a CSV file.
+    - pathway_path (str): File path to the pathway information.
+    - gene2vec_path (str): File path to the gene2vec embeddings.
+
+    Returns:
+    None
+
+    Note:
     Start with: cd .\code\cell_type_representation\
     How to run example (on bone marrow data set): python benchmark_bone_marrow_generalizability.py '../../data/processed/data_to_assess_generalisability/bone_marrow_human/Assess_generalisability_bone_marrow.h5ad' 'trained_models/Assess_generalisability/' 'benchmarks/results/Generalizability/Benchmark_results' '../../data/processed/pathway_information/all_pathways.json' '../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt'
     """
