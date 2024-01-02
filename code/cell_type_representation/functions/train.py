@@ -16,6 +16,7 @@ import pandas as pd
 import torch.optim as optim
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import euclidean
+from scipy.spatial.distance import cdist
 
 
 class prep_data(data.Dataset):
@@ -46,7 +47,7 @@ class prep_data(data.Dataset):
         Whether to use highly variable genes for feature selection (default is True).
     
     HVGs : int, optional
-        The number of highly variable genes to select (default is 4000).
+        The number of highly variable genes to select (default is 2000).
     
     HVG_buckets : int, optional
         The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True. This option is suitable for certain transformer models.
@@ -92,7 +93,7 @@ class prep_data(data.Dataset):
                  num_pathways: int=None,  
                  pathway_gene_limit: int=10,
                  HVG: bool=True, 
-                 HVGs: int=4000, 
+                 HVGs: int=2000, 
                  HVG_buckets: int=1000,
                  use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
@@ -824,7 +825,7 @@ class train_module():
         Whether to identify highly variable genes (HVGs) in the data (default is True).
     
     HVGs : int, optional
-        The number of highly variable genes to select (default is 4000).
+        The number of highly variable genes to select (default is 2000).
     
     HVG_buckets : int, optional
         The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True.
@@ -853,7 +854,7 @@ class train_module():
                  gene2vec_path: str,
                  pathway_gene_limit: int=10,
                  HVG: bool=True, 
-                 HVGs: int=4000, 
+                 HVGs: int=2000, 
                  HVG_buckets: int=1000,
                  use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
@@ -1232,6 +1233,116 @@ class train_module():
         print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
 
         return all_preds
+    
+    def generate_representation(self, data_, model, model_path: str, save_path: str="cell_type_vector_representation/CellTypeRepresentations.csv", batch_size: int=32, method: str="centroid"):
+        data_ = prep_test_data(data_, self.data_env)
+        adata = data_.adata.copy()
+
+        # Make predictions
+        predictions = self.predict(data_=adata, model=model, model_path=model_path, batch_size=batch_size)
+        adata.obsm["predictions"] = predictions
+
+        
+        def CentroidRepresentation(adata_):
+            """
+            Calculates and returns centroids for each unique label in the dataset.
+
+            Returns
+            -------
+            dict
+                A dictionary where each key is a unique label and the corresponding value is the centroid representation.
+            """
+            unique_labels = np.unique(adata_.obs[self.target_key])
+            centroids = {}  # A dictionary to store centroids for each label.
+
+            for label in unique_labels:
+                # Find the indices of data points with the current label.
+                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
+
+                # Extract the latent space representations for data points with the current label.
+                latent_space_for_label = adata_.obsm["predictions"][label_indices]
+
+                # Calculate the centroid for the current label cluster.
+                centroid = np.mean(latent_space_for_label, axis=0)
+
+                centroids[label] = centroid
+
+            return centroids
+
+        def MedianRepresentation(adata_):
+            """
+            Calculates and returns median centroids for each unique label in the dataset.
+
+            Returns
+            -------
+            dict
+                A dictionary where each key is a unique label and the corresponding value is the median centroid representation.
+            """
+            unique_labels = np.unique(adata_.obs[self.target_key])
+            median_centroids = {}  # A dictionary to store median centroids for each label.
+
+            for label in unique_labels:
+                # Find the indices of data points with the current label.
+                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
+
+                # Extract the latent space representations for data points with the current label.
+                latent_space_for_label = adata_.obsm["predictions"][label_indices]
+
+                # Calculate the median for each feature across the data points with the current label.
+                median = np.median(latent_space_for_label, axis=0)
+
+                median_centroids[label] = median
+
+            return median_centroids
+
+        def MedoidRepresentation(adata_):
+            """
+            Calculates and returns medoid centroids for each unique label in the dataset.
+
+            Returns
+            -------
+            dict
+                A dictionary where each key is a unique label and the corresponding value is the medoid centroid representation.
+            """
+            unique_labels = np.unique(adata_.obs[self.target_key])
+            medoid_centroids = {}  # A dictionary to store medoid centroids for each label.
+
+            for label in unique_labels:
+                # Find the indices of data points with the current label.
+                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
+
+                # Extract the latent space representations for data points with the current label.
+                latent_space_for_label = adata_.obsm["predictions"][label_indices]
+
+                # Calculate pairwise distances between data points in the group.
+                distances = cdist(latent_space_for_label, latent_space_for_label, 'euclidean')
+
+                # Find the index of the medoid (index with the smallest sum of distances).
+                medoid_index = np.argmin(distances.sum(axis=0))
+
+                # Get the medoid (data point) itself.
+                medoid = latent_space_for_label[medoid_index]
+
+                medoid_centroids[label] = medoid
+
+            return medoid_centroids
+        
+        if method == "centroid":
+            representation = CentroidRepresentation(adata_=adata)
+        elif method == "median":
+            representation = MedianRepresentation(adata_=adata)
+        elif method == "medoid":
+            representation = MedoidRepresentation(adata_=adata)
+
+        # Convert the dictionary to a Pandas DataFrame
+        df = pd.DataFrame(representation)
+
+        # Save the DataFrame as a CSV file
+        df.to_csv(save_path, index=False)
+
+        del adata
+
+        return df
     
     
     def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, return_attention: bool=False):
