@@ -556,7 +556,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -676,7 +676,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -799,7 +799,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -919,7 +919,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -1041,7 +1041,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -1166,7 +1166,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -1292,7 +1292,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 
@@ -1419,7 +1419,7 @@ class benchmark():
                                 epochs=100,#20,
                                 earlystopping_threshold=40)#5)
         
-        adata_in_house = self.test_adata.copy()
+        adata_in_house = self.original_test_adata.copy()
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
         adata_in_house.obsm["In_house"] = predictions
 

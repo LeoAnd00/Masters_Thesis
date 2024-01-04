@@ -144,15 +144,6 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
 
     adata.obs["batch"] = adata.obs[batch_key]
 
-    # Split data into training and testing
-    encoder = LabelEncoder()
-    encoded_batch = encoder.fit_transform(adata.obs["batch"])
-    unique_batches = np.unique(encoded_batch).astype(int)
-
-    encoder = LabelEncoder()
-    encoded_cell_type = encoder.fit_transform(adata.obs[label_key])
-    unique_cell_type = np.unique(encoded_cell_type).astype(int)
-
     # Step 1: Calculate the count of each cell type for each batch
     cell_type_counts = adata.obs.groupby(["batch", label_key]).size().reset_index(name="count")
 

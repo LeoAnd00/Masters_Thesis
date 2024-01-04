@@ -247,7 +247,7 @@ class AttentionBlock(nn.Module):
         self.act_layer_out_attn=nn.ReLU()
         self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
-    def forward(self, x):
+    def forward(self, x, return_attention=False):
         """
         Forward pass of the attention block.
 
@@ -262,14 +262,22 @@ class AttentionBlock(nn.Module):
             Output tensor after processing through the attention block.
         """
 
-        attn = self.attnblock_attn(self.attnblock_norm1(x))
+        if return_attention:
+            attn, attn_matrix = self.attnblock_attn(self.attnblock_norm1(x), return_attention=return_attention)
+        else:
+            attn = self.attnblock_attn(self.attnblock_norm1(x))
+
         if self.last is False:
             x = x + attn
             x = x + self.attnblock_mlp(self.attnblock_norm2(x))
         else:
-            # Essentially removes the additional dimension if it's the last attention block
+            # Removes the additional dimension if it's the last attention block
             x = self.linear_out2(self.act_layer_out(self.linear_out(x))).squeeze() + self.linear_out2_attn(self.act_layer_out_attn(self.linear_out_attn(attn))).squeeze()
-        return x
+        
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 
 
 class MultiheadAttention_pathways(nn.Module):
@@ -666,7 +674,7 @@ class HVGTransformer(nn.Module):
                  norm_layer=nn.LayerNorm):
         super().__init__()
 
-        self.pathways_input = nn.Embedding(nn_tokens, nn_embedding_dim)
+        self.x_embbed_input = nn.Embedding(nn_tokens, nn_embedding_dim)
 
         if depth >= 2:
             self.blocks = nn.ModuleList([AttentionBlock(attn_input_dim=nn_embedding_dim, 
@@ -708,14 +716,16 @@ class HVGTransformer(nn.Module):
                                     act_layer=act_layer,
                                     last=True)])
 
-    def forward(self, pathways, gene2vec_emb):
+    def forward(self, x, gene2vec_emb, return_attention=False):
         """
-        Forward pass of the Pathway Transformer model.
+        Forward pass of the transformer model.
 
         Parameters
         ----------
-        pathways : torch.Tensor
-            Input tensor containing pathway data.
+        x : torch.Tensor
+            Tokenized expression levels.
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
 
         Returns
         -------
@@ -723,12 +733,18 @@ class HVGTransformer(nn.Module):
             Output tensor after processing through the Pathway Transformer model.
         """
 
-        pathways = self.pathways_input(pathways)
-        pathways += gene2vec_emb
-        for layer in self.blocks:
-            pathways = layer(pathways)
+        x = self.x_embbed_input(x)
+        x += gene2vec_emb
+        for idx, layer in enumerate(self.blocks):
+            if return_attention and idx == 0:
+                x, attn_matrix = layer(x, return_attention)
+            else:
+                x = layer(x, False)
 
-        return pathways
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
     
 
 class OutputEncoder(nn.Module):
@@ -801,7 +817,7 @@ class CellType2VecModel(nn.Module):
     act_layer : nn.Module, optional
         The activation function layer to use (default is nn.ReLU).
     norm_layer : nn.Module, optional
-        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
+        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.LayerNorm).
     use_gene2vec_emb : bool, optional
         Whether to use gene2vec embbedings or not.
 
@@ -823,7 +839,7 @@ class CellType2VecModel(nn.Module):
                  attn_embed_dim: int=96,
                  output_dim: int=100,
                  num_pathways: int=300,
-                 pathway_embedding_dim: int=30,
+                 pathway_embedding_dim: int=50,
                  drop_out: float=0.2,
                  nn_embedding_dim: int=200,
                  nn_tokens: int=1000,
@@ -833,7 +849,7 @@ class CellType2VecModel(nn.Module):
                  attn_drop_out: float=0.0,
                  depth: int=3,
                  act_layer=nn.ReLU,
-                 norm_layer=nn.BatchNorm1d,
+                 norm_layer=nn.LayerNorm,
                  use_gene2vec_emb: bool=False):
         super().__init__()
 
@@ -873,16 +889,20 @@ class CellType2VecModel(nn.Module):
                                             norm_layer=norm_layer,
                                             drop_out=drop_out)
 
-    def forward(self, x, pathways, gene2vec_emb):
+    def forward(self, x, pathways, gene2vec_emb, return_attention=False):
         """
         Forward pass of the CellType2Vec model.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor for the model.
+            Tokenized expression levels.
         pathways : torch.Tensor
             Input tensor containing pathway data. (Not used by this model)
+        gene2vec_emb : torch.Tensor
+            Gene2vec representations of all HVGs.
+        return_attention : bool, optional
+            Whether to return the attention matrix between the input HVGs.
 
         Returns
         -------
@@ -891,12 +911,34 @@ class CellType2VecModel(nn.Module):
         """
 
         if self.use_gene2vec_emb:
-            x = self.hvg_transformer(x, gene2vec_emb)
+            if return_attention:
+                x, attn_matrix = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            else:
+                x = self.hvg_transformer(x, gene2vec_emb, return_attention)
         else:
-            x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)))
+            if return_attention:
+                x, attn_matrix = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
+            else:
+                x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
+
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
 
         pathways = self.pathway_transformer(pathways)
+
+        # Ensure all tensors have at least two dimensions
+        if pathways.dim() == 1:
+            pathways = torch.unsqueeze(pathways, dim=0)  # Add a dimension along axis 0
+
         x = self.output_encoder(x, pathways)
 
-        return x
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
+
+        if return_attention:
+            return x, attn_matrix
+        else:
+            return x
 

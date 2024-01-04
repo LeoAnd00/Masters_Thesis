@@ -921,8 +921,21 @@ class CellType2VecModel(nn.Module):
             else:
                 x = self.hvg_transformer(x, torch.zeros((x.size(1), self.nn_embedding_dim)), return_attention)
 
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
+
         pathways = self.pathway_transformer(pathways)
+
+        # Ensure all tensors have at least two dimensions
+        if pathways.dim() == 1:
+            pathways = torch.unsqueeze(pathways, dim=0)  # Add a dimension along axis 0
+
         x = self.output_encoder(x, pathways)
+
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
 
         if return_attention:
             return x, attn_matrix
