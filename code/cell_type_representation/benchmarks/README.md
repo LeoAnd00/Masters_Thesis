@@ -4,4 +4,5 @@ Contains all code used in this project, including preprocessing, visualization, 
 ## Structur
 - **results:** Contains all benchmarking results from the different data sets.
 - **benchmark.py:** Code for benchmarking models on specified data set. Methods that are benchmarked: *Unintegrated*, *PCA*, *Scanorama*, *Harmony*, *scVI*, *scANVI*, *scGen*, *ComBat*, *DESC*, *FastMNN* and *In-House Models*.
-- **benchmark_on_testdata.py:** Code for evaluating generalizability of models on benchmark metrics when varying the number of patients data for training.
+- **benchmark_generalizability.py:** Code for benchmarking models on generalizability to unseen data. All data is used for training and validation
+- **benchmark_generalizability_with_validation.py:** Code for benchmarking models on generalizability to unseen data. 80% of data is used for training and 20% for validation.
