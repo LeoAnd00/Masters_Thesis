@@ -119,7 +119,7 @@ def in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house, adata
         sc.pl.umap(adata_in_house_predict, color=label_key, ncols=1, title="Cell type", show=False, save=f"{image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_cell_type.svg")
         sc.pl.umap(adata_in_house_predict, color="batch", ncols=1, title="Batch effect", show=False, save=f"{image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_batch_effect.svg")
 
-    del adata_in_house, adata_in_house_predict
+    del adata_in_house_predict
 
 def main(data_path: str, model_path: str, image_path: str, pathway_path: str, gene2vec_path: str, batch_key: str, label_key: str):
     """
@@ -149,15 +149,6 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
 
     adata.obs["batch"] = adata.obs[batch_key]
 
-    # Split data into training and testing
-    encoder = LabelEncoder()
-    encoded_batch = encoder.fit_transform(adata.obs["batch"])
-    unique_batches = np.unique(encoded_batch).astype(int)
-
-    encoder = LabelEncoder()
-    encoded_cell_type = encoder.fit_transform(adata.obs[label_key])
-    unique_cell_type = np.unique(encoded_cell_type).astype(int)
-
     # Step 1: Calculate the count of each cell type for each batch
     cell_type_counts = adata.obs.groupby(["batch", label_key]).size().reset_index(name="count")
 
@@ -178,13 +169,16 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
             unique_cell_type_batch_dict[cell_type] = batch_effects[0]
             unique_cell_type_batch_counts_dict[cell_type] = all_counts[0]
 
+    print("unique_cell_type_batch_dict: ", unique_cell_type_batch_dict)
+    print("unique_cell_type_batch_counts_dict: ", unique_cell_type_batch_counts_dict)
+
     # Step 3: Create a mask to identify rows for training and testing
     train_mask = ~adata.obs[batch_key].isin(unique_cell_type_batch_dict.values())
     test_mask = adata.obs[batch_key].isin(unique_cell_type_batch_dict.values())
 
     # Step 4: Split the data into training and testing sets
-    train_data = adata[train_mask]
-    test_data = adata[test_mask]
+    train_data = adata[train_mask].copy()
+    test_data = adata[test_mask].copy()
 
     # Train
     in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=True, save_figure=True)

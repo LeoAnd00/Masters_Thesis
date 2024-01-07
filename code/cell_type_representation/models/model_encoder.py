@@ -100,5 +100,9 @@ class CellType2VecModel(nn.Module):
         # Output encoder 
         x = self.output_encoder(x)
 
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
+
         return x
 

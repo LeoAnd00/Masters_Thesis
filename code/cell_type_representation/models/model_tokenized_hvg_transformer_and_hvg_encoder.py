@@ -561,7 +561,12 @@ class CellType2VecModel(nn.Module):
 
         if x_transformer.dim() == 1:
             x_transformer = x_transformer.unsqueeze(0)  # Add a dimension along axis 0
+
         x = self.output_encoder(x_not_tokenized, x_transformer)
+
+        # Ensure all tensors have at least two dimensions
+        if x.dim() == 1:
+            x = torch.unsqueeze(x, dim=0)  # Add a dimension along axis 0
 
         if return_attention:
             return x, attn_matrix

@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import re
 import torch
+import random
 from benchmarks.benchmark_generalizability_with_validation import benchmark as benchmark
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -43,69 +44,87 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
     """
     
     # Calculate for model at different number of patient for training and different random seeds
-    num_patients_for_training_list = [4]#[4,8,12,16]
+    num_patients_for_training_list = [4,8,12,16]#[4,8,12,16]
     num_patients_for_training_full_list = [4,8,12,16]
-    r_seeds = [42,43,44,45,46]
+    r_seeds = [46]#[42,43,44,45,46]
     counter = 0
     for train_num in num_patients_for_training_list:
         
         for seed in r_seeds:
             counter += 1
 
-            benchmark_env = benchmark(data_path=data_path, 
-                                    pathway_path=pathway_path,
-                                    gene2vec_path=gene2vec_path,
-                                    image_path=f'train_num_{train_num}_seed_{seed}_',
-                                    batch_key="patientID", 
-                                    HVG=True, 
-                                    HVGs=2000, 
-                                    num_patients_for_testing=4,
-                                    num_patients_for_training=train_num,
-                                    Scaled=False, 
-                                    seed=42,
-                                    select_patients_seed=seed)
-            
-            # Calculate for unintegrated and PCA
-            if train_num == num_patients_for_training_list[0]:
-                print("Start evaluating unintegrated data")
-                print()
-                benchmark_env.unintegrated(save_figure=False, umap_plot=False)
+            while True:  # Keep trying new seeds until no error occurs
+                try:
+                    print("seed: ", seed)
 
-                print("Start evaluating PCA transformed data")
-                print()
-                benchmark_env.pca(save_figure=False, umap_plot=False)
-            
-            # Calculate for model
-            print(f"Start training model with {train_num} patients and seed {seed}")
-            print()
+                    benchmark_env = benchmark(data_path=data_path, 
+                                            pathway_path=pathway_path,
+                                            gene2vec_path=gene2vec_path,
+                                            image_path=f'train_num_{train_num}_seed_{seed}_',
+                                            batch_key="patientID", 
+                                            HVG=True, 
+                                            HVGs=2000, 
+                                            num_patients_for_testing=4,
+                                            num_patients_for_training=train_num,
+                                            Scaled=False, 
+                                            seed=42,
+                                            select_patients_seed=seed)
+                    
+                    # Calculate for unintegrated and PCA
+                    if train_num == num_patients_for_training_full_list[0]:
+                        print("Start evaluating unintegrated data")
+                        print()
+                        benchmark_env.unintegrated(save_figure=False, umap_plot=False)
 
-            benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Generalizability_with_validation/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-            #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/Generalizability_with_validation/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
+                        print("Start evaluating PCA transformed data")
+                        print()
+                        benchmark_env.pca(save_figure=False, umap_plot=False)
+                    
+                    # Calculate for model
+                    print(f"Start training model with {train_num} patients and seed {seed}")
+                    print()
 
-            benchmark_env.make_benchamrk_results_dataframe(counter=f"", min_max_normalize=False)
+                    benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Generalizability_with_validation/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
+                    #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/Generalizability_with_validation/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
 
-            benchmark_env.metrics["train_num"] = [train_num]*benchmark_env.metrics.shape[0]
-            benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
+                    benchmark_env.make_benchamrk_results_dataframe(counter=f"", min_max_normalize=False)
 
-            if train_num == num_patients_for_training_list[0]:
-                num_replicates = len(num_patients_for_training_full_list) - 1
-                replicated_unintegrated = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'Unintegrated']] * num_replicates, ignore_index=False, axis="rows")
-                replicated_pca = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'PCA']] * num_replicates, ignore_index=False, axis="rows")
-                benchmark_env.metrics = pd.concat([benchmark_env.metrics, replicated_unintegrated, replicated_pca], ignore_index=False, axis="rows")
+                    benchmark_env.metrics["train_num"] = [train_num]*benchmark_env.metrics.shape[0]
+                    benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
 
-                benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'Unintegrated'] = num_patients_for_training_full_list
-                benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'PCA'] = num_patients_for_training_full_list
+                    if train_num == num_patients_for_training_full_list[0]:
+                        num_replicates = len(num_patients_for_training_full_list) - 1
+                        replicated_unintegrated = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'Unintegrated']] * num_replicates, ignore_index=False, axis="rows")
+                        replicated_pca = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'PCA']] * num_replicates, ignore_index=False, axis="rows")
+                        benchmark_env.metrics = pd.concat([benchmark_env.metrics, replicated_unintegrated, replicated_pca], ignore_index=False, axis="rows")
 
-            #if counter > 1:
-            #    benchmark_env.read_csv(name=result_csv_path)
-            benchmark_env.read_csv(name=result_csv_path)
+                        benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'Unintegrated'] = num_patients_for_training_full_list
+                        benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'PCA'] = num_patients_for_training_full_list
 
-            benchmark_env.save_results_as_csv(name=result_csv_path)
+                    #if counter > 1:
+                    #    benchmark_env.read_csv(name=result_csv_path)
+                    benchmark_env.read_csv(name=result_csv_path)
 
-            del benchmark_env
+                    benchmark_env.save_results_as_csv(name=result_csv_path)
 
-            # Empty the cache
-            torch.cuda.empty_cache()
+                    del benchmark_env
+
+                    # Empty the cache
+                    torch.cuda.empty_cache()
+
+                    break
+                except Exception as e:
+                    # Handle the exception (you can print or log the error if needed)
+                    print(f"Error occurred: {e}")
+
+                    # Generate a new random seed not in random_seeds list
+                    while True:
+                        new_seed = random.randint(1, 10000)
+                        if new_seed not in r_seeds:
+                            break
+
+                    print(f"Trying a new random seed: {new_seed}")
+                    seed = new_seed
 
     print("Finished generalizability benchmark!")
         

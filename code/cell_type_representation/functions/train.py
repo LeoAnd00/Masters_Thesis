@@ -199,12 +199,13 @@ class prep_data(data.Dataset):
                 num_hvgs.append(np.sum(pathway_mask[key_idx,:]))
 
             pathway_length = np.array(pathway_length)
+            num_hvgs = np.array(num_hvgs)
             # Filter so that there must be more than pathway_gene_limit genes in a pathway/gene set
-            pathway_mask = pathway_mask[pathway_length>pathway_gene_limit,:]
-            dispersions_norm_mask = dispersions_norm_mask[pathway_length>pathway_gene_limit,:]
-            pathway_names = np.array(pathway_names)[pathway_length>pathway_gene_limit]
-            num_hvgs = np.array(num_hvgs)[pathway_length>pathway_gene_limit]
-            pathway_length = pathway_length[pathway_length>pathway_gene_limit]
+            pathway_mask = pathway_mask[num_hvgs>pathway_gene_limit,:]
+            dispersions_norm_mask = dispersions_norm_mask[num_hvgs>pathway_gene_limit,:]
+            pathway_names = np.array(pathway_names)[num_hvgs>pathway_gene_limit]
+            pathway_length = pathway_length[num_hvgs>pathway_gene_limit]
+            num_hvgs = np.array(num_hvgs)[num_hvgs>pathway_gene_limit]
 
             # Realtive percentage of HVGs in each pathway
             relative_hvg_abundance = np.sum(pathway_mask, axis=1)/pathway_length
@@ -453,12 +454,16 @@ class prep_data(data.Dataset):
         else:
             batches = torch.tensor([])
 
-        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
-            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
-        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        if self.use_HVG_buckets == True:
             data_pathways = self.X_not_tokenized[idx] 
-        elif self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
 
@@ -977,6 +982,7 @@ class train_module():
                 
                     #print(f"Works {i}: ",torch.cuda.memory_allocated())
                     #print("Works: ",torch.cuda.memory_cached())
+                    #print("preds: ", preds)
 
                     if num_iterations > 1:
                         all_train_preds_temp = all_train_preds.clone()
@@ -1088,10 +1094,10 @@ class train_module():
                  max_temperature: float=1.0,
                  init_lr: float=0.001,
                  lr_scheduler_warmup: int=4,
-                 lr_scheduler_maxiters: int=25,
-                 eval_freq: int=2,
-                 epochs: int=20,
-                 earlystopping_threshold: int=10):
+                 lr_scheduler_maxiters: int=110,
+                 eval_freq: int=1,
+                 epochs: int=100,
+                 earlystopping_threshold: int=40):
         """
         Perform training of the machine learning model.
 
@@ -1446,12 +1452,16 @@ class prep_test_data(data.Dataset):
 
         data_point = self.X[idx]
 
-        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
-            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
-        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        if self.use_HVG_buckets == True:
             data_pathways = self.X_not_tokenized[idx] 
-        elif self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
 
