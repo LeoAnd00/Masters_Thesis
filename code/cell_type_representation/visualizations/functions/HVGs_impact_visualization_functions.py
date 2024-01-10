@@ -8,6 +8,14 @@ from IPython.display import display
 
 
 class VisualizeEnv():
+    """
+    A class for visualizing creating error bar plots of metrics when model is trained on different number of HVGs.
+
+    Methods:
+    - read_csv: Reads CSV files containing performance metrics and updates the metrics dataframe.
+    - visualize_results: Visualizes the performance metrics dataframe.
+    - ErrorBarPlot: Creates an error bar plot for performance metrics at the different HVGs used for training.
+    """
 
     def __init__(self):
         pass

@@ -16,6 +16,17 @@ import torch.nn.functional as F
 from scipy.spatial.distance import pdist, squareform
 
 class VisualizeEnv():
+    """
+    A class for visualizing eucledian distance between cell type clusters when accounting for batch effect.
+
+    Methods:
+    - MakePredictions: Make predictions using a trained model on a separate dataset.
+    - PCA_cell_type_centroid_distances: Calculate the centroid distances between cell types in PCA space.
+    - CalculateDistanceMatrix: Calculate the distance matrix based on PCA space.
+    - DownloadDistanceMatrix: Save the distance matrix to a file.
+    - LoadDistanceMatrix: Load a precomputed distance matrix.
+    - VisualizeCellTypeCorrelations: Visualize the distance matrices and their statistics.
+    """
 
     def __init__(self):
         pass
@@ -35,6 +46,28 @@ class VisualizeEnv():
                         use_gene2vec_emb: bool=False,
                         pathways_file_path: str=None,
                         batch_size: int=32):
+        """
+        Make predictions using a trained model on a separate dataset.
+
+        Parameters:
+        - predict (bool): Whether to perform predictions.
+        - train_path (str): File path to the training dataset in AnnData format.
+        - pred_path (str): File path to the prediction dataset in AnnData format.
+        - gene2vec_path (str): File path to gene2vec embeddings.
+        - model_path (str): Directory path to save the trained model and predictions.
+        - target_key (str): Key for cell type labels.
+        - batch_key (str): Key for batch information.
+        - model (nn.Module): Trained neural network model.
+        - HVGs (int): Number of highly variable genes (HVGs).
+        - HVG_buckets_ (int): Number of HVG buckets.
+        - Use_HVG_buckets_ (bool): Whether to use HVG buckets.
+        - use_gene2vec_emb (bool): Whether to use gene2vec embeddings.
+        - pathways_file_path (str): File path to pathway information.
+        - batch_size (int): Batch size for predictions.
+
+        Returns:
+        None
+        """
         
         self.label_key = target_key
         self.train_adata = sc.read(train_path, cache=True)
@@ -67,6 +100,16 @@ class VisualizeEnv():
             self.pred_adata.obsm["In_house"] = self.prediction
 
     def PCA_cell_type_centroid_distances(self, n_components: int=100):
+        """
+        Calculate the average centroid distances between cell types across batch effects in PCA space.
+
+        Parameters:
+        - n_components (int): Number of principal components for PCA.
+
+        Returns:
+        - average_distance_df (pd.DataFrame): DataFrame of average centroid distances.
+        - distance_std_df (pd.DataFrame): DataFrame of standard deviations of centroid distances.
+        """
 
         # Step 1: Perform PCA on AnnData.X
         adata = self.data_env.adata.copy()  # Make a copy of the original AnnData object
@@ -119,6 +162,15 @@ class VisualizeEnv():
         return average_distance_df, distance_std_df
 
     def CalculateDistanceMatrix(self, model_output_dim: int=100):
+        """
+        Calculate the distance matrix based on PCA space.
+
+        Parameters:
+        - model_output_dim (int): Dimensionality of the model output.
+
+        Returns:
+        None
+        """
 
         #X = torch.tensor(self.prediction)
         cell_type_vector = self.pred_adata.obs["cell_type"]
@@ -154,14 +206,43 @@ class VisualizeEnv():
         self.distance_std_df = torch.tensor(distance_std_df.values, dtype=torch.float32)
 
     def DownloadDistanceMatrix(self, name: str="DistanceMatrix"):
+        """
+        Save the distance matrix to a file.
+
+        Parameters:
+        - name (str): Name of the distance matrix file.
+
+        Returns:
+        None
+        """
+
         #np.save(f'distance_matrices/{name}.npy', self.average_distance_matrix_input, allow_pickle=False)
         np.save(f'distance_matrices/PCA_{name}.npy', self.cell_type_centroids_distances_matrix_filter, allow_pickle=False)
 
     def LoadDistanceMatrix(self, name: str="DistanceMatrix"):
+        """
+        Load a precomputed distance matrix.
+
+        Parameters:
+        - name (str): Name of the distance matrix file.
+
+        Returns:
+        None
+        """
+
         #self.average_distance_matrix_input = np.load(f'distance_matrices/{name}.npy')
         self.cell_type_centroids_distances_matrix_filter = np.load(f'distance_matrices/PCA_{name}.npy')
 
     def VisualizeCellTypeCorrelations(self, image_path: str=None):
+        """
+        Visualize the distance matrices and their statistics.
+
+        Parameters:
+        - image_path (str): Directory path to save the visualizations.
+
+        Returns:
+        None
+        """
 
         """# Create a heatmap to visualize the relative distance matrix
         plt.figure(figsize=(20, 16))

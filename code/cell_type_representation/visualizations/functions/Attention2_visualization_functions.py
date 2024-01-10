@@ -12,7 +12,8 @@ import torch.nn as nn
 from tqdm import tqdm
 import scib
 from scipy.spatial.distance import pdist, squareform
-from models import model2_tokenized_hvg_transformer as model2_tokenized_hvg_transformer
+#from models import model2_tokenized_hvg_transformer as model2_tokenized_hvg_transformer
+from models import model_ITSCR as model_ITSCR
 
 class VisualizeEnv():
 
@@ -25,8 +26,10 @@ class VisualizeEnv():
                             pred_path: str, 
                             gene2vec_path: str,
                             model_path: str,
+                            pathway_path: str,
                             target_key: str,
                             batch_key: str,
+                            HVG_attn_or_pathway_attn: str,
                             HVGs: int=2000, 
                             HVG_buckets_: int=1000,
                             batch_size: int=32):
@@ -36,9 +39,9 @@ class VisualizeEnv():
         self.train_adata.obs["batch"] = self.train_adata.obs[batch_key]
 
         self.train_env = trainer.train_module(data_path=self.train_adata,
-                                        pathways_file_path=None,
+                                        pathways_file_path=pathway_path,
                                         num_pathways=300,
-                                        pathway_gene_limit=10,
+                                        pathway_gene_limit=20,
                                         save_model_path="",
                                         HVG=True,
                                         HVGs=HVGs,
@@ -54,27 +57,22 @@ class VisualizeEnv():
         
         self.pred_adata = sc.read(pred_path, cache=True)
 
+        if HVG_attn_or_pathway_attn == "pathway":
+            self.data_env.hvg_genes = self.data_env.pathway_names
+
         if attention_matrix_or_just_env:
 
             # Define model
-            model = model2_tokenized_hvg_transformer.CellType2VecModel(input_dim=min([HVGs,int(self.data_env.X.shape[1])]),
-                                                            output_dim=100,
-                                                            drop_out=0.2,
-                                                            act_layer=nn.ReLU,
-                                                            norm_layer=nn.LayerNorm,#nn.BatchNorm1d, LayerNorm
-                                                            attn_embed_dim=24*4,
-                                                            num_heads=4,
-                                                            mlp_ratio=4,
-                                                            attn_bias=False,
-                                                            attn_drop_out=0.,
-                                                            depth=3,
-                                                            nn_tokens=HVG_buckets_,
-                                                            nn_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
-                                                            use_gene2vec_emb=True)
+            model = model_ITSCR.ITSCR_main_model(mask=self.data_env.pathway_mask,
+                                                num_HVGs=min([HVGs,int(self.data_env.X.shape[1])]),
+                                                output_dim=100,
+                                                HVG_tokens=HVG_buckets_,
+                                                HVG_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
+                                                use_gene2vec_emb=True)
             
-            self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size)
+            self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size, HVG_attn_or_pathway_attn=HVG_attn_or_pathway_attn)
         
-    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, HVG_attn_or_pathway_attn: str="HVG"):
         """
         Generate latent represntations for data using the trained model.
 
@@ -136,6 +134,13 @@ class VisualizeEnv():
         # Create a matrix containing the attention latent space representation for each sample
         attn_latent_space_matrix = []
 
+        if HVG_attn_or_pathway_attn == "HVG":
+            return_attention = True
+            return_pathway_attention = False
+        elif HVG_attn_or_pathway_attn == "pathway":
+            return_attention = False
+            return_pathway_attention = True
+
         model.eval()
         preds = []
         labels = []
@@ -148,7 +153,7 @@ class VisualizeEnv():
                 data_labels = list(data_labels)
                 data_pathways = data_pathways.to(device)
 
-                latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=True)
+                latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=return_attention, return_pathway_attention=return_pathway_attention)
 
                 pred = attn_matrix.cpu().detach().numpy()
 
@@ -159,11 +164,13 @@ class VisualizeEnv():
                 preds.extend(pred)
                 labels.extend(data_labels)
 
-                if counter == 10:
+                if counter == 5000:
                     break
 
         preds = np.array(preds)
         preds_adata = sc.AnnData(X=preds)
+        if return_pathway_attention:
+            self.data_env.hvg_genes = self.data_env.pathway_names
         preds_adata.index = self.data_env.hvg_genes
         preds_adata.obs["cell_type"] = labels
 
@@ -182,8 +189,14 @@ class VisualizeEnv():
         # Load the dictionary back from the .npz file
         self.attention_matrices = sc.read(f"attention_matrices/{name}.h5ad", cache=True)
 
-    def RankGenes(self):
+    def RankGenes(self, save_path: str=None):
         adata = self.attention_matrices.copy()
+        adata.var_names = self.data_env.hvg_genes
+
+        # Normalize
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
         # Count the occurrences of each cell type in the 'cell_type' variable
         cell_type_counts = adata.obs["cell_type"].value_counts()
 
@@ -194,11 +207,39 @@ class VisualizeEnv():
         adata = adata[adata.obs["cell_type"].isin(cell_types_to_keep),:].copy()
 
         sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
-        dc_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
-        for idx in range(len(dc_pathway.columns)):
-            indexes = dc_pathway.iloc[:,idx].astype(int).tolist()
-            dc_pathway.iloc[:,idx] = self.data_env.hvg_genes[indexes]
-        print(dc_pathway.head(10))
+        
+        
+        # Extract information from adata.uns
+        result_dict = adata.uns['rank_genes_groups']
+        gene_names = result_dict['names']
+        gene_pvals = result_dict['pvals']
+        gene_scores = result_dict['scores']
+
+        # Create an empty DataFrame to store the results
+        dc_pathway = pd.DataFrame()
+
+        # Iterate over each column (cell type) in gene_names
+        for cell_type in pd.DataFrame(gene_names).columns:
+            # Create a DataFrame for the current cell type
+            cell_type_df = pd.DataFrame({
+                'Gene': gene_names[cell_type],
+                'P-value': gene_pvals[cell_type],
+                'Score': gene_scores[cell_type]
+            })
+            
+            # Add a column indicating the cell type
+            cell_type_df['Cell_Type'] = cell_type
+
+            print(cell_type_df.head(10))
+            
+            # Concatenate the current cell type DataFrame to the overall DataFrame
+            dc_pathway = pd.concat([dc_pathway, cell_type_df])
+
+        # Reset index
+        dc_pathway.reset_index(drop=True, inplace=True)
+
+        if save_path is not None:
+            dc_pathway.to_csv(f'{save_path}.csv', index=False)
 
     def RankOriginalGenes(self):
         adata = self.pred_adata[:, self.data_env.hvg_genes].copy()
@@ -214,6 +255,135 @@ class VisualizeEnv():
         sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
         dc_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
         print(dc_pathway.head(10))
+
+    def ScatterPlotGeneSetOrHVG(self, x_axis: str, y_axis: str, color: str, size: int=50, save_path: str=None):
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.attention_matrices.copy()
+
+        # Normalize
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
+        df_temp = pd.DataFrame(adata.X, index=adata.obs[color], columns=self.data_env.hvg_genes)
+                
+        adata.obs[x_axis] = df_temp[x_axis].values
+        adata.obs[y_axis] = df_temp[y_axis].values
+        
+        fig, ax = plt.subplots(figsize=(14, 10))
+        sc.pl.scatter(adata, 
+                      x=x_axis, 
+                      y=y_axis, 
+                      color=color, 
+                      size=size, 
+                      title='',
+                      use_raw=False, 
+                      ax=ax, 
+                      show=False)
+        # Remove gridlines
+        ax.grid(False)
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Save the plot as SVG
+        if save_path is not None:
+            plt.savefig(f"{save_path}.svg")
+
+        # Show the plot
+        plt.show()
+        
+    def ViolinPlotGeneSetOrHVG(self, name: str, color: str, save_path: str=None, color_map: str="viridis", rotation: int=90):
+
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.attention_matrices.copy()
+
+        # Normalize
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
+        df_temp = pd.DataFrame(adata.X, index=adata.obs[color], columns=self.data_env.hvg_genes)
+                
+        adata.obs[name] = df_temp[name].values
+
+        # Get the number of unique categories in 'cell_type'
+        num_categories = len(adata.obs[color].unique())
+
+        # Set up a color palette based on the number of unique categories
+        self.palette = sns.color_palette(color_map, num_categories)
+
+        # Set the order of categories for the x-axis
+        order = list(adata.obs.groupby(color)[name].median().sort_values(ascending=True).index)
+
+        # Set the category order for plotting
+        adata.obs[color] = pd.Categorical(adata.obs[color], categories=order, ordered=True)
+        
+        fig, ax = plt.subplots(figsize=(14, 10))
+        sc.pl.violin(adata, [f'{name}'], groupby=color,use_raw=False, rotation=rotation, palette=self.palette, ax=ax, show=False)
+
+        # Remove gridlines
+        ax.grid(False)
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Save the plot as SVG
+        if save_path is not None:
+            plt.savefig(f"{save_path}.svg")
+
+        # Show the plot
+        plt.show()
+
+    def StackedViolinPlotGeneSetOrHVG(self, color: str, num_top_selections: int=5, save_path: str=None):
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.attention_matrices.copy()
+        adata.var_names = self.data_env.hvg_genes
+
+        # Normalize
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
+        sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
+
+        #sc.pl.stacked_violin(adata, names, groupby=color, dendrogram=False)
+        if save_path is not None:
+            sc.pl.rank_genes_groups_stacked_violin(adata, 
+                                                n_genes=num_top_selections, 
+                                                key="rank_genes_groups", 
+                                                groupby=color,
+                                                save=f"{save_path}.svg")
+        else:
+            sc.pl.rank_genes_groups_stacked_violin(adata, 
+                                                n_genes=num_top_selections, 
+                                                key="rank_genes_groups", 
+                                                groupby=color)
+            
+    def DendogramPlotGeneSetOrHVG(self, color: str, save_path: str=None):
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.attention_matrices.copy()
+        adata.var_names = self.data_env.hvg_genes
+
+        # Normalize
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+
+        # Convert 'cell_type' to a categorical variable
+        adata.obs[color] = adata.obs[color].astype('category')
+
+        sc.tl.dendrogram(adata, color)
+        sc.pl.dendrogram(adata, color, orientation='left', save=f"{save_path}.svg")
+
+
+
+
+
+
+
+
+
     
     def HeatMapVisualization(self, cell_type: str, num_of_top_genes: int = 50):
         def select_positions_based_on_sum(attention_matrix, num_positions=50):
@@ -536,14 +706,15 @@ class prep_test_data(data.Dataset):
         # Get labels
         data_label = self.target[idx]
 
-        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
-            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
-        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
-            data_pathways = self.X_not_tokenized[idx] 
-        elif self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
-        else:
-            data_pathways = torch.tensor([])
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        data_pathways = self.X_not_tokenized[idx] 
 
         return data_point, data_label, data_pathways
 
