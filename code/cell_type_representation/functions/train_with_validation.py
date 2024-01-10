@@ -42,7 +42,7 @@ class prep_data(data.Dataset):
         The number of top pathways to select based on relative HVG abundance (default is None). Only used if json_file_path is given.
     
     pathway_gene_limit : int, optional
-        The minimum number of genes in a pathway/gene set for it to be considered (default is 10). Only used if json_file_path is given.
+        The minimum number of HVGs in a pathway/gene set for it to be considered (default is 10). Only used if json_file_path is given.
     
     HVG : bool, optional
         Whether to use highly variable genes for feature selection (default is True).
@@ -220,6 +220,7 @@ class prep_data(data.Dataset):
 
             # Filter based on realtive percentage of HVGs
             self.pathway_mask = torch.FloatTensor(pathway_mask[np.argsort(relative_hvg_abundance)[-num_pathways:],:])
+            self.pathway_names = pathway_names[np.argsort(relative_hvg_abundance)[-num_pathways:]]
 
     def bucketize_expression_levels(self, expression_levels, num_buckets: int):
         """
@@ -465,15 +466,19 @@ class prep_data(data.Dataset):
         else:
             batches = torch.tensor([])
 
-        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
-            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
-        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        if self.use_HVG_buckets == True:
             data_pathways = self.X_not_tokenized[idx] 
-        elif self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
-
+            
         return data_point, data_label, batches, data_pathways
     
 
@@ -630,6 +635,7 @@ class prep_data_validation(data.Dataset):
 
         # Convert expression level to buckets, suitable for nn.Embbeding() used in certain transformer models
         if use_HVG_buckets:
+            self.X_not_tokenized = self.X.clone()
             self.X = self.bucketize_expression_levels(self.X, HVG_buckets, expression_levels_min, expression_levels_max)  
 
         # Pathway information
@@ -821,8 +827,13 @@ class prep_data_validation(data.Dataset):
         else:
             batches = torch.tensor([])
 
-        if self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
+        #if self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        
+        if self.use_HVG_buckets == True:
+            data_pathways = self.X_not_tokenized[idx] 
         else:
             data_pathways = torch.tensor([])
 
@@ -1251,8 +1262,12 @@ class train_module():
         self.adata_train = self.adata.copy()
         self.adata_validation = self.adata.copy()
         for train_index, val_index in stratified_kfold.split(self.adata.X, self.adata.obs[self.target_key]):
+            # Filter validation indices based on labels present in the training data
+            unique_train_labels = np.unique(self.adata.obs[self.target_key][train_index])
+            filtered_val_index = [idx for idx in val_index if self.adata.obs[self.target_key][idx] in unique_train_labels]
+
             self.adata_train = self.adata_train[train_index, :].copy()
-            self.adata_validation = self.adata_validation[val_index, :].copy()
+            self.adata_validation = self.adata_validation[filtered_val_index, :].copy()
             break
 
         self.data_env = prep_data(adata=self.adata_train, 
@@ -1637,7 +1652,6 @@ class train_module():
 
         return all_preds
     
-
     def generate_representation(self, data_, model, model_path: str, save_path: str="cell_type_vector_representation/CellTypeRepresentations.csv", batch_size: int=32, method: str="centroid"):
         data_ = prep_test_data(data_, self.data_env)
         adata = data_.adata.copy()
@@ -1747,7 +1761,6 @@ class train_module():
         del adata
 
         return df
-    
     
     def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, return_attention: bool=False):
         """
@@ -1961,12 +1974,16 @@ class prep_test_data(data.Dataset):
 
         data_point = self.X[idx]
 
-        if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
-            data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
-        elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        if self.use_HVG_buckets == True:
             data_pathways = self.X_not_tokenized[idx] 
-        elif self.pathways_file_path is not None:
-            data_pathways = self.X[idx] * self.pathway_mask
         else:
             data_pathways = torch.tensor([])
 
