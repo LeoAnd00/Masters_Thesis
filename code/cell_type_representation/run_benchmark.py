@@ -63,7 +63,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
     HVGs = 2000
     num_seeds = 1
-    random_seeds = list(range(42, 42 + num_seeds))
+    random_seeds = list(range(46, 46 + num_seeds))
 
     for idx, seed in enumerate(random_seeds):
         while True:  # Keep trying new seeds until no error occurs
@@ -160,8 +160,14 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                 #benchmark_env.in_house_model_tokenized_HVG_transformer_with_pathways(save_path=f'{model_path}Testing/Tokenized_HVG_Transformer_with_Pathways_{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
                 #read_save(benchmark_env, f'{result_csv_path}Tokenized_HVG_Transformer_with_Pathways_Testing_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
 
-                print("**Start benchmarking In-house ITSCR model**")
-                benchmark_env.in_house_model_itscr(save_path=f'{model_path}ITSCR/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #print("**Start benchmarking In-house ITSCR model**")
+                #benchmark_env.in_house_model_itscr(save_path=f'{model_path}ITSCR/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
+                #read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
+                #benchmark_env.in_house_model_itscr(save_path=f'{model_path}Testing/ITSCR_{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=False)
+                #read_save(benchmark_env, f'{result_csv_path}_ITSCRTest_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=False)
+
+                print("**Start benchmarking In-house ITSCR model only using HVGs**")
+                benchmark_env.in_house_model_itscr_only_HVGs(save_path=f'{model_path}ITSCR_only_HVGs/{HVGs}_HVGs_seed_{random_seeds[idx]}', train=True, umap_plot=False, save_figure=True)
                 read_save(benchmark_env, f'{result_csv_path}_{HVGs}_HVGs_seed_{random_seeds[idx]}', read=True)
                 
                 # If no error occurs, break out of the while loop
