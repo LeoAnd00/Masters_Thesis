@@ -260,7 +260,7 @@ class VisualizeEnv():
 
         # Create a heatmap to visualize the relative distance matrix of the PCA reference
         plt.figure(figsize=(20, 16))
-        heatmap = plt.imshow(self.cell_type_centroids_distances_matrix_filter/np.max(self.cell_type_centroids_distances_matrix_filter), cmap='viridis', interpolation='nearest')
+        heatmap = plt.imshow(self.cell_type_centroids_distances_matrix_filter/torch.max(self.cell_type_centroids_distances_matrix_filter), cmap='viridis', interpolation='nearest')
 
         plt.colorbar(heatmap, label='Normalized Euclidean Distance')
         plt.xticks(range(len(self.data_env.adata.obs['cell_type'].unique())), self.data_env.adata.obs['cell_type'].unique(), rotation=60, ha='right')  # Adjust rotation and alignment
@@ -338,7 +338,7 @@ class VisualizeEnv():
         plt.show()
 
         # Create a violin plot of CV scores
-        non_zero_elements_np = non_zero_elements.numpy()
+        """non_zero_elements_np = non_zero_elements.numpy()
         sns.violinplot(y=non_zero_elements_np)
 
         # Add labels and title
@@ -346,6 +346,40 @@ class VisualizeEnv():
         plt.ylabel("CV score")
         plt.title("Violin plot of CV scores")
         plt.tight_layout()  # Adjust layout for better spacing
+        if image_path:
+            plt.savefig(f'{image_path}_PCA_CV_Violin.svg', format='svg')
+
+        # Show the plot
+        plt.show()"""
+
+        CV_df2 = {}
+        for row in range(CV_df.size(0)):
+            non_zero_indices = torch.nonzero(CV_df[row,:])
+            if len(non_zero_indices) > 0:
+                CV_df2[self.data_env.adata.obs['cell_type'].unique()[row]] = CV_df[row, non_zero_indices].flatten().numpy()
+
+        # Melt the dataframe to a long format
+        #CV_df2 = pd.DataFrame([(cell_type, corr) for cell_type, corrs in CV_df2.items() for corr in corrs],
+        #          columns=['cell_type', 'CV'])
+        print(CV_df2)
+
+        # Convert the dictionary to a DataFrame
+        CV_df2 = pd.DataFrame({key: pd.Series(value) for key, value in CV_df2.items()})
+        print(CV_df2)
+
+
+
+        plt.figure(figsize=(26, 16))
+        ax = sns.violinplot(data=CV_df2, palette="viridis")
+        # Customize the plot
+        ax.set_xticks(np.arange(len(CV_df2.keys())))  # Set x-ticks to match the number of genes
+        top_genes_names = CV_df2.keys()
+        ax.set_xticklabels(top_genes_names, rotation=90)  # Set x-tick labels to gene names
+        ax.tick_params(axis='x', which='both', bottom=False, top=False)  # Remove x-axis ticks and labels
+
+        plt.tight_layout()
+        ax.grid(False)  # Remove grid lines
+
         if image_path:
             plt.savefig(f'{image_path}_PCA_CV_Violin.svg', format='svg')
 

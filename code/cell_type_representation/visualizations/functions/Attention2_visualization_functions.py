@@ -30,6 +30,7 @@ class VisualizeEnv():
                             target_key: str,
                             batch_key: str,
                             HVG_attn_or_pathway_attn: str,
+                            attention: bool=True,
                             HVGs: int=2000, 
                             HVG_buckets_: int=1000,
                             batch_size: int=32):
@@ -40,8 +41,8 @@ class VisualizeEnv():
 
         self.train_env = trainer.train_module(data_path=self.train_adata,
                                         pathways_file_path=pathway_path,
-                                        num_pathways=300,
-                                        pathway_gene_limit=20,
+                                        num_pathways=500,
+                                        pathway_gene_limit=10,
                                         save_model_path="",
                                         HVG=True,
                                         HVGs=HVGs,
@@ -57,7 +58,7 @@ class VisualizeEnv():
         
         self.pred_adata = sc.read(pred_path, cache=True)
 
-        if HVG_attn_or_pathway_attn == "pathway":
+        if (HVG_attn_or_pathway_attn == "pathway") and (attention_matrix_or_just_env == False):
             self.data_env.hvg_genes = self.data_env.pathway_names
 
         if attention_matrix_or_just_env:
@@ -66,13 +67,14 @@ class VisualizeEnv():
             model = model_ITSCR.ITSCR_main_model(mask=self.data_env.pathway_mask,
                                                 num_HVGs=min([HVGs,int(self.data_env.X.shape[1])]),
                                                 output_dim=100,
+                                                num_pathways=500,
                                                 HVG_tokens=HVG_buckets_,
                                                 HVG_embedding_dim=self.data_env.gene2vec_tensor.shape[1],
                                                 use_gene2vec_emb=True)
             
-            self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size, HVG_attn_or_pathway_attn=HVG_attn_or_pathway_attn)
+            self.attention_matrices = self.predict(data_=self.pred_adata, model=model, model_path=model_path, batch_size=batch_size, HVG_attn_or_pathway_attn=HVG_attn_or_pathway_attn, attention=attention)
         
-    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, HVG_attn_or_pathway_attn: str="HVG"):
+    def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, HVG_attn_or_pathway_attn: str="HVG", attention: bool=True):
         """
         Generate latent represntations for data using the trained model.
 
@@ -153,8 +155,12 @@ class VisualizeEnv():
                 data_labels = list(data_labels)
                 data_pathways = data_pathways.to(device)
 
-                latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=return_attention, return_pathway_attention=return_pathway_attention)
+                if attention:
+                    latent_space, attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=return_attention, return_pathway_attention=return_pathway_attention)
+                else:
+                    attn_matrix = model(data_inputs, data_pathways, gene2vec_tensor, return_attention=False, return_pathway_attention=False)
 
+            
                 pred = attn_matrix.cpu().detach().numpy()
 
                 # Ensure all tensors have at least two dimensions
@@ -171,7 +177,8 @@ class VisualizeEnv():
         preds_adata = sc.AnnData(X=preds)
         if return_pathway_attention:
             self.data_env.hvg_genes = self.data_env.pathway_names
-        preds_adata.index = self.data_env.hvg_genes
+        if attention:
+            preds_adata.index = self.data_env.hvg_genes
         preds_adata.obs["cell_type"] = labels
 
         return preds_adata
@@ -253,8 +260,8 @@ class VisualizeEnv():
         adata = adata[adata.obs["cell_type"].isin(cell_types_to_keep),:].copy()
 
         sc.tl.rank_genes_groups(adata, 'cell_type', method='wilcoxon')
-        dc_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
-        print(dc_pathway.head(10))
+        dc_raw_pathway = pd.DataFrame(adata.uns['rank_genes_groups']['names'])
+        print(dc_raw_pathway.head(10))
 
     def ScatterPlotGeneSetOrHVG(self, x_axis: str, y_axis: str, color: str, size: int=50, save_path: str=None):
         sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
@@ -314,7 +321,7 @@ class VisualizeEnv():
         self.palette = sns.color_palette(color_map, num_categories)
 
         # Set the order of categories for the x-axis
-        order = list(adata.obs.groupby(color)[name].median().sort_values(ascending=True).index)
+        order = list(adata.obs.groupby(color)[name].mean().sort_values(ascending=True).index)
 
         # Set the category order for plotting
         adata.obs[color] = pd.Categorical(adata.obs[color], categories=order, ordered=True)
@@ -334,6 +341,176 @@ class VisualizeEnv():
 
         # Show the plot
         plt.show()
+
+    def ViolinPlotRawExpression(self, name: str, color: str, save_path: str=None, color_map: str="viridis", rotation: int=90):
+
+        adata_temp = self.pred_adata[:, self.data_env.hvg_genes].copy()
+
+        adata = sc.AnnData(X=adata_temp.X)
+        adata.index = self.data_env.hvg_genes
+        adata.obs["cell_type"] = adata_temp.obs[color].to_list()
+
+        df_temp = pd.DataFrame(adata.X, index=adata.obs[color], columns=self.data_env.hvg_genes)
+                
+        adata.obs[name] = df_temp[name].values
+
+        # Get the number of unique categories in 'cell_type'
+        num_categories = len(adata.obs[color].unique())
+
+        # Set up a color palette based on the number of unique categories
+        self.palette = sns.color_palette(color_map, num_categories)
+
+        # Set the order of categories for the x-axis
+        order = list(adata.obs.groupby(color)[name].mean().sort_values(ascending=True).index)
+
+        # Set the category order for plotting
+        adata.obs[color] = pd.Categorical(adata.obs[color], categories=order, ordered=True)
+
+        fig, ax = plt.subplots(figsize=(14, 10))
+        sc.pl.violin(adata, [f'{name}'], groupby=color,use_raw=False, rotation=rotation, palette=self.palette, ax=ax, show=False)
+
+        # Remove gridlines
+        ax.grid(False)
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Save the plot as SVG
+        if save_path is not None:
+            plt.savefig(f"{save_path}.svg")
+
+        # Show the plot
+        plt.show()
+
+    def SignHVGsComparison(self, top: int=100):
+
+        # Calculate most significant genes in attention latent space
+        adata1 = self.attention_matrices.copy()
+        adata1.var_names = self.data_env.hvg_genes
+
+        # Normalize
+        sc.pp.normalize_total(adata1, target_sum=1e4)
+        sc.pp.log1p(adata1)
+
+        # Count the occurrences of each cell type in the 'cell_type' variable
+        cell_type_counts = adata1.obs["cell_type"].value_counts()
+
+        # Extract cell types with counts greater than or equal to 2
+        cell_types_to_keep = cell_type_counts[cell_type_counts >= 2].index
+
+        # Filter samples based on the selected cell types
+        adata1 = adata1[adata1.obs["cell_type"].isin(cell_types_to_keep),:].copy()
+
+        sc.tl.rank_genes_groups(adata1, 'cell_type', method='wilcoxon')
+        self.dc_pathway = pd.DataFrame(adata1.uns['rank_genes_groups']['names'])
+
+        # Get the top significant genes of each cell type of input data
+        adata2 = self.pred_adata[:, self.data_env.hvg_genes].copy()
+        # Count the occurrences of each cell type in the 'cell_type' variable
+        cell_type_counts = adata2.obs["cell_type"].value_counts()
+
+        # Extract cell types with counts greater than or equal to 2
+        cell_types_to_keep = cell_type_counts[cell_type_counts >= 2].index
+
+        # Filter samples based on the selected cell types
+        adata2 = adata2[adata2.obs["cell_type"].isin(cell_types_to_keep),:].copy()
+
+        sc.tl.rank_genes_groups(adata2, 'cell_type', method='wilcoxon')
+        self.dc_raw_pathway = pd.DataFrame(adata2.uns['rank_genes_groups']['names'])
+
+        # Step 1: Extract the top 100 genes for each cell type in each dataframe
+        top_100_genes_df1 = {}
+        top_100_genes_df2 = {}
+
+        # Loop through each column (cell type) in df1
+        for column in self.dc_pathway.columns:
+            top_100_genes_df1[column] = self.dc_pathway[column].head(top)
+
+        # Loop through each column (cell type) in df2
+        for column in self.dc_raw_pathway.columns:
+            top_100_genes_df2[column] = self.dc_raw_pathway[column].head(top)
+
+        # Step 2: Calculate the percentage of top 100 genes in df1 that exist in df2
+        percentage_overlap = {}
+
+        for column in self.dc_pathway.columns:
+            genes_df1 = set(top_100_genes_df1[column])
+            genes_df2 = set(top_100_genes_df2.get(column, []))
+            
+            overlap = len(genes_df1.intersection(genes_df2))
+            percentage_overlap[column] = (overlap / top) * 100  # Calculate the percentage
+
+        # Sort percentage_overlap based on values in descending order
+        percentage_overlap = dict(sorted(percentage_overlap.items(), key=lambda item: item[1], reverse=True))
+
+
+        # Display the results
+        print("Percentage of overlap for each cell type:")
+        for cell_type, percentage in percentage_overlap.items():
+            print(f"{cell_type}: {percentage}%")
+
+        """### Step 3: Calculate the gene with the largest change in p-value for each cell type
+        
+        self.dc_pathway2 = pd.DataFrame(adata1.uns['rank_genes_groups']['pvals'])
+        self.dc_raw_pathway2 = pd.DataFrame(adata2.uns['rank_genes_groups']['pvals'])
+
+        # Loop through each column (cell type) in df1
+        top_100_genes_df1_2 = {}
+        top_100_genes_df2_2 = {}
+        for column in self.dc_pathway.columns:
+            top_100_genes_df1_2[column] = self.dc_pathway[column]
+
+        # Loop through each column (cell type) in df2
+        for column in self.dc_raw_pathway.columns:
+            top_100_genes_df2_2[column] = self.dc_raw_pathway[column]
+
+        largest_change_genes = {}
+
+        for column in self.dc_pathway.columns:
+            # Extract top genes from each dataframe
+            top_100_genes_df1_2 = top_100_genes_df1[column]
+            top_100_genes_df2_2 = top_100_genes_df2.get(column, [])
+
+            # Find common genes between the two dataframes
+            common_genes = set(top_100_genes_df1_2) & set(top_100_genes_df2_2)
+
+            if common_genes:
+                # Extract p-values for the common genes
+                pvalues_df1 = []
+                pvalues_df2 = []
+                for gene in common_genes:
+                    pvalues_df1.append(self.dc_pathway2[column][self.dc_pathway[column].to_list().index(gene)])
+                    pvalues_df2.append(self.dc_raw_pathway2[column][self.dc_raw_pathway[column].to_list().index(gene)])
+
+                # Convert lists to numpy arrays
+                pvalues_df1 = np.array(pvalues_df1)
+                pvalues_df2 = np.array(pvalues_df2)
+
+                # Calculate the absolute difference in p-values
+                delta_pvalues = abs(np.log((10**-200 + pvalues_df1) / (10**-200 + pvalues_df2)))#abs(pvalues_df1 - pvalues_df2)
+
+                # Sort genes based on the largest change in p-value
+                sorted_genes = sorted(common_genes, key=lambda gene: delta_pvalues[common_genes == gene], reverse=True)
+
+                # Take the top 10 genes
+                top_10_genes = sorted_genes[:10]
+
+                delta_pvalues_top_10 = sorted(delta_pvalues, reverse=True)
+                delta_pvalues_top_10 = delta_pvalues_top_10[:10]
+
+                # Store the result in the dictionary
+                largest_change_genes[column] = {
+                    'gene': top_10_genes,
+                    'pvalue_change': delta_pvalues_top_10
+                }
+
+        # Display the results
+        print("Gene with the largest change in p-value for each cell type:")
+        for cell_type, result in largest_change_genes.items():
+            gene = result['gene']
+            pvalue_change = result['pvalue_change']
+            print(f"{cell_type}: Gene: {gene}, P-value Change: {pvalue_change}")"""
+
 
     def StackedViolinPlotGeneSetOrHVG(self, color: str, num_top_selections: int=5, save_path: str=None):
         sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
@@ -374,6 +551,37 @@ class VisualizeEnv():
         adata.obs[color] = adata.obs[color].astype('category')
 
         sc.tl.dendrogram(adata, color)
+        sc.pl.dendrogram(adata, color, orientation='left', save=f"{save_path}.svg")
+
+    def DendogramPlotModelOutputSpace(self, color: str, save_path: str=None):
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.attention_matrices.copy()
+        #adata.var_names = self.data_env.hvg_genes
+
+        # Normalize
+        #sc.pp.normalize_total(adata, target_sum=1e4)
+        #sc.pp.log1p(adata)
+
+        # Convert 'cell_type' to a categorical variable
+        adata.obs[color] = adata.obs[color].astype('category')
+
+        sc.tl.dendrogram(adata, color)
+        sc.pl.dendrogram(adata, color, orientation='left', save=f"{save_path}.svg")
+
+    def DendogramPlotRawExpressions(self, color: str, save_path: str=None):
+        sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=10, format='svg')
+
+        adata = self.pred_adata[:, self.data_env.hvg_genes].copy()
+        adata.var_names = self.data_env.hvg_genes
+
+        # Convert 'cell_type' to a categorical variable
+        adata.obs[color] = adata.obs[color].astype('category')
+
+        # Perform PCA
+        #sc.tl.pca(adata, n_comps=100)
+
+        sc.tl.dendrogram(adata, color)#, use_rep='X_pca')
         sc.pl.dendrogram(adata, color, orientation='left', save=f"{save_path}.svg")
 
 

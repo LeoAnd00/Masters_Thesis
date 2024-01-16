@@ -134,7 +134,7 @@ def get_weight(att_mat):
     # Attention from the output token to the input space.
     v = joint_attentions[-1]
     #print(v.size())
-    v = v[:,0,1:]
+    v = v[:,0,1:]#v[:,(142+1),1:]#v[:,0,1:]
     #print(v.size())
     return v
     
@@ -805,7 +805,10 @@ class PathwayTransformer(nn.Module):
                 pathways = layer(pathways, False)
 
         if return_attention:
-            attn_matrix = get_weight(attn_matrix)
+            #attn_matrix = get_weight(attn_matrix)
+            #attn_matrix = torch.mean(attn_matrix[0], dim=1)[:,0,1:]#attn_matrix[0][:,0,0,1:]#torch.mean(attn_matrix[0], dim=1)[:,0,1:]
+            attn_matrix = torch.stack(attn_matrix).squeeze(1)
+            attn_matrix = torch.mean(torch.mean(attn_matrix, dim=0), dim=1)[:,0,1:]
 
         if return_attention:
             return pathways, attn_matrix
