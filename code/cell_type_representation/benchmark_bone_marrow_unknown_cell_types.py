@@ -11,8 +11,10 @@ import re
 import torch
 import torch.nn as nn
 from functions import train as trainer
-from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
+from models import model_ITSCR as model_ITSCR
+from models import model_ITSCR_only_HVGs as model_ITSCR_only_HVGs
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import StratifiedKFold
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -51,7 +53,7 @@ def in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house, adata
 
     train_env = trainer.train_module(data_path=adata_in_house,
                                     pathways_file_path=pathway_path,
-                                    num_pathways=300,
+                                    num_pathways=500,
                                     pathway_gene_limit=10,
                                     save_model_path=save_path,
                                     HVG=True,
@@ -65,30 +67,26 @@ def in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house, adata
                                     gene2vec_path=gene2vec_path)
     
     #Model
-    model = model_tokenized_hvg_transformer_with_pathways.CellType2VecModel(input_dim=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
-                                                                output_dim=100,
-                                                                num_pathways=300,
-                                                                drop_out=0.2,
-                                                                act_layer=nn.ReLU,
-                                                                norm_layer=nn.LayerNorm,#nn.BatchNorm1d,
-                                                                attn_embed_dim=24*4,
-                                                                num_heads=4,
-                                                                mlp_ratio=4,
-                                                                attn_bias=False,
-                                                                attn_drop_out=0.,
-                                                                depth=3,
-                                                                pathway_embedding_dim=50,
-                                                                nn_tokens=HVG_buckets_,
-                                                                nn_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
-                                                                use_gene2vec_emb=True)
+    model = model_ITSCR.ITSCR_main_model(mask=train_env.data_env.pathway_mask,
+                                            num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
+                                            output_dim=100,
+                                            num_pathways=500,
+                                            HVG_tokens=HVG_buckets_,
+                                            HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
+                                            use_gene2vec_emb=True)
+    #model = model_ITSCR_only_HVGs.ITSCR_main_model(num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
+    #                                        output_dim=100,
+    #                                        HVG_tokens=HVG_buckets_,
+    #                                        HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
+    #                                        use_gene2vec_emb=True)
                 
     # Train
     if train:
         _ = train_env.train(model=model,
                             device=None,
                             seed=seed,
-                            batch_size=256,
-                            batch_size_step_size=256,
+                            batch_size=236,
+                            batch_size_step_size=236,
                             use_target_weights=True,
                             use_batch_weights=True,
                             init_temperature=0.25,
@@ -149,6 +147,69 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
 
     adata.obs["batch"] = adata.obs[batch_key]
 
+    # Specify the number of folds (splits)
+    n_splits = 5
+
+    # Initialize Stratified K-Fold
+    stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+    # Iterate through the folds
+    adata = adata.copy()
+    test_data = adata.copy()
+    for train_index, test_index in stratified_kfold.split(adata.X, adata.obs[label_key]):
+        adata = adata[train_index, :].copy()
+        test_data = test_data[test_index, :].copy()
+        break
+
+
+    # Step 3: Create a mask to identify rows for training and testing
+    #train_mask = ~adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
+    #test_mask = adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
+    train_mask = ~adata.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
+
+
+    # Step 4: Split the data into training and testing sets
+    train_data = adata[train_mask].copy()
+    #test_data = adata[test_mask].copy()
+    #test_mask = ~test_data.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
+    #test_data = test_data[test_mask].copy()
+
+    print("Train cell types: ", train_data.obs[label_key].unique())
+    print()
+    print("Test cell types: ", test_data.obs[label_key].unique())
+
+    # Train
+    in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=False, save_figure=True)
+        
+'''
+def main(data_path: str, model_path: str, image_path: str, pathway_path: str, gene2vec_path: str, batch_key: str, label_key: str):
+    """
+    Execute the pipeline for training and evaluating a cell type prediction model. 
+    Finds batch effects containing cell types that only exists for that batch effect. 
+    These samples are used for prediction to show whether the model identifies these cell types
+    even though it wasn't used during training.
+
+    Parameters:
+    - data_path (str): File path to the AnnData object containing expression data and metadata.
+    - model_path (str): Directory path to save the trained model and predictions.
+    - image_path (str): Directory path to save UMAP plots if 'save_figure' is True.
+    - pathway_path (str): File path to the pathway information.
+    - gene2vec_path (str): File path to the gene2vec embeddings.
+    - batch_key (str): Key in the metadata of 'adata' containing batch information.
+    - label_key (str): Key in the metadata of 'adata' containing cell type labels.
+
+    Returns:
+    None
+
+    Note:
+    Start with: cd .\code\cell_type_representation\
+    How to run example (on bone marrow data set): python benchmark_bone_marrow_unknown_cell_types.py '../../data/processed/data_to_assess_generalisability/bone_marrow_human/Assess_generalisability_bone_marrow.h5ad' 'trained_models/Assess_unknown_cells/' '_Assess_unknown_cells' '../../data/processed/pathway_information/all_pathways.json' '../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt' 'patientID' 'cell_type'
+    """
+    
+    adata = sc.read(data_path, cache=True)
+
+    adata.obs["batch"] = adata.obs[batch_key]
+
     # Step 1: Calculate the count of each cell type for each batch
     cell_type_counts = adata.obs.groupby(["batch", label_key]).size().reset_index(name="count")
 
@@ -173,16 +234,16 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
     print("unique_cell_type_batch_counts_dict: ", unique_cell_type_batch_counts_dict)
 
     # Step 3: Create a mask to identify rows for training and testing
-    train_mask = ~adata.obs[batch_key].isin(unique_cell_type_batch_dict.values())
-    test_mask = adata.obs[batch_key].isin(unique_cell_type_batch_dict.values())
+    train_mask = ~adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
+    test_mask = adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
 
     # Step 4: Split the data into training and testing sets
     train_data = adata[train_mask].copy()
     test_data = adata[test_mask].copy()
 
     # Train
-    in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=True, save_figure=True)
-        
+    in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=False, save_figure=True)
+'''
 
 if __name__ == "__main__":
     """

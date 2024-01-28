@@ -1472,6 +1472,13 @@ class prep_test_data(data.Dataset):
             #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
             self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
 
+            if torch.max(self.X) == prep_data_env.HVG_buckets:
+                # Mask where the specified value is located
+                mask = self.X == prep_data_env.HVG_buckets
+
+                # Replace the specified value with the new value
+                self.X[mask] = prep_data_env.HVG_buckets - 1
+
     def bucketize_expression_levels(self, expression_levels, num_buckets):
         """
         Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.

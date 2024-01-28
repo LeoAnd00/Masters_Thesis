@@ -95,6 +95,9 @@ class benchmark():
         self.metrics = None
         self.metrics_pca = None
         self.metrics_unscaled = None
+        self.metrics_scvi = None
+        self.metrics_scanvi = None
+        self.metrics_scgen = None
         self.metrics_in_house_model_encoder = None
         self.metrics_in_house_model_pathways = None
         self.metrics_in_house_model_encoder_pathways = None
@@ -1501,6 +1504,15 @@ class benchmark():
         if self.metrics_unscaled is not None:
             calculated_metrics.append(self.metrics_unscaled)
             calculated_metrics_names.append("Unintegrated")
+        if self.metrics_scvi is not None:
+            calculated_metrics.append(self.metrics_scvi)
+            calculated_metrics_names.append("scVI")
+        if self.metrics_scanvi is not None:
+            calculated_metrics.append(self.metrics_scanvi)
+            calculated_metrics_names.append("scANVI")
+        if self.metrics_scgen is not None:
+            calculated_metrics.append(self.metrics_scgen)
+            calculated_metrics_names.append("scGen")
         if self.metrics_in_house_model_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_encoder)
             calculated_metrics_names.append(f"In-house HVG Encoder Model {counter}")
