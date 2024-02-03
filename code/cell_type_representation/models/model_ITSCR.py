@@ -783,13 +783,16 @@ class PathwayTransformer(nn.Module):
             Output tensor after processing through the Pathway Transformer model.
         """
         pathways = self.feature_embed(x_not_tokenized)
+        #print("pathways1: ", pathways.shape)
 
 
         label_token = self.label_token.expand(pathways.shape[0], -1, -1)
         pathways = torch.cat((label_token, pathways), dim=1) 
 
-        for layer in self.blocks:
-            pathways = layer(pathways)
+        #print("pathways2: ", pathways.shape)
+
+        #for layer in self.blocks:
+        #    pathways = layer(pathways)
 
         attn_matrix = []
         for idx, layer in enumerate(self.blocks):
@@ -798,6 +801,8 @@ class PathwayTransformer(nn.Module):
                 attn_matrix.append(attn_matrix_temp)
             else:
                 pathways = layer(pathways, False)
+
+        #print("pathways3: ", pathways.shape)
 
         if return_attention:
             attn_matrix = get_weight(attn_matrix)
@@ -967,7 +972,8 @@ class OutputEncoder(nn.Module):
         self.norm_layer2 = norm_layer(int(input_dim/4))
         self.dropout2 = nn.Dropout(drop_out)
         self.linear2_act = act_layer()
-        self.output = nn.Linear(int(input_dim/4), int(output_dim/2))
+        self.output = nn.Linear(int(input_dim/4), int(output_dim))#, int(output_dim/2))
+        self.dropout3 = nn.Dropout(drop_out)
 
         self.pathways_norm_layer_in = norm_layer(int(num_pathways))
         self.pathways_linear1 = nn.Linear(int(num_pathways), int(num_pathways/2))
@@ -977,10 +983,13 @@ class OutputEncoder(nn.Module):
         self.pathways_norm_layer2 = norm_layer(int(num_pathways/4))
         self.pathways_dropout2 = nn.Dropout(drop_out)
         self.pathways_linear2_act = act_layer()
-        self.pathways_output = nn.Linear(int(num_pathways/4), int(output_dim/2))
+        self.pathways_output = nn.Linear(int(num_pathways/4), int(output_dim))#, int(output_dim/2))
+        self.pathways_dropout3 = nn.Dropout(drop_out)
+
+        self.final_output = nn.Linear(int(2*output_dim), int(output_dim))
 
     def forward(self, x, pathways):
-        
+
         x = self.norm_layer_in(x)
         x = self.linear1(x)
         x = self.norm_layer1(x)
@@ -989,6 +998,7 @@ class OutputEncoder(nn.Module):
         x = self.linear2(x)
         x = self.norm_layer2(x)
         x = self.linear2_act(x)
+        x = self.dropout3(x)
         x = self.output(x)
 
         pathways = self.pathways_norm_layer_in(pathways)
@@ -999,9 +1009,11 @@ class OutputEncoder(nn.Module):
         pathways = self.pathways_linear2(pathways)
         pathways = self.pathways_norm_layer2(pathways)
         pathways = self.pathways_linear2_act(pathways)
+        pathways = self.pathways_dropout3(pathways)
         pathways = self.pathways_output(pathways)
 
         x = torch.cat((x, pathways), dim=1)
+        x = self.final_output(x)
 
         return x
 

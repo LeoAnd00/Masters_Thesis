@@ -10,6 +10,7 @@ from matplotlib import cm
 import re
 import torch
 import torch.nn as nn
+import anndata
 from functions import train as trainer
 from models import model_ITSCR as model_ITSCR
 from models import model_ITSCR_only_HVGs as model_ITSCR_only_HVGs
@@ -50,6 +51,8 @@ def in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house, adata
     HVG_buckets_ = 1000
     HVGs_num = 2000
     seed = 42
+
+    adata_pca = adata_in_house_predict.copy() # For visualizing using PCA
 
     train_env = trainer.train_module(data_path=adata_in_house,
                                     pathways_file_path=pathway_path,
@@ -113,11 +116,52 @@ def in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house, adata
         sc.pl.umap(adata_in_house_predict, color=label_key, ncols=1, title="Cell type")
         sc.pl.umap(adata_in_house_predict, color="batch", ncols=1, title="Batch effect")
     if save_figure:
-        sc.tl.umap(adata_in_house_predict)
-        sc.pl.umap(adata_in_house_predict, color=label_key, ncols=1, title="Cell type", show=False, save=f"{image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_cell_type.svg")
+        sc.tl.umap(adata_in_house_predict) # 'plasma' 'tab20' 'hsv'
+        sc.pl.umap(adata_in_house_predict, color=label_key, palette='tab20', ncols=1, title="Cell type", show=False, save=f"{image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_cell_type.svg")
         sc.pl.umap(adata_in_house_predict, color="batch", ncols=1, title="Batch effect", show=False, save=f"{image_path}InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_batch_effect.svg")
 
     del adata_in_house_predict
+
+    # Visualize UMAP when predictiing train data
+    predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
+    adata_in_house.obsm["In_house"] = predictions
+
+    del predictions
+    sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+    random_order = np.random.permutation(adata_in_house.n_obs)
+    adata_in_house = adata_in_house[random_order, :]
+
+    if umap_plot:
+        sc.tl.umap(adata_in_house)
+        sc.pl.umap(adata_in_house, color=label_key, ncols=1, title="Cell type")
+        sc.pl.umap(adata_in_house, color="batch", ncols=1, title="Batch effect")
+    if save_figure:
+        sc.tl.umap(adata_in_house) # 'plasma' 'tab20' 'hsv'
+        sc.pl.umap(adata_in_house, color=label_key, palette='tab20', ncols=1, title="Cell type", show=False, save=f"{image_path}On_Training_InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_cell_type.svg")
+        sc.pl.umap(adata_in_house, color="batch", ncols=1, title="Batch effect", show=False, save=f"{image_path}On_Training_InHouse_Tokenized_HVG_Transformer_Encoder_with_Pathways_Model_batch_effect.svg")
+
+    del adata_in_house
+
+    # Visualize PCA transformed data
+    sc.pp.highly_variable_genes(adata_pca, n_top_genes=HVGs_num, flavor="cell_ranger")
+    sc.tl.pca(adata_pca, n_comps=50, use_highly_variable=True)
+    adata_pca.obsm["PCA"] = adata_pca.obsm["X_pca"]
+    sc.pp.neighbors(adata_pca, use_rep="PCA")
+
+    random_order = np.random.permutation(adata_pca.n_obs)
+    adata_pca = adata_pca[random_order, :]
+
+    if umap_plot:
+        sc.tl.umap(adata_pca)
+        sc.pl.umap(adata_pca, color=label_key, ncols=1, title="Cell type")
+        sc.pl.umap(adata_pca, color="batch", ncols=1, title="Batch effect")
+    if save_figure:
+        sc.tl.umap(adata_pca)
+        sc.pl.umap(adata_pca, color=label_key, palette='tab20', ncols=1, title="Cell type", show=False, save=f"{image_path}PCA_cell_type.svg")
+        sc.pl.umap(adata_pca, color="batch", ncols=1, title="Batch effect", show=False, save=f"{image_path}PCA_batch_effect.svg")
+
+
 
 def main(data_path: str, model_path: str, image_path: str, pathway_path: str, gene2vec_path: str, batch_key: str, label_key: str):
     """
@@ -165,7 +209,10 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
     # Step 3: Create a mask to identify rows for training and testing
     #train_mask = ~adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
     #test_mask = adata.obs["batch"].isin(unique_cell_type_batch_dict.values())
-    train_mask = ~adata.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
+    #train_mask = ~adata.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
+    #test_mask = adata.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
+    train_mask = ~adata.obs[label_key].isin(["Classical Monocytes", "Non-classical monocytes"])
+    test_mask = adata.obs[label_key].isin(["Classical Monocytes", "Non-classical monocytes"])
 
 
     # Step 4: Split the data into training and testing sets
@@ -173,13 +220,14 @@ def main(data_path: str, model_path: str, image_path: str, pathway_path: str, ge
     #test_data = adata[test_mask].copy()
     #test_mask = ~test_data.obs[label_key].isin(["Memory CD4+ T cells", "Pro-B cells"])
     #test_data = test_data[test_mask].copy()
+    test_data = anndata.concat([test_data, adata[test_mask].copy()])
 
     print("Train cell types: ", train_data.obs[label_key].unique())
     print()
     print("Test cell types: ", test_data.obs[label_key].unique())
 
     # Train
-    in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=False, save_figure=True)
+    in_house_model_tokenized_HVG_transformer_with_pathways(adata_in_house=train_data, adata_in_house_predict=test_data, pathway_path=pathway_path, label_key=label_key, gene2vec_path=gene2vec_path, image_path=image_path, save_path=model_path, umap_plot=False, train=True, save_figure=True)
         
 '''
 def main(data_path: str, model_path: str, image_path: str, pathway_path: str, gene2vec_path: str, batch_key: str, label_key: str):

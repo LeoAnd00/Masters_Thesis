@@ -44,9 +44,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
     """
     
     # Calculate for model at different number of patient for training and different random seeds
-    num_patients_for_training_list = [4,8,12,16]#[4,8,12,16]
-    num_patients_for_training_full_list = [4,8,12,16]
-    list_of_data_pct = [0.2, 0.4, 0.6, 0.8]
+    num_patients_for_training_list = [16]#[4,8,12,16]
+    num_patients_for_training_full_list = [16]#[4,8,12,16]
+    list_of_data_pct = [0.8]#[0.2, 0.4, 0.6, 0.8]
     r_seeds = [42]#[42,43,44,45,46]
     counter = 0
     for idx, train_num in enumerate(num_patients_for_training_list):
@@ -72,35 +72,43 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                                             select_patients_seed=seed)
                     
                     # Calculate for unintegrated and PCA
-                    if train_num == num_patients_for_training_full_list[0]:
+                    """if train_num == num_patients_for_training_full_list[0]:
                         print("Start evaluating unintegrated data")
                         print()
                         benchmark_env.unintegrated(save_figure=False, umap_plot=False)
 
                         print("Start evaluating PCA transformed data")
                         print()
-                        benchmark_env.pca(save_figure=False, umap_plot=False)
+                        benchmark_env.pca(save_figure=False, umap_plot=False)"""
+
+                    #print("**Start benchmarking scVI method**")
+                    #vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
+
+                    #print("**Start benchmarking scANVI method**")
+                    #benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
+
+                    #print("**Start benchmarking scGen method**")
+                    #benchmark_env.scgen(umap_plot=False,save_figure=False)
 
                     # Calculate for model
                     print(f"Start training model with {train_num} patients and seed {seed}")
                     print()
-
-                    benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Generalizability2/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-                    #benchmark_env.in_house_model_tokenized_HVG_transformer(save_path=f'{model_path}Tokenized_HVG_Transformer/Generalizability2/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-
+                    #benchmark_env.in_house_model_encoder(save_path=f'{model_path}Encoder/Generalizability2/train_num_{train_num}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
+                    benchmark_env.in_house_model_itscr(save_path=f'{model_path}ITSCR/Generalizability2/train_num_{train_num}_seed_{seed}_', train=False, umap_plot=False, save_figure=False)
+                
                     benchmark_env.make_benchamrk_results_dataframe(counter="", min_max_normalize=False)
 
                     benchmark_env.metrics["train_num"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
                     benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
 
-                    if train_num == num_patients_for_training_full_list[0]:
+                    """if train_num == num_patients_for_training_full_list[0]:
                         num_replicates = len(num_patients_for_training_full_list) - 1
                         replicated_unintegrated = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'Unintegrated']] * num_replicates, ignore_index=False, axis="rows")
                         replicated_pca = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'PCA']] * num_replicates, ignore_index=False, axis="rows")
                         benchmark_env.metrics = pd.concat([benchmark_env.metrics, replicated_unintegrated, replicated_pca], ignore_index=False, axis="rows")
 
                         benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'Unintegrated'] = list_of_data_pct
-                        benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'PCA'] = list_of_data_pct
+                        benchmark_env.metrics['train_num'][benchmark_env.metrics.index == 'PCA'] = list_of_data_pct"""
 
                     #if counter > 1:
                     #    benchmark_env.read_csv(name=result_csv_path)
@@ -126,6 +134,8 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
 
                     print(f"Trying a new random seed: {new_seed}")
                     seed = new_seed
+
+                    break
 
     print("Finished generalizability benchmark!")
         
