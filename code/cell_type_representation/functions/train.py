@@ -568,7 +568,7 @@ class CustomSNNLoss(nn.Module):
                  cell_type_centroids_distances_matrix,
                  use_target_weights: bool=True, 
                  use_batch_weights: bool=True, 
-                 targets=None, 
+                 targets: torch.tensor=None,
                  batches: list=None,
                  batch_keys: list=None, 
                  temperature: float=0.25, 

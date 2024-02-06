@@ -13,6 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import StratifiedKFold
 from functions import data_preprocessing as dp
 from functions import train as trainer
+#from functions import train_with_validation as trainer
 from models import model_encoder as model_encoder
 from models import model_pathway as model_pathway
 from models import model_encoder_with_pathway as model_encoder_with_pathway
@@ -21,7 +22,7 @@ from models import CustomScaler_model_transformer_encoder_with_pathways as model
 from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
 from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
 from models import model_tokenized_hvg_transformer_and_hvg_encoder as model_tokenized_hvg_transformer_and_hvg_encoder
-from models import model_ITSCR as model_ITSCR
+from models import model_ITSCR3 as model_ITSCR
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -51,10 +52,10 @@ class benchmark():
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
         The number of highly variable genes to select if HVG is enabled (default is 4000).
-    num_patients_for_training : int, optional
-        The number of patients/samples to use for training.
-    num_patients_for_testing : int, optional
-        The number of patients/samples to use for testing.
+    pct_for_testing : float, optional
+        The percentage of data used for testing.
+    pct_for_training : float, optional
+        The percentage of data used for training.
     Scaled : bool, optional
         Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
     seed : int, optional
@@ -74,8 +75,8 @@ class benchmark():
                  label_key: str="cell_type", 
                  HVG: bool=True, 
                  HVGs: int=4000, 
-                 num_patients_for_training: int=4,
-                 num_patients_for_testing: int=4,
+                 pct_for_testing: float=0.2,
+                 pct_for_training: float=0.8,
                  Scaled: bool=False,
                  seed: int=42,
                  select_patients_seed: int=42):
@@ -141,7 +142,7 @@ class benchmark():
         rep_seed(select_patients_seed)
 
         # Specify the number of folds (splits)
-        n_splits = int(100/((num_patients_for_testing/20)*100))  
+        n_splits = int(100/(pct_for_testing*100))  
 
         # Initialize Stratified K-Fold
         stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=select_patients_seed)
@@ -158,7 +159,7 @@ class benchmark():
         num_observations = self.adata.shape[0]
 
         # Calculate the number of observations to randomly select
-        num_to_select = int((num_patients_for_training/(20-num_patients_for_testing)) * num_observations)
+        num_to_select = int((pct_for_training/(1-pct_for_testing)) * num_observations)
 
         # Generate random indices to select a subset of the data
         random_indices = np.random.choice(num_observations, size=num_to_select, replace=False)
@@ -1508,7 +1509,7 @@ class benchmark():
 
         adata_in_house = self.original_adata.copy()
 
-        HVG_buckets_ = 1000
+        HVG_buckets_ = 1000#100#10#1000
 
         HVGs_num = self.HVGs
 
@@ -1656,10 +1657,10 @@ class benchmark():
             calculated_metrics_names.append(f"In-house Tokenized HVG Transformer Encoder with Pathways Model {counter}")
         if self.metrics_in_house_model_tokenized_hvg_transformer_and_hvg_encoder is not None:
             calculated_metrics.append(self.metrics_in_house_model_tokenized_hvg_transformer_and_hvg_encoder)
-            calculated_metrics_names.append("In-house Tokenized HVG Transformer Encoder with HVG Encoder")
+            calculated_metrics_names.append(f"In-house Tokenized HVG Transformer Encoder with HVG Encoder {counter}")
         if self.in_house_ITSCR_model is not None:
             calculated_metrics.append(self.in_house_ITSCR_model)
-            calculated_metrics_names.append("In-house ITSCR model")
+            calculated_metrics_names.append(f"In-house ITSCR model {counter}")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")

@@ -192,7 +192,7 @@ class prep_data(data.Dataset):
             # List to be filed with pathway names
             pathway_names = []
             # Initiate a all zero mask for dispersions_norm
-            dispersions_norm_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
+            #dispersions_norm_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
 
             for key_idx, key in enumerate(list(all_pathways.keys())):
                 pathway = all_pathways[key]
@@ -202,13 +202,13 @@ class prep_data(data.Dataset):
                 for gene_idx, gene in enumerate(gene_symbols):
                     if gene in pathway:
                         pathway_mask[key_idx,gene_idx] = 1.0
-                        dispersions_norm_mask[key_idx,gene_idx] = self.adata.var["dispersions_norm"][gene_idx]
+                        #dispersions_norm_mask[key_idx,gene_idx] = self.adata.var["dispersions_norm"][gene_idx]
                 num_hvgs.append(np.sum(pathway_mask[key_idx,:]))
 
             pathway_length = np.array(pathway_length)
             # Filter so that there must be more than pathway_gene_limit genes in a pathway/gene set
             pathway_mask = pathway_mask[pathway_length>pathway_gene_limit,:]
-            dispersions_norm_mask = dispersions_norm_mask[pathway_length>pathway_gene_limit,:]
+            #dispersions_norm_mask = dispersions_norm_mask[pathway_length>pathway_gene_limit,:]
             pathway_names = np.array(pathway_names)[pathway_length>pathway_gene_limit]
             num_hvgs = np.array(num_hvgs)[pathway_length>pathway_gene_limit]
             pathway_length = pathway_length[pathway_length>pathway_gene_limit]
@@ -216,7 +216,7 @@ class prep_data(data.Dataset):
             # Realtive percentage of HVGs in each pathway
             relative_hvg_abundance = np.sum(pathway_mask, axis=1)/pathway_length
 
-            self.pathway_names = pathway_names[np.argsort(relative_hvg_abundance)[-num_pathways:],:]
+            self.pathway_names = pathway_names[np.argsort(relative_hvg_abundance)[-num_pathways:]]
 
             # Filter based on realtive percentage of HVGs
             self.pathway_mask = torch.FloatTensor(pathway_mask[np.argsort(relative_hvg_abundance)[-num_pathways:],:])
@@ -277,14 +277,35 @@ class prep_data(data.Dataset):
 
         # Generate buckets
         eps = 1e-6
-        min_values, _ = torch.min(expression_levels, dim=0)
-        max_values, _ = torch.max(expression_levels, dim=0)
+        self.expression_levels_min, _ = torch.min(expression_levels, dim=0)
+        self.expression_levels_max, _ = torch.max(expression_levels, dim=0)
+
+        # Equally spaced buckets in space
+        self.all_thresholds_values = []
         for i in range(expression_levels.size(1)):
             gene_levels = expression_levels[:, i]
-            min_scalar = min_values[i].item()
-            max_scalar = max_values[i].item()
+            min_scalar = self.expression_levels_min[i].item()
+            max_scalar = self.expression_levels_max[i].item()
             thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
+            self.all_thresholds_values.append(thresholds)
             bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+
+        # Spaced so that each bucket contains the same percentage of data
+        #self.all_thresholds_values = []
+        #for i in range(expression_levels.size(1)):
+        #    gene_levels = expression_levels[:, i]
+
+            # Sort gene levels
+        #    sorted_levels, indices = torch.sort(gene_levels)
+
+            # Determine thresholds for equal percentage buckets using numpy
+        #    thresholds = np.linspace(0, 100, num_buckets)
+        #    thresholds_values = torch.tensor(np.concatenate([[self.expression_levels_min[i].item() - eps], np.percentile(sorted_levels[sorted_levels > 0].cpu().numpy(), thresholds)]))
+
+        #    self.all_thresholds_values.append(thresholds_values)
+
+            # Assign bucket indices
+        #    bucketized_levels[indices, i] = torch.bucketize(gene_levels, thresholds_values)
 
         bucketized_levels -= 1
 
@@ -490,32 +511,14 @@ class prep_data_validation(data.Dataset):
     adata : anndata.AnnData
         An AnnData object containing single-cell RNA-seq data.
 
-    label_encoder : Labelencoder()
-        Should be the Labelencoder() fitted during training for targets.
-
-    batch_encoders : Labelencoder()
-        Should be the Labelencoder() fitted during training for batch effects.
+    train_env: prep_data()
+        prep_data() environment used for training.
 
     target_key : str
         The key in the adata.obs dictionary specifying the target labels.
 
     gene2vec_path: str
         Path to gene2vec representations.
-
-    feature_means: float
-        If Scaled is True during training, the mean values need to be given here (default is None).
-
-    feature_stdevs: float
-        If Scaled is True during training, the std values need to be given here (default is None).
-
-    expression_levels_min: float
-        Min expression value in training data (default is None). Need to be specified if bucketized HVGs were used, meaning use_HVG_buckets is True.
-
-    expression_levels_max: float
-        Max expression value in training data (default is None). Need to be specified if bucketized HVGs were used, meaning use_HVG_buckets is True.
-
-    pathway_names_to_use: str
-        List of pathway names used for training (default is None). Need to be specified if pathways_file_path is defined.
 
     pathways_file_path : str, optional
         The path to a JSON file containing pathway/gene set information (default is None). If defined as None it's not possible to use pathway information. Needs to be defined if a model designed to use pathway information is used.
@@ -529,9 +532,6 @@ class prep_data_validation(data.Dataset):
     HVGs : int, optional
         The number of highly variable genes to select (default is 2000).
 
-    HVG_list : list, optional
-        List containing all HVGs used for training (default is None). Needs to be sepcified if HVG is True.
-    
     HVG_buckets : int, optional
         The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True. This option is suitable for certain transformer models.
     
@@ -567,20 +567,13 @@ class prep_data_validation(data.Dataset):
 
     def __init__(self, 
                  adata, 
-                 label_encoder,
-                 batch_encoders,
+                 train_env,
                  target_key: str,
                  gene2vec_path: str,
-                 feature_means: float=None,
-                 feature_stdevs: float=None,
-                 expression_levels_min: float=None,
-                 expression_levels_max: float=None,
-                 pathway_names_to_use: list=None,
                  pathways_file_path: str=None, 
                  pathway_gene_limit: int=10,
                  HVG: bool=True, 
                  HVGs: int=2000, 
-                 HVG_list: list=None,
                  HVG_buckets: int=1000,
                  use_HVG_buckets: bool=False,
                  Scaled: bool=False, 
@@ -600,7 +593,7 @@ class prep_data_validation(data.Dataset):
 
         # Filter highly variable genes if specified
         if HVG:
-            self.adata = self.adata[:, HVG_list].copy()
+            self.adata = self.adata[:, train_env.hvg_genes].copy()
         
         # self.X contains the HVGs expression levels
         self.X = self.adata.X
@@ -610,23 +603,23 @@ class prep_data_validation(data.Dataset):
 
         # Import gene2vec embeddings
         if use_gene2vec_emb:
-            gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
+            #gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
             # Create a dictionary
-            self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
-            self.gene2vec_tensor = self.make_gene2vec_embedding()
+            #self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
+            self.gene2vec_tensor = train_env.gene2vec_tensor
 
         if Scaled:
-            self.adata.X = dp.scale_data(data=self.adata.X, feature_means=feature_means, feature_stdevs=feature_stdevs)
+            self.adata.X = dp.scale_data(data=self.adata.X, feature_means=train_env.feature_means, feature_stdevs=train_env.feature_stdevs)
             self.X = self.adata.X
 
         # Encode the target information
-        self.target = label_encoder.transform(self.labels)
+        self.target = train_env.label_encoder.transform(self.labels)
 
         # Encode the batch effect information for each batch key
         if self.batch_keys is not None:
             self.encoded_batches = []
             for batch_key in self.batch_keys:
-                encoder = batch_encoders[batch_key]
+                encoder = train_env.batch_encoders[batch_key]
                 encoded_batch = encoder.transform(self.adata.obs[batch_key])
                 self.encoded_batches.append(encoded_batch)
 
@@ -635,48 +628,19 @@ class prep_data_validation(data.Dataset):
         # Convert expression level to buckets, suitable for nn.Embbeding() used in certain transformer models
         if use_HVG_buckets:
             self.X_not_tokenized = self.X.clone()
-            self.X = self.bucketize_expression_levels(self.X, HVG_buckets, expression_levels_min, expression_levels_max)  
+            self.X = self.bucketize_expression_levels_per_gene(self.X, train_env.all_thresholds_values)  
+
+            if torch.max(self.X) == self.HVG_buckets:
+                # Mask where the specified value is located
+                mask = self.X == self.HVG_buckets
+
+                # Replace the specified value with the new value
+                self.X[mask] = self.HVG_buckets - 1
 
         # Pathway information
         # Load the JSON data into a Python dictionary
         if pathways_file_path is not None:
-            with open(pathways_file_path, 'r') as json_file:
-                all_pathways = json.load(json_file)
-
-            # Get all gene symbols
-            gene_symbols = list(self.adata.var.index)
-            # Initiate a all zeros mask
-            pathway_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
-            # List to be filed with number of hvgs per pathway
-            num_hvgs = []
-            # List to be filed with pathway lengths
-            pathway_length = []
-            # List to be filed with pathway names
-            pathway_names = []
-            # Initiate a all zero mask for dispersions_norm
-            dispersions_norm_mask = np.zeros((len(list(all_pathways.keys())), len(gene_symbols)))
-
-            for key_idx, key in enumerate(list(all_pathways.keys())):
-                pathway = all_pathways[key]
-                pathway_length.append(len(pathway))
-                pathway_names.append(key)
-                # Make mask entries into 1.0 when a HVG is present in the pathway
-                for gene_idx, gene in enumerate(gene_symbols):
-                    if gene in pathway:
-                        pathway_mask[key_idx,gene_idx] = 1.0
-                        dispersions_norm_mask[key_idx,gene_idx] = self.adata.var["dispersions_norm"][gene_idx]
-                num_hvgs.append(np.sum(pathway_mask[key_idx,:]))
-
-            pathway_length = np.array(pathway_length)
-            # Filter so that there must be more than pathway_gene_limit genes in a pathway/gene set
-            pathway_mask = pathway_mask[pathway_length>pathway_gene_limit,:]
-            dispersions_norm_mask = dispersions_norm_mask[pathway_length>pathway_gene_limit,:]
-            pathway_names = np.array(pathway_names)[pathway_length>pathway_gene_limit]
-            num_hvgs = np.array(num_hvgs)[pathway_length>pathway_gene_limit]
-            pathway_length = pathway_length[pathway_length>pathway_gene_limit]
-
-            # Filter based on realtive percentage of HVGs
-            self.pathway_mask = torch.FloatTensor(pathway_mask[np.isin(pathway_names, pathway_names_to_use),:])
+            self.pathway_mask = train_env.pathway_mask
 
     def bucketize_expression_levels(self, 
                                     expression_levels,
@@ -720,7 +684,9 @@ class prep_data_validation(data.Dataset):
 
         return bucketized_levels.to(torch.long)
     
-    def bucketize_expression_levels_per_gene(self, expression_levels, num_buckets):
+    def bucketize_expression_levels_per_gene(self, 
+                                                expression_levels, 
+                                                all_thresholds_values: float=None):
         """
         Bucketize expression levels into categories based on specified number of buckets and min/max values of each individual gene.
 
@@ -728,9 +694,6 @@ class prep_data_validation(data.Dataset):
         ----------
         expression_levels : Tensor
             Should be the expression levels (adata.X, or in this case self.X).
-
-        num_buckets : int
-            Number of buckets to create.
 
         Returns
         ----------
@@ -740,16 +703,21 @@ class prep_data_validation(data.Dataset):
         # Apply bucketization to each gene independently
         bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
 
+        #if (expression_levels_min==None) and (expression_levels_max==None):
+        #    self.expression_levels_min, _ = torch.min(expression_levels, dim=0)
+        #    self.expression_levels_max, _ = torch.max(expression_levels, dim=0)
+        #else:
+        #    self.expression_levels_min = expression_levels_min
+        #    self.expression_levels_max = expression_levels_max
+
         # Generate buckets
         eps = 1e-6
-        min_values, _ = torch.min(expression_levels, dim=0)
-        max_values, _ = torch.max(expression_levels, dim=0)
         for i in range(expression_levels.size(1)):
             gene_levels = expression_levels[:, i]
-            min_scalar = min_values[i].item()
-            max_scalar = max_values[i].item()
-            thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
-            bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+            #min_scalar = self.expression_levels_min[i].item()
+            #max_scalar = self.expression_levels_max[i].item()
+            #thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
+            bucketized_levels[:, i] = torch.bucketize(gene_levels, all_thresholds_values[i])
 
         bucketized_levels -= 1
 
@@ -936,7 +904,7 @@ class CustomSNNLoss(nn.Module):
                  cell_type_centroids_distances_matrix,
                  use_target_weights: bool=True, 
                  use_batch_weights: bool=True, 
-                 targets=None, 
+                 targets: torch.tensor=None, 
                  batches: list=None,
                  batch_keys: list=None, 
                  temperature: float=0.25, 
@@ -1284,25 +1252,18 @@ class train_module():
                                   gene2vec_path=gene2vec_path)
         
         self.data_env_validation = prep_data_validation(adata=self.adata_validation, 
-                                                        label_encoder=self.data_env.label_encoder,
-                                                        batch_encoders=self.data_env.batch_encoders,
+                                                        train_env = self.data_env,
                                                         pathways_file_path=pathways_file_path, 
                                                         pathway_gene_limit=pathway_gene_limit,
-                                                        pathway_names_to_use=self.data_env.pathway_names,
                                                         HVG=HVG,  
                                                         HVGs=HVGs, 
-                                                        HVG_list=self.data_env.hvg_genes,
                                                         HVG_buckets=HVG_buckets,
                                                         use_HVG_buckets=use_HVG_buckets,
                                                         Scaled=Scaled,
-                                                        feature_means=self.data_env.feature_means,
-                                                        feature_stdevs=self.data_env.feature_stdevs,
                                                         target_key=target_key, 
                                                         batch_keys=batch_keys,
                                                         use_gene2vec_emb=use_gene2vec_emb,
-                                                        gene2vec_path=gene2vec_path,
-                                                        expression_levels_max=self.data_env.expression_levels_max,
-                                                        expression_levels_min=self.data_env.expression_levels_min)
+                                                        gene2vec_path=gene2vec_path)
         
 
         self.save_model_path = save_model_path
@@ -1598,7 +1559,7 @@ class train_module():
         total_train_start = time.time()
 
         train_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True)
+        val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
 
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Number of parameters: {total_params}")
@@ -1880,7 +1841,7 @@ class prep_test_data(data.Dataset):
             self.training_expression_levels = prep_data_env.X_not_tokenized
             self.X_not_tokenized = self.X.clone()
             #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
-            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
+            self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.all_thresholds_values)  
             
             if torch.max(self.X) == prep_data_env.HVG_buckets:
                 # Mask where the specified value is located
@@ -1919,7 +1880,7 @@ class prep_test_data(data.Dataset):
 
         return bucketized_levels.to(torch.long)
     
-    def bucketize_expression_levels_per_gene(self, expression_levels, num_buckets):
+    def bucketize_expression_levels_per_gene(self, expression_levels, all_thresholds_values):
         """
         Bucketize expression levels into categories based on specified number of buckets and min/max values of each individual gene.
 
@@ -1940,15 +1901,16 @@ class prep_test_data(data.Dataset):
         bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
 
         # Generate continuous thresholds
-        eps = 1e-6
-        min_values, _ = torch.min(self.training_expression_levels, dim=0)
-        max_values, _ = torch.max(self.training_expression_levels, dim=0)
+        #eps = 1e-6
+        #min_values, _ = torch.min(self.training_expression_levels, dim=0)
+        #max_values, _ = torch.max(self.training_expression_levels, dim=0)
         for i in range(expression_levels.size(1)):
             gene_levels = expression_levels[:, i]
-            min_scalar = min_values[i].item()
-            max_scalar = max_values[i].item()
-            thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
-            bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+            #min_scalar = min_values[i].item()
+            #max_scalar = max_values[i].item()
+            #thresholds = torch.linspace(min_scalar - eps, max_scalar + eps, steps=num_buckets + 1)
+            #bucketized_levels[:, i] = torch.bucketize(gene_levels, thresholds)
+            bucketized_levels[:, i] = torch.bucketize(gene_levels, all_thresholds_values[i])
 
         bucketized_levels -= 1
 

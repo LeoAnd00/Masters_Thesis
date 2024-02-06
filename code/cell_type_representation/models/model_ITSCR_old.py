@@ -986,21 +986,9 @@ class OutputEncoder(nn.Module):
         self.pathways_output = nn.Linear(int(num_pathways/4), int(output_dim))#, int(output_dim/2))
         self.pathways_dropout3 = nn.Dropout(drop_out)
 
-        input_dim -= 1
-        self.hvg_norm_layer_in = norm_layer(int(input_dim))
-        self.hvg_linear1 = nn.Linear(int(input_dim), int(input_dim/2))
-        self.hvg_norm_layer1 = norm_layer(int(input_dim/2))
-        self.hvg_linear1_act = act_layer()
-        self.hvg_linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
-        self.hvg_norm_layer2 = norm_layer(int(input_dim/4))
-        self.hvg_dropout2 = nn.Dropout(drop_out)
-        self.hvg_linear2_act = act_layer()
-        self.hvg_output = nn.Linear(int(input_dim/4), int(output_dim))#, int(output_dim/2))
-        self.hvg_dropout3 = nn.Dropout(drop_out)
+        self.final_output = nn.Linear(int(2*output_dim), int(output_dim))
 
-        self.final_output = nn.Linear(int(3*output_dim), int(output_dim))
-
-    def forward(self, x, pathways, x_not_tokenized):
+    def forward(self, x, pathways):
 
         x = self.norm_layer_in(x)
         x = self.linear1(x)
@@ -1024,18 +1012,7 @@ class OutputEncoder(nn.Module):
         pathways = self.pathways_dropout3(pathways)
         pathways = self.pathways_output(pathways)
 
-        x_not_tokenized = self.hvg_norm_layer_in(x_not_tokenized)
-        x_not_tokenized = self.hvg_linear1(x_not_tokenized)
-        x_not_tokenized = self.hvg_norm_layer1(x_not_tokenized)
-        x_not_tokenized = self.hvg_linear1_act(x_not_tokenized)
-        x_not_tokenized = self.hvg_dropout2(x_not_tokenized)
-        x_not_tokenized = self.hvg_linear2(x_not_tokenized)
-        x_not_tokenized = self.hvg_norm_layer2(x_not_tokenized)
-        x_not_tokenized = self.hvg_linear2_act(x_not_tokenized)
-        x_not_tokenized = self.hvg_dropout3(x_not_tokenized)
-        x_not_tokenized = self.hvg_output(x_not_tokenized)
-
-        x = torch.cat((x, pathways, x_not_tokenized), dim=1)
+        x = torch.cat((x, pathways), dim=1)
         x = self.final_output(x)
 
         return x
@@ -1234,13 +1211,8 @@ class ITSCR_main_model(nn.Module):
         # Select cell type token part of output from transformer encoders
         pathways = pathways[:,:,0]
         x = x[:,:,0]
-
-        # Add Untokenized input
-        #x_not_tokenized_modified = torch.unsqueeze(torch.tensor([0.0]*x_not_tokenized.shape[0]),1).to(x_not_tokenized.device)
-        #x_not_tokenized_modified = torch.cat([x_not_tokenized_modified, x_not_tokenized], dim=1)
-        #x += x_not_tokenized_modified
         
-        x = self.output_encoder(x, pathways, x_not_tokenized)
+        x = self.output_encoder(x, pathways)
 
         if return_attention and return_pathway_attention:
             return x, attn_matrix, attn_matrix_pathways
