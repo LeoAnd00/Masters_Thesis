@@ -14,9 +14,16 @@ from sklearn.model_selection import StratifiedKFold
 from functions import data_preprocessing as dp
 from functions import train as trainer
 #from functions import train_with_validation as trainer
-from models import Model1 as Model1
-from models import Model2 as Model2
-from models import Model3 as Model3
+from models import model_encoder as model_encoder
+from models import model_pathway as model_pathway
+from models import model_encoder_with_pathway as model_encoder_with_pathway
+from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
+from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
+from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
+from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
+from models import model_tokenized_hvg_transformer_and_hvg_encoder as model_tokenized_hvg_transformer_and_hvg_encoder
+from models import model_ITSCR as model_ITSCR
+from models import model_ITSCR_only_HVGs as model_ITSCR_only_HVGs
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -46,12 +53,12 @@ class benchmark():
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
         The number of highly variable genes to select if HVG is enabled (default is 4000).
-    num_folds : int, optional
-        Number of folds for cross testing
-    fold : int, optional
-        Which fold to use.
+    pct_for_testing : float, optional
+        The percentage of data used for testing.
     pct_for_training : float, optional
         The percentage of data used for training.
+    Scaled : bool, optional
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
     seed : int, optional
         Which random seed to use (default is 42).
 
@@ -68,11 +75,12 @@ class benchmark():
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
                  HVG: bool=True, 
-                 HVGs: int=2000, 
-                 num_folds: int=5,
-                 fold: int=1,
+                 HVGs: int=4000, 
+                 pct_for_testing: float=0.2,
                  pct_for_training: float=0.8,
-                 seed: int=42):
+                 Scaled: bool=False,
+                 seed: int=42,
+                 select_patients_seed: int=42):
         
         adata = sc.read(data_path, cache=True)
 
@@ -88,19 +96,13 @@ class benchmark():
 
         # Initialize variables
         self.metrics = None
-        self.metrics_pca_testing = None
-        self.metrics_pca_training = None
-        self.metrics_unscaled_testing = None
-        self.metrics_unscaled_training = None
+        self.metrics_pca = None
+        self.metrics_unscaled = None
         self.metrics_scvi = None
         self.metrics_scanvi = None
         self.metrics_scgen = None
-        self.Model1_testing = None
-        self.Model1_training = None
-        self.Model2_testing = None
-        self.Model2_training = None
-        self.Model3_testing = None
-        self.Model3_training = None
+        self.in_house_ITSCR_model = None
+        self.in_house_ITSCR_only_HVGs_model = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -129,27 +131,27 @@ class benchmark():
             # Disable CuDNN's benchmarking mode for deterministic behavior
             torch.backends.cudnn.benchmark = False
 
-        rep_seed(self.seed)
+        rep_seed(select_patients_seed)
+
+        # Specify the number of folds (splits)
+        n_splits = int(100/(pct_for_testing*100))  
 
         # Initialize Stratified K-Fold
-        stratified_kfold = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=self.seed)
+        stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=select_patients_seed)
 
         # Iterate through the folds
         self.adata = self.adata.copy()
         self.test_adata = self.adata.copy()
-        fold_counter = 0
         for train_index, test_index in stratified_kfold.split(self.adata.X, self.adata.obs[self.label_key]):
-            fold_counter += 1
-            if fold_counter == fold:
-                self.adata = self.adata[train_index, :].copy()
-                self.test_adata = self.test_adata[test_index, :].copy()
-                break
+            self.adata = self.adata[train_index, :].copy()
+            self.test_adata = self.test_adata[test_index, :].copy()
+            break
 
         # Get the number of observations (rows) in your AnnData object
         num_observations = self.adata.shape[0]
 
         # Calculate the number of observations to randomly select
-        num_to_select = int((pct_for_training/(1-(1/num_folds))) * num_observations)
+        num_to_select = int((pct_for_training/(1-pct_for_testing)) * num_observations)
 
         # Generate random indices to select a subset of the data
         random_indices = np.random.choice(num_observations, size=num_to_select, replace=False)
@@ -168,6 +170,9 @@ class benchmark():
         else:
             self.test_adata.var["highly_variable"] = np.ones(len(self.adata.var), dtype=bool)
             self.test_adata.var["highly_variable"] = np.ones(len(self.adata.var), dtype=bool)
+        if Scaled:
+            self.adata.X, mean, std = dp.scale_data(self.adata.X, return_mean_and_std=True)
+            self.test_adata.X = dp.scale_data(self.test_adata.X, feature_means=mean, feature_stdevs=std)
 
         # Settings for visualizations
         sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=12)
@@ -196,44 +201,12 @@ class benchmark():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the unintegrated data.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
-
-        # Training
-        adata_unscaled = self.adata.copy()
-
-        adata_unscaled.obsm["Unscaled"] = adata_unscaled.X
-        sc.pp.neighbors(adata_unscaled, use_rep="Unscaled")
-
-        self.metrics_unscaled_training = scib.metrics.metrics(
-            self.original_adata,
-            adata_unscaled,
-            "batch", 
-            self.label_key,
-            embed="Unscaled",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        del adata_unscaled
-
-        # Testing
         adata_unscaled = self.test_adata.copy()
 
         adata_unscaled.obsm["Unscaled"] = adata_unscaled.X
         sc.pp.neighbors(adata_unscaled, use_rep="Unscaled")
 
-        self.metrics_unscaled_testing = scib.metrics.metrics(
+        self.metrics_unscaled = scib.metrics.metrics(
             self.original_test_adata,
             adata_unscaled,
             "batch", 
@@ -254,8 +227,6 @@ class benchmark():
             clisi_=False,
             organism="human",
         )
-
-        del adata_unscaled
 
 
     def pca(self, n_comps: int=50, umap_plot: bool=True, save_figure: bool=False):
@@ -282,46 +253,13 @@ class benchmark():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
-
-        # Training
-        adata_pca = self.adata.copy()
-
-        sc.tl.pca(adata_pca, n_comps=n_comps, use_highly_variable=True)
-        adata_pca.obsm["PCA"] = adata_pca.obsm["X_pca"]
-        sc.pp.neighbors(adata_pca, use_rep="PCA")
-
-        self.metrics_pca_training = scib.metrics.metrics(
-            self.original_adata,
-            adata_pca,
-            "batch", 
-            self.label_key,
-            embed="PCA",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-        
-        del adata_pca
-
-        # Testing
         adata_pca = self.test_adata.copy()
 
         sc.tl.pca(adata_pca, n_comps=n_comps, use_highly_variable=True)
         adata_pca.obsm["PCA"] = adata_pca.obsm["X_pca"]
         sc.pp.neighbors(adata_pca, use_rep="PCA")
 
-        self.metrics_pca_testing = scib.metrics.metrics(
+        self.metrics_pca = scib.metrics.metrics(
             self.original_test_adata,
             adata_pca,
             "batch", 
@@ -342,6 +280,19 @@ class benchmark():
             clisi_=False,
             organism="human",
         )
+
+        random_order = np.random.permutation(adata_pca.n_obs)
+        adata_pca = adata_pca[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_pca)
+            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_pca)
+            sc.pl.umap(adata_pca, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save="PCA_cell_type.svg")
+            sc.pl.umap(adata_pca, color="batch", ncols=1, title=self.batcheffect_title, show=False, save="PCA_batch_effect.svg")
+
 
         del adata_pca
 
@@ -531,7 +482,7 @@ class benchmark():
         del adata_scgen
 
 
-    def Model1_benchmark(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def in_house_model_encoder(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
 
@@ -575,6 +526,7 @@ class benchmark():
                                         HVGs=self.HVGs,
                                         HVG_buckets=1000,
                                         use_HVG_buckets=False,
+                                        Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
                                         use_gene2vec_emb=False,
@@ -586,6 +538,7 @@ class benchmark():
                                 device=None,
                                 seed=self.seed,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -641,7 +594,125 @@ class benchmark():
 
         del adata_in_house
 
-    def Model2_benchmark(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def in_house_model_itscr(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool, optional
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool, optional
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+
+        adata_in_house = self.original_adata.copy()
+
+        HVG_buckets_ = 1000#100#10#1000
+
+        HVGs_num = self.HVGs
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        pathways_file_path=self.pathway_path,
+                                        num_pathways=500,
+                                        pathway_gene_limit=10,
+                                        save_model_path=save_path,
+                                        HVG=True,
+                                        HVGs=HVGs_num,
+                                        HVG_buckets=HVG_buckets_,
+                                        use_HVG_buckets=True,
+                                        Scaled=False,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"],
+                                        use_gene2vec_emb=True,
+                                        gene2vec_path=self.gene2vec_path)
+        #Model
+        model = model_ITSCR.ITSCR_main_model(mask=train_env.data_env.pathway_mask,
+                                            num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
+                                            output_dim=100,
+                                            num_pathways=500,
+                                            HVG_tokens=HVG_buckets_,
+                                            HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
+                                            use_gene2vec_emb=True)
+                                                                          
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=self.seed,
+                                batch_size=236,#256,
+                                batch_size_step_size=236,#256,
+                                use_target_weights=True,
+                                use_batch_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=110,#25,
+                                eval_freq=1,
+                                epochs=100,#20,
+                                earlystopping_threshold=40)#5)
+        
+        adata_in_house = self.original_test_adata.copy()
+        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.in_house_ITSCR_model = scib.metrics.metrics(
+            self.original_test_adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_ITSCR_Model_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_ITSCR_Model_batch_effect.svg")
+
+        del adata_in_house
+
+    def in_house_model_itscr_only_HVGs(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
 
@@ -683,6 +754,7 @@ class benchmark():
                                         HVGs=HVGs_num,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
+                                        Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
                                         use_gene2vec_emb=True,
@@ -700,6 +772,7 @@ class benchmark():
                                 device=None,
                                 seed=self.seed,
                                 batch_size=256,
+                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -755,168 +828,7 @@ class benchmark():
 
         del adata_in_house
 
-    def Model3_benchmark(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool, optional
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool, optional
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        save_figure : bool, optional
-            If True, save UMAP plots as SVG files (default is False).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-
-        adata_in_house = self.original_adata.copy()
-
-        HVG_buckets_ = 1000
-
-        HVGs_num = self.HVGs
-
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        pathways_file_path=self.pathway_path,
-                                        num_pathways=500,
-                                        pathway_gene_limit=10,
-                                        save_model_path=save_path,
-                                        HVG=True,
-                                        HVGs=HVGs_num,
-                                        HVG_buckets=HVG_buckets_,
-                                        use_HVG_buckets=True,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=True,
-                                        gene2vec_path=self.gene2vec_path)
-        #Model
-        model = Model3.Model3(mask=train_env.data_env.pathway_mask,
-                            num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
-                            output_dim=100,
-                            num_pathways=500,
-                            HVG_tokens=HVG_buckets_,
-                            HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
-                            use_gene2vec_emb=True)
-                                                                          
-        # Train
-        if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=self.seed,
-                                batch_size=236,#256,
-                                use_target_weights=True,
-                                use_batch_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=110,#25,
-                                eval_freq=1,
-                                epochs=100,#20,
-                                earlystopping_threshold=40)#5)
-        
-        # Training evaluation
-        adata_in_house = self.original_adata.copy()
-        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.Model3_training = scib.metrics.metrics(
-            self.original_adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model3_training_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model3_training_batch_effect.svg")
-
-        del adata_in_house
-
-        # Testing evaluation
-        adata_in_house = self.original_test_adata.copy()
-        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path, return_attention=False)
-        adata_in_house.obsm["In_house"] = predictions
-
-        del predictions
-        sc.pp.neighbors(adata_in_house, use_rep="In_house")
-
-        self.Model3_testing = scib.metrics.metrics(
-            self.original_test_adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
-        random_order = np.random.permutation(adata_in_house.n_obs)
-        adata_in_house = adata_in_house[random_order, :]
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
-        if save_figure:
-            sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model3_testing_cell_type.svg")
-            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model3_testing_batch_effect.svg")
-
-        del adata_in_house
-
-    def make_benchamrk_results_dataframe(self, min_max_normalize: bool=False):
+    def make_benchamrk_results_dataframe(self, counter: int, min_max_normalize: bool=False):
         """
         Generates a dataframe named 'metrics' containing the performance metrics of different methods.
 
@@ -937,18 +849,12 @@ class benchmark():
 
         calculated_metrics = []
         calculated_metrics_names = []
-        if self.metrics_pca_testing is not None:
-            calculated_metrics.append(self.metrics_pca_testing)
-            calculated_metrics_names.append("PCA_testing")
-        if self.metrics_pca_training is not None:
-            calculated_metrics.append(self.metrics_pca_training)
-            calculated_metrics_names.append("PCA_training")
-        if self.metrics_unscaled_testing is not None:
-            calculated_metrics.append(self.metrics_unscaled_testing)
-            calculated_metrics_names.append("Unintegrated_testing")
-        if self.metrics_unscaled_training is not None:
-            calculated_metrics.append(self.metrics_unscaled_training)
-            calculated_metrics_names.append("Unintegrated_training")
+        if self.metrics_pca is not None:
+            calculated_metrics.append(self.metrics_pca)
+            calculated_metrics_names.append("PCA")
+        if self.metrics_unscaled is not None:
+            calculated_metrics.append(self.metrics_unscaled)
+            calculated_metrics_names.append("Unintegrated")
         if self.metrics_scvi is not None:
             calculated_metrics.append(self.metrics_scvi)
             calculated_metrics_names.append("scVI")
@@ -958,24 +864,15 @@ class benchmark():
         if self.metrics_scgen is not None:
             calculated_metrics.append(self.metrics_scgen)
             calculated_metrics_names.append("scGen")
-        if self.Model1_testing is not None:
-            calculated_metrics.append(self.Model1_testing)
-            calculated_metrics_names.append("Model1_testing")
-        if self.Model1_training is not None:
-            calculated_metrics.append(self.Model1_training)
-            calculated_metrics_names.append("Model1_training")
-        if self.Model2_testing is not None:
-            calculated_metrics.append(self.Model2_testing)
-            calculated_metrics_names.append("Model2_testing")
-        if self.Model2_training is not None:
-            calculated_metrics.append(self.Model2_training)
-            calculated_metrics_names.append("Model2_training")
-        if self.Model3_testing is not None:
-            calculated_metrics.append(self.Model3_testing)
-            calculated_metrics_names.append("Model3_testing")
-        if self.Model3_training is not None:
-            calculated_metrics.append(self.Model3_training)
-            calculated_metrics_names.append("Model3_training")
+        if self.metrics_in_house_model_encoder is not None:
+            calculated_metrics.append(self.metrics_in_house_model_encoder)
+            calculated_metrics_names.append(f"In-house HVG Encoder Model {counter}")
+        if self.in_house_ITSCR_model is not None:
+            calculated_metrics.append(self.in_house_ITSCR_model)
+            calculated_metrics_names.append(f"In-house ITSCR model {counter}")
+        if self.in_house_ITSCR_only_HVGs_model is not None:
+            calculated_metrics.append(self.in_house_ITSCR_only_HVGs_model)
+            calculated_metrics_names.append(f"In-house ITSCR with only HVGs model {counter}")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")

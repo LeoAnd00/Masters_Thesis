@@ -16,7 +16,6 @@ import pandas as pd
 import torch.optim as optim
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import euclidean
-from scipy.spatial.distance import cdist
 
 
 class prep_data(data.Dataset):
@@ -41,20 +40,23 @@ class prep_data(data.Dataset):
         The number of top pathways to select based on relative HVG abundance (default is None). Only used if json_file_path is given.
     
     pathway_gene_limit : int, optional
-        The minimum number of HVGs in a pathway/gene set for it to be considered (default is 10). Only used if json_file_path is given.
+        The minimum number of genes in a pathway/gene set for it to be considered (default is 10). Only used if json_file_path is given.
     
     HVG : bool, optional
         Whether to use highly variable genes for feature selection (default is True).
     
     HVGs : int, optional
-        The number of highly variable genes to select (default is 2000).
+        The number of highly variable genes to select (default is 4000).
     
     HVG_buckets : int, optional
         The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True. This option is suitable for certain transformer models.
     
     use_HVG_buckets : bool, optional
         Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False). This option is required to be set to True if using a HVG transformer model relying on tokenization.
-
+    
+    Scaled : bool, optional
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
+    
     batch_keys : list, optional
         A list of keys for batch labels (default is None).
     
@@ -90,9 +92,10 @@ class prep_data(data.Dataset):
                  num_pathways: int=None,  
                  pathway_gene_limit: int=10,
                  HVG: bool=True, 
-                 HVGs: int=2000, 
+                 HVGs: int=4000, 
                  HVG_buckets: int=1000,
                  use_HVG_buckets: bool=False,
+                 Scaled: bool=False, 
                  batch_keys: list=None,
                  use_gene2vec_emb: bool=False,
                  model_output_dim: int=100):
@@ -102,6 +105,7 @@ class prep_data(data.Dataset):
         self.batch_keys = batch_keys
         self.HVG = HVG
         self.HVGs = HVGs
+        self.scaled = Scaled
         self.pathways_file_path = pathways_file_path
         self.HVG_buckets = HVG_buckets
         self.use_HVG_buckets = use_HVG_buckets
@@ -134,6 +138,10 @@ class prep_data(data.Dataset):
         #    # Create a dictionary
         #    self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
         #    self.gene2vec_tensor = self.make_gene2vec_embedding()
+
+        if Scaled:
+            self.adata.X, self.feature_means, self.feature_stdevs = dp.scale_data(self.adata.X, return_mean_and_std=True)
+            self.X = self.adata.X
 
         # Encode the target information
         self.label_encoder = LabelEncoder()
@@ -435,7 +443,7 @@ class prep_data(data.Dataset):
         """
 
         # Get HVG expression levels
-        data = self.X[idx] 
+        data_point = self.X[idx] 
 
         # Get labels
         data_label = self.target[idx]
@@ -446,12 +454,17 @@ class prep_data(data.Dataset):
         else:
             batches = torch.tensor([])
 
-        if self.use_HVG_buckets == True:
-            data_not_tokenized = self.X_not_tokenized[idx] 
-        else:
-            data_not_tokenized = torch.tensor([])
+        #if (self.use_HVG_buckets == True) and (self.pathways_file_path is not None):
+        #    data_pathways = self.X_not_tokenized[idx] * self.pathway_mask
+        #elif (self.use_HVG_buckets == True) and (self.pathways_file_path is None):
+        #    data_pathways = self.X_not_tokenized[idx] 
+        #elif self.pathways_file_path is not None:
+        #    data_pathways = self.X[idx] * self.pathway_mask
+        #else:
+        #    data_pathways = torch.tensor([])
+        data_pathways = self.X_not_tokenized[idx] 
 
-        return data, data_label, batches, data_not_tokenized
+        return data_point, data_label, batches, data_pathways
 
 
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
@@ -551,7 +564,7 @@ class CustomSNNLoss(nn.Module):
                  cell_type_centroids_distances_matrix,
                  use_target_weights: bool=True, 
                  use_batch_weights: bool=True, 
-                 targets: torch.tensor=None,
+                 targets=None, 
                  batches: list=None,
                  batch_keys: list=None, 
                  temperature: float=0.25, 
@@ -813,13 +826,16 @@ class train_module():
         Whether to identify highly variable genes (HVGs) in the data (default is True).
     
     HVGs : int, optional
-        The number of highly variable genes to select (default is 2000).
+        The number of highly variable genes to select (default is 4000).
     
     HVG_buckets : int, optional
         The number of buckets for binning HVG expression levels (default is 1000). Only used if use_HVG_buckets is set to True.
     
     use_HVG_buckets : bool, optional
         Whether to use buckets for HVG expression levels (True). Or to not use buckets (False) (defualt is False). This option is required to be set to True if using a HVG transformer model relying on tokenization.
+    
+    Scaled : bool, optional
+        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
     
     target_key : str, optional
         The metadata key specifying the target variable (default is "cell_type").
@@ -839,9 +855,10 @@ class train_module():
                  gene2vec_path: str,
                  pathway_gene_limit: int=10,
                  HVG: bool=True, 
-                 HVGs: int=2000, 
+                 HVGs: int=4000, 
                  HVG_buckets: int=1000,
                  use_HVG_buckets: bool=False,
+                 Scaled: bool=False, 
                  target_key: str="cell_type", 
                  batch_keys: list=None,
                  use_gene2vec_emb: bool=False):
@@ -853,6 +870,7 @@ class train_module():
 
         self.HVG = HVG
         self.HVGs = HVGs
+        self.Scaled = Scaled
         self.target_key = target_key
         self.batch_keys = batch_keys
         self.num_pathways = num_pathways
@@ -865,6 +883,7 @@ class train_module():
                                   HVGs=HVGs, 
                                   HVG_buckets=HVG_buckets,
                                   use_HVG_buckets=use_HVG_buckets,
+                                  Scaled=Scaled,
                                   target_key=target_key, 
                                   batch_keys=batch_keys,
                                   use_gene2vec_emb=use_gene2vec_emb,
@@ -916,32 +935,73 @@ class train_module():
             # Training
             model.train()
             train_loss = []
-            for data_inputs, data_labels, data_batches, data_not_tokenized in train_loader:
+            for data_inputs, data_labels, data_batches, data_pathways in train_loader:
 
                 data_labels = data_labels.to(device)
-                data_inputs_step = data_inputs.to(device)
-                data_not_tokenized_step = data_not_tokenized.to(device)
 
-                if self.data_env.use_gene2vec_emb:
-                    preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
-                else:
-                    preds = model(data_inputs_step, data_not_tokenized_step)
+                # Calculate the number of iterations needed
+                num_iterations = (data_inputs.shape[0] + self.batch_size_step_size - 1) // self.batch_size_step_size
 
-                all_train_preds_temp = preds
+                # Store preds without remembering gradient. Used for calculating loss for sub-parts of the batch.
+                all_train_preds = torch.tensor([]).to(device)
+                if num_iterations > 1:
+                    with torch.no_grad():
+                        for i in range(num_iterations):
+                            start_index = i * self.batch_size_step_size
+                            end_index = (i + 1) * self.batch_size_step_size if i < num_iterations - 1 else data_inputs.shape[0]
 
-                # Check and fix the number of dimensions
-                if all_train_preds_temp.dim() == 1:
-                    all_train_preds_temp = all_train_preds_temp.unsqueeze(0)  # Add a dimension along axis 0
+                            data_inputs_step = data_inputs[start_index:end_index,:].to(device)
+                            data_pathways_step = data_pathways[start_index:end_index,:].to(device)
 
-                if self.batch_keys is not None:
-                    data_batches = [batch.to(device) for batch in data_batches]
-                    loss = loss_module(all_train_preds_temp, data_labels, data_batches)
-                else:
-                    loss = loss_module(all_train_preds_temp, data_labels)
+                            if self.data_env.use_gene2vec_emb:
+                                preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                            else:
+                                preds = model(data_inputs_step, data_pathways_step)
 
-                loss.backward()
+                            # Check and fix the number of dimensions
+                            if preds.dim() == 1:
+                                preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
-                train_loss.append(loss.item())
+                            all_train_preds = torch.cat((all_train_preds, preds), dim=0)
+
+                train_loss_temp = []
+                for i in range(num_iterations):
+                    start_index = i * self.batch_size_step_size
+                    end_index = (i + 1) * self.batch_size_step_size if i < num_iterations - 1 else data_inputs.shape[0]
+
+                    data_inputs_step = data_inputs[start_index:end_index,:].to(device)
+                    data_pathways_step = data_pathways[start_index:end_index,:].to(device)
+
+                    if self.data_env.use_gene2vec_emb:
+                        preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs_step, data_pathways_step)
+                
+                    #print(f"Works {i}: ",torch.cuda.memory_allocated())
+                    #print("Works: ",torch.cuda.memory_cached())
+                    #print("preds: ", preds)
+
+                    if num_iterations > 1:
+                        all_train_preds_temp = all_train_preds.clone()
+                        all_train_preds_temp[start_index:end_index,:] = preds
+                    else:
+                        all_train_preds_temp = preds
+
+                    # Check and fix the number of dimensions
+                    if all_train_preds_temp.dim() == 1:
+                        all_train_preds_temp = all_train_preds_temp.unsqueeze(0)  # Add a dimension along axis 0
+
+                    if self.batch_keys is not None:
+                        data_batches = [batch.to(device) for batch in data_batches]
+                        loss = loss_module(all_train_preds_temp, data_labels, data_batches) / num_iterations
+                    else:
+                        loss = loss_module(all_train_preds_temp, data_labels) / num_iterations
+
+                    loss.backward()
+
+                    train_loss_temp.append(loss.item())
+
+                train_loss.append(np.sum(train_loss_temp))
 
                 optimizer.step()
                 optimizer.zero_grad()
@@ -952,16 +1012,16 @@ class train_module():
                 val_loss = []
                 all_preds = []
                 with torch.no_grad():
-                    for data_inputs, data_labels, data_batches, data_not_tokenized in val_loader:
+                    for data_inputs, data_labels, data_batches, data_pathways in val_loader:
 
                         data_inputs_step = data_inputs.to(device)
                         data_labels_step = data_labels.to(device)
-                        data_not_tokenized_step = data_not_tokenized.to(device)
+                        data_pathways_step = data_pathways.to(device)
 
                         if self.data_env.use_gene2vec_emb:
-                            preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
+                            preds = model(data_inputs_step, data_pathways_step, gene2vec_tensor)
                         else:
-                            preds = model(data_inputs_step, data_not_tokenized_step)
+                            preds = model(data_inputs_step, data_pathways_step)
 
                         # Check and fix the number of dimensions
                         if preds.dim() == 1:
@@ -1022,7 +1082,8 @@ class train_module():
                  model: nn.Module,
                  device: str=None,
                  seed: int=42,
-                 batch_size: int=236,
+                 batch_size: int=256,
+                 batch_size_step_size: int=256,
                  use_target_weights: bool=True,
                  use_batch_weights: bool=True,
                  init_temperature: float=0.25,
@@ -1049,8 +1110,11 @@ class train_module():
             Random seed for ensuring reproducibility (default is 42).
         
         batch_size : int, optional
-            Batch size for data loading during training (default is 236).
+            Batch size for data loading during training (default is 256).
 
+        batch_size_step_size: int, optional
+            Step size to take to reach batch_size samples where the gradient is accumulated after each step and parameters of the model are updated after batch_size samples have been processed (default is 256).
+        
         use_target_weights : bool, optional
             If True, calculate target weights based on label frequency (default is True).
         
@@ -1090,6 +1154,10 @@ class train_module():
             List of predictions.
         """
 
+        if batch_size_step_size > batch_size:
+            raise ValueError("batch_size_step_size must be smaller or equal to batch_size.")
+        
+        self.batch_size_step_size = batch_size_step_size
         self.batch_size = batch_size
 
 
@@ -1167,116 +1235,6 @@ class train_module():
         print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
 
         return all_preds
-    
-    def generate_representation(self, data_, model, model_path: str, save_path: str="cell_type_vector_representation/CellTypeRepresentations.csv", batch_size: int=32, method: str="centroid"):
-        data_ = prep_test_data(data_, self.data_env)
-        adata = data_.adata.copy()
-
-        # Make predictions
-        predictions = self.predict(data_=adata, model=model, model_path=model_path, batch_size=batch_size)
-        adata.obsm["predictions"] = predictions
-
-        
-        def CentroidRepresentation(adata_):
-            """
-            Calculates and returns centroids for each unique label in the dataset.
-
-            Returns
-            -------
-            dict
-                A dictionary where each key is a unique label and the corresponding value is the centroid representation.
-            """
-            unique_labels = np.unique(adata_.obs[self.target_key])
-            centroids = {}  # A dictionary to store centroids for each label.
-
-            for label in unique_labels:
-                # Find the indices of data points with the current label.
-                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
-
-                # Extract the latent space representations for data points with the current label.
-                latent_space_for_label = adata_.obsm["predictions"][label_indices]
-
-                # Calculate the centroid for the current label cluster.
-                centroid = np.mean(latent_space_for_label, axis=0)
-
-                centroids[label] = centroid
-
-            return centroids
-
-        def MedianRepresentation(adata_):
-            """
-            Calculates and returns median centroids for each unique label in the dataset.
-
-            Returns
-            -------
-            dict
-                A dictionary where each key is a unique label and the corresponding value is the median centroid representation.
-            """
-            unique_labels = np.unique(adata_.obs[self.target_key])
-            median_centroids = {}  # A dictionary to store median centroids for each label.
-
-            for label in unique_labels:
-                # Find the indices of data points with the current label.
-                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
-
-                # Extract the latent space representations for data points with the current label.
-                latent_space_for_label = adata_.obsm["predictions"][label_indices]
-
-                # Calculate the median for each feature across the data points with the current label.
-                median = np.median(latent_space_for_label, axis=0)
-
-                median_centroids[label] = median
-
-            return median_centroids
-
-        def MedoidRepresentation(adata_):
-            """
-            Calculates and returns medoid centroids for each unique label in the dataset.
-
-            Returns
-            -------
-            dict
-                A dictionary where each key is a unique label and the corresponding value is the medoid centroid representation.
-            """
-            unique_labels = np.unique(adata_.obs[self.target_key])
-            medoid_centroids = {}  # A dictionary to store medoid centroids for each label.
-
-            for label in unique_labels:
-                # Find the indices of data points with the current label.
-                label_indices = np.where(adata_.obs[self.target_key] == label)[0]
-
-                # Extract the latent space representations for data points with the current label.
-                latent_space_for_label = adata_.obsm["predictions"][label_indices]
-
-                # Calculate pairwise distances between data points in the group.
-                distances = cdist(latent_space_for_label, latent_space_for_label, 'euclidean')
-
-                # Find the index of the medoid (index with the smallest sum of distances).
-                medoid_index = np.argmin(distances.sum(axis=0))
-
-                # Get the medoid (data point) itself.
-                medoid = latent_space_for_label[medoid_index]
-
-                medoid_centroids[label] = medoid
-
-            return medoid_centroids
-        
-        if method == "centroid":
-            representation = CentroidRepresentation(adata_=adata)
-        elif method == "median":
-            representation = MedianRepresentation(adata_=adata)
-        elif method == "medoid":
-            representation = MedoidRepresentation(adata_=adata)
-
-        # Convert the dictionary to a Pandas DataFrame
-        df = pd.DataFrame(representation)
-
-        # Save the DataFrame as a CSV file
-        df.to_csv(save_path, index=False)
-
-        del adata
-
-        return df
     
     
     def predict(self, data_, model_path: str, model=None, batch_size: int=32, device: str=None, return_attention: bool=False):
@@ -1382,6 +1340,8 @@ class prep_test_data(data.Dataset):
     def __init__(self, adata, prep_data_env):
         self.adata = adata
         self.adata = self.adata[:, prep_data_env.hvg_genes].copy()
+        if prep_data_env.scaled:
+            self.adata.X = dp.scale_data(data=self.adata.X, feature_means=prep_data_env.feature_means, feature_stdevs=prep_data_env.feature_stdevs)
 
         self.X = self.adata.X
         self.X = torch.tensor(self.X)
@@ -1395,17 +1355,38 @@ class prep_test_data(data.Dataset):
         if prep_data_env.use_HVG_buckets:
             self.training_expression_levels = prep_data_env.X_not_tokenized
             self.X_not_tokenized = self.X.clone()
+            #self.X = self.bucketize_expression_levels(self.X, prep_data_env.HVG_buckets) 
             self.X = self.bucketize_expression_levels_per_gene(self.X, prep_data_env.HVG_buckets)  
 
-            # If value is above max value during tokenization, it will be put in a new bucket the model hasn't seen.
-            # To fix this we simply put the value in the previous bucket, which the model has seen.
-            # This make it possible to make predictions on new data outside of the training values range.
-            if torch.max(self.X) == prep_data_env.HVG_buckets:
-                # Mask where the specified value is located
-                mask = self.X == prep_data_env.HVG_buckets
+    def bucketize_expression_levels(self, expression_levels, num_buckets):
+        """
+        Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.
 
-                # Replace the specified value with the new value
-                self.X[mask] = prep_data_env.HVG_buckets - 1
+        Parameters
+        ----------
+        expression_levels : Tensor
+            Should be the expression levels (adata.X, or in this case self.X).
+
+        num_buckets : int
+            Number of buckets to create.
+
+        Returns
+        ----------
+        bucketized_levels : LongTensor
+            Bucketized expression levels.
+        """
+        # Apply bucketization to each gene independently
+        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
+
+         # Generate continuous thresholds
+        eps = 1e-6
+        thresholds = torch.linspace(torch.min(self.training_expression_levels) - eps, torch.max(self.training_expression_levels) + eps, steps=num_buckets + 1)
+
+        bucketized_levels = torch.bucketize(expression_levels, thresholds)
+
+        bucketized_levels -= 1
+
+        return bucketized_levels.to(torch.long)
     
     def bucketize_expression_levels_per_gene(self, expression_levels, num_buckets):
         """
@@ -1476,10 +1457,7 @@ class prep_test_data(data.Dataset):
         #    data_pathways = self.X[idx] * self.pathway_mask
         #else:
         #    data_pathways = torch.tensor([])
-        if self.use_HVG_buckets == True:
-            data_not_tokenized = self.X_not_tokenized[idx] 
-        else:
-            data_not_tokenized = torch.tensor([])
+        data_pathways = self.X_not_tokenized[idx] 
 
-        return data_point, data_not_tokenized
+        return data_point, data_pathways
 
