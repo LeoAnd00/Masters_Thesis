@@ -568,38 +568,16 @@ class benchmark():
         del predictions
         sc.pp.neighbors(adata_in_house, use_rep="In_house")
 
-        self.metrics_in_house_model_encoder = scib.metrics.metrics(
-            self.original_test_adata,
-            adata_in_house,
-            "batch", 
-            self.label_key,
-            embed="In_house",
-            isolated_labels_asw_=True,
-            silhouette_=True,
-            hvg_score_=True,
-            graph_conn_=True,
-            pcr_=True,
-            isolated_labels_f1_=True,
-            trajectory_=False,
-            nmi_=True,
-            ari_=True,
-            cell_cycle_=True,
-            kBET_=False,
-            ilisi_=False,
-            clisi_=False,
-            organism="human",
-        )
-
         random_order = np.random.permutation(adata_in_house.n_obs)
         adata_in_house = adata_in_house[random_order, :]
 
         if umap_plot:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color_map="tab20", color=self.label_key, ncols=1, title=self.celltype_title)
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
         if save_figure:
             sc.tl.umap(adata_in_house)
-            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color_map="tab20", color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_cell_type.svg")
             sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_batch_effect.svg")
 
         del adata_in_house

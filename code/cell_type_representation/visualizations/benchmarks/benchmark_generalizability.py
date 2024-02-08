@@ -13,6 +13,13 @@ from sklearn.preprocessing import LabelEncoder
 from functions import data_preprocessing as dp
 from functions import train as trainer
 from models import model_encoder as model_encoder
+from models import model_pathway as model_pathway
+from models import model_encoder_with_pathway as model_encoder_with_pathway
+from models import CustomScaler_model_transformer_encoder as model_transformer_encoder
+from models import CustomScaler_model_transformer_encoder_with_pathways as model_transformer_encoder_with_pathways
+#from models import model_tokenized_hvg_transformer as model_tokenized_hvg_transformer
+from models import model_tokenized_hvg_transformer_with_pathways as model_tokenized_hvg_transformer_with_pathways
+from models import model_tokenized_hvg_transformer_and_hvg_encoder as model_tokenized_hvg_transformer_and_hvg_encoder
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
