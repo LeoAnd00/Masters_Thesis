@@ -13,7 +13,9 @@ from sklearn.preprocessing import LabelEncoder
 from functions import data_preprocessing as dp
 from functions import train_with_validation as trainer
 from sklearn.model_selection import StratifiedKFold
-from models import model_ITSCR as model_ITSCR
+from models import Model1 as Model1
+from models import Model2 as Model2
+from models import Model3 as Model3
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -135,7 +137,113 @@ class classifier_train():
         self.celltype_title = 'Cell type'
         self.batcheffect_title = 'Batch effect'
 
-    def in_house_model_itscr(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def Model1_classifier(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool, optional
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool, optional
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+        adata_in_house = self.original_adata.copy()
+
+        #Model
+        model = Model1.Model1(input_dim=self.HVGs,
+                                output_dim=100,
+                                drop_out=0.2,
+                                act_layer=nn.ReLU,
+                                norm_layer=nn.BatchNorm1d,
+                                include_classifier=False,
+                                num_cell_types=None)
+
+        train_env = trainer.train_module(data_path=adata_in_house,
+                                        save_model_path=save_path,
+                                        HVG=True,
+                                        HVGs=self.HVGs,
+                                        HVG_buckets=1000,
+                                        target_key=self.label_key,
+                                        batch_keys=["batch"])
+        
+        # Train
+        if train:
+            _ = train_env.train(model=model,
+                                device=None,
+                                seed=self.seed,
+                                batch_size=256,
+                                batch_size_step_size=256,
+                                use_target_weights=True,
+                                use_batch_weights=True,
+                                init_temperature=0.25,
+                                min_temperature=0.1,
+                                max_temperature=2.0,
+                                init_lr=0.001,
+                                lr_scheduler_warmup=4,
+                                lr_scheduler_maxiters=110,
+                                eval_freq=1,
+                                epochs=100,
+                                earlystopping_threshold=40)
+        
+        predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
+        adata_in_house.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house, use_rep="In_house")
+
+        self.metrics_in_house_model_encoder = scib.metrics.metrics(
+            self.original_adata,
+            adata_in_house,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house.n_obs)
+        adata_in_house = adata_in_house[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house)
+            sc.pl.umap(adata_in_house, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_cell_type.svg")
+            sc.pl.umap(adata_in_house, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}InHouse_HVG_Encoder_batch_effect.svg")
+
+        del adata_in_house
+
+    def Model3_classifier(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
 
@@ -177,20 +285,21 @@ class classifier_train():
                                         HVGs=HVGs_num,
                                         HVG_buckets=HVG_buckets_,
                                         use_HVG_buckets=True,
-                                        Scaled=False,
                                         target_key=self.label_key,
                                         batch_keys=["batch"],
                                         use_gene2vec_emb=True,
                                         gene2vec_path=self.gene2vec_path)
         #Model
-        model = model_ITSCR.ITSCR_main_model(mask=train_env.data_env.pathway_mask,
+        model = Model3.Model3(mask=train_env.data_env.pathway_mask,
                                             num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
                                             output_dim=100,
                                             num_cell_types=len(adata_in_house.obs['cell_type'].unique()),
                                             num_pathways=500,
                                             HVG_tokens=HVG_buckets_,
                                             HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
-                                            use_gene2vec_emb=True)
+                                            use_gene2vec_emb=True,
+                                            include_classifier=False,
+                                            num_cell_types=None)
                                                                           
         # Train
         if train:
