@@ -10,10 +10,6 @@ d <- d[,3:ncol(d)]
 d <- d[,3515:7028]
 ```
 
-```{r}
-test <- labs$X0
-```
-
 
 ```{r}
 labs <- read.csv("../../../../data/raw/data_for_evaluating_cell_type_annotation/Segerstolpe/labels.txt", stringsAsFactors = F, sep = "\t")
