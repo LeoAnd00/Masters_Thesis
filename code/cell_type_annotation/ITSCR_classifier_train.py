@@ -11,7 +11,8 @@ import warnings
 from IPython.display import display
 from sklearn.preprocessing import LabelEncoder
 from functions import data_preprocessing as dp
-from functions import train_with_validation as trainer
+#from functions import train_with_validation as trainer
+from functions import train_with_validationV2 as trainer
 from sklearn.model_selection import StratifiedKFold
 from models import Model1 as Model1
 from models import Model2 as Model2
@@ -172,7 +173,7 @@ class classifier_train():
                                 act_layer=nn.ReLU,
                                 norm_layer=nn.BatchNorm1d,
                                 include_classifier=False,
-                                num_cell_types=None)
+                                num_cell_types=len(adata_in_house.obs['cell_type'].unique()))
 
         train_env = trainer.train_module(data_path=adata_in_house,
                                         save_model_path=save_path,
@@ -188,7 +189,6 @@ class classifier_train():
                                 device=None,
                                 seed=self.seed,
                                 batch_size=256,
-                                batch_size_step_size=256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,
@@ -196,9 +196,9 @@ class classifier_train():
                                 max_temperature=2.0,
                                 init_lr=0.001,
                                 lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=110,
-                                eval_freq=1,
-                                epochs=100,
+                                lr_scheduler_maxiters=11,#110,
+                                eval_freq=4,#1,
+                                epochs=10,#100,
                                 earlystopping_threshold=40)
         
         predictions = train_env.predict(data_=adata_in_house, model=model, model_path=save_path)
@@ -293,13 +293,12 @@ class classifier_train():
         model = Model3.Model3(mask=train_env.data_env.pathway_mask,
                                             num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
                                             output_dim=100,
-                                            num_cell_types=len(adata_in_house.obs['cell_type'].unique()),
                                             num_pathways=500,
                                             HVG_tokens=HVG_buckets_,
                                             HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
                                             use_gene2vec_emb=True,
                                             include_classifier=False,
-                                            num_cell_types=None)
+                                            num_cell_types=len(adata_in_house.obs['cell_type'].unique()))
                                                                           
         # Train
         if train:
@@ -307,7 +306,6 @@ class classifier_train():
                                 device=None,
                                 seed=self.seed,
                                 batch_size=236,#256,
-                                batch_size_step_size=236,#256,
                                 use_target_weights=True,
                                 use_batch_weights=True,
                                 init_temperature=0.25,

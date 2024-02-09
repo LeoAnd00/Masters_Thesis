@@ -109,7 +109,7 @@ class Model1(nn.Module):
                  include_classifier: bool=False,
                  num_cell_types: int=None,
                  classifier_act_layer=nn.ReLU,
-                 classifier_norm_layer=nn.LayerNorm,
+                 classifier_norm_layer=nn.BatchNorm1d,
                  classifier_drop_out: float=0.2):
         super().__init__()
 

@@ -1769,9 +1769,9 @@ class train_module():
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
 
         # Define gene2vec_tensor if gene2ve is used
-        if os.path.exists(f"{model_path}gene2vec_tensor.pt"):
-            gene2vec_tensor_ref = torch.load(f"{model_path}gene2vec_tensor.pt")
-            gene2vec_tensor = torch.load(f"{model_path}gene2vec_tensor.pt")
+        if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
+            gene2vec_tensor_ref = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
+            gene2vec_tensor = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
             if torch.cuda.device_count() > 1:
                 for i in range(1, torch.cuda.device_count()):
                     gene2vec_tensor = torch.cat((gene2vec_tensor, gene2vec_tensor_ref), dim=0)
@@ -1786,7 +1786,7 @@ class train_module():
                 data_inputs = data_inputs.to(device)
                 data_pathways = data_pathways.to(device)
 
-                if os.path.exists(f"{model_path}gene2vec_tensor.pt"):
+                if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
                     if return_attention:
                         _, pred = model(data_inputs, data_pathways, gene2vec_tensor, return_attention, use_classifier=use_classifier)
                     else:
@@ -1804,9 +1804,9 @@ class train_module():
 
         if use_classifier:
 
-            if os.path.exists(f"{model_path}onehot_label_encoder.pt"):
-                label_encoder = torch.load(f"{model_path}label_encoder.pt")
-                onehot_label_encoder = torch.load(f"{model_path}onehot_label_encoder.pt")
+            if os.path.exists(f"{model_path}/ModelMetadata/onehot_label_encoder.pt"):
+                label_encoder = torch.load(f"{model_path}/ModelMetadata/label_encoder.pt")
+                onehot_label_encoder = torch.load(f"{model_path}/ModelMetadata/onehot_label_encoder.pt")
             else:
                 raise ValueError("There's no files containing target encodings (label_encoder.pt and onehot_label_encoder.pt).")
 
@@ -1871,7 +1871,7 @@ class prep_test_data(data.Dataset):
     def __init__(self, adata, model_path):
 
         # HVG gene names
-        hvg_genes = torch.load(f"{model_path}hvg_genes.pt")
+        hvg_genes = torch.load(f"{model_path}/ModelMetadata/hvg_genes.pt")
 
         self.adata = adata
         self.adata = self.adata[:, hvg_genes].copy()
@@ -1880,12 +1880,13 @@ class prep_test_data(data.Dataset):
         self.X = torch.tensor(self.X)
 
         # Gene set information
-        if os.path.exists(f"{model_path}gene_set_mask.pt"):
-            self.pathway_mask = torch.load(f"{model_path}hvg_genes.pt")
+        if os.path.exists(f"{model_path}/ModelMetadata/gene_set_mask.pt"):
+            self.pathway_mask = torch.load(f"{model_path}/ModelMetadata/hvg_genes.pt")
 
         # HVG buckets thresholds
-        if os.path.exists(f"{model_path}all_bucketization_threshold_values.pt"):
-            self.all_thresholds_values = torch.load(f"{model_path}all_bucketization_threshold_values.pt")
+        if os.path.exists(f"{model_path}/ModelMetadata/all_bucketization_threshold_values.pt"):
+            self.use_HVG_buckets = True
+            self.all_thresholds_values = torch.load(f"{model_path}/ModelMetadata/all_bucketization_threshold_values.pt")
 
 
             print("self.all_thresholds_values length (should be 1000 if correct): ", len(self.all_thresholds_values))
@@ -1903,6 +1904,8 @@ class prep_test_data(data.Dataset):
 
                 # Replace the specified value with the new value
                 self.X[mask] = len(self.all_thresholds_values) - 1
+        else:
+            self.use_HVG_buckets = False
 
     def bucketize_expression_levels_per_gene(self, expression_levels, all_thresholds_values):
         """
