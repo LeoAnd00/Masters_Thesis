@@ -8,12 +8,14 @@ from torch.nn import init
 import scanpy as sc
 import numpy as np
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.metrics import accuracy_score
 from functions import data_preprocessing as dp
 import random
 import json
 from tqdm import tqdm
 import time as time
 import pandas as pd
+import copy
 import torch.optim as optim
 from sklearn.model_selection import StratifiedKFold
 from sklearn.decomposition import PCA
@@ -143,19 +145,13 @@ class prep_data(data.Dataset):
         # self.labels contains that target values
         self.labels = self.adata.obs[self.target_key]
 
-        # Import gene2vec embeddings
-        #if use_gene2vec_emb:
-        #    gene2vec_emb = pd.read_csv(gene2vec_path, sep=' ', header=None)
-        #    # Create a dictionary
-        #    self.gene2vec_dic = {row[0]: row[1:201].to_list() for index, row in gene2vec_emb.iterrows()}
-        #    self.gene2vec_tensor = self.make_gene2vec_embedding()
-
         if for_classification:
             # Encode the target information
             self.label_encoder = LabelEncoder()
             self.target_label_encoded = self.label_encoder.fit_transform(self.labels)
             self.onehot_label_encoder = OneHotEncoder()
             self.target = self.onehot_label_encoder.fit_transform(self.target_label_encoded.reshape(-1, 1))
+            self.target = self.target.toarray()
         else:
             # Encode the target information
             self.label_encoder = LabelEncoder()
@@ -585,6 +581,7 @@ class prep_data_validation(data.Dataset):
         if for_classification:
             temp = train_env.label_encoder.transform(self.labels)
             self.target = train_env.onehot_label_encoder.transform(temp.reshape(-1, 1))
+            self.target = self.target.toarray()
         else:
             self.target = train_env.label_encoder.transform(self.labels)
 
@@ -614,48 +611,6 @@ class prep_data_validation(data.Dataset):
         # Load the JSON data into a Python dictionary
         if pathways_file_path is not None:
             self.pathway_mask = train_env.pathway_mask
-
-    def bucketize_expression_levels(self, 
-                                    expression_levels,
-                                    num_buckets: int,
-                                    expression_levels_min: float=None,
-                                    expression_levels_max: float=None):
-        """
-        Bucketize expression levels into categories based on specified number of buckets and absolut min/max values.
-
-        Parameters
-        ----------
-        expression_levels : Tensor
-            Should be the expression levels (adata.X, or in this case self.X).
-
-        num_buckets : int
-            Number of buckets to create.
-
-        Returns
-        ----------
-        bucketized_levels : LongTensor
-            Bucketized expression levels.
-        """
-        # Apply bucketization to each gene independently
-        bucketized_levels = torch.zeros_like(expression_levels, dtype=torch.long)
-
-        if (expression_levels_min==None) and (expression_levels_max==None):
-            self.expression_levels_min = torch.min(expression_levels)
-            self.expression_levels_max = torch.max(expression_levels)
-        else:
-            self.expression_levels_min = expression_levels_min
-            self.expression_levels_max = expression_levels_max
-
-        # Generate continuous thresholds
-        eps = 1e-6
-        thresholds = torch.linspace(self.expression_levels_min - eps, self.expression_levels_max + eps, steps=num_buckets + 1)
-
-        # Generate buckets
-        bucketized_levels = torch.bucketize(expression_levels, thresholds)
-
-        bucketized_levels -= 1
-
-        return bucketized_levels.to(torch.long)
     
     def bucketize_expression_levels_per_gene(self, 
                                             expression_levels, 
@@ -1181,22 +1136,29 @@ class train_module():
         self.num_pathways = num_pathways
 
         # Specify the number of folds (splits)
-        n_splits = int(100/(validation_pct*100))  
+        if (validation_pct > 0.0) and (validation_pct < 1.0):
+            n_splits = int(100/(validation_pct*100))  
+        elif validation_pct < 0.0:
+            raise ValueError('Invalid choice of validation_pct. Needs to be 0.0 <= validation_pct < 1.0')
 
-        # Initialize Stratified K-Fold
-        stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        if validation_pct == 0.0:
+            self.adata_train = self.adata.copy()
+            self.adata_validation = self.adata.copy()
+        else:
+            # Initialize Stratified K-Fold
+            stratified_kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-        # Iterate through the folds
-        self.adata_train = self.adata.copy()
-        self.adata_validation = self.adata.copy()
-        for train_index, val_index in stratified_kfold.split(self.adata.X, self.adata.obs[self.target_key]):
-            # Filter validation indices based on labels present in the training data
-            unique_train_labels = np.unique(self.adata.obs[self.target_key][train_index])
-            filtered_val_index = [idx for idx in val_index if self.adata.obs[self.target_key][idx] in unique_train_labels]
+            # Iterate through the folds
+            self.adata_train = self.adata.copy()
+            self.adata_validation = self.adata.copy()
+            for train_index, val_index in stratified_kfold.split(self.adata.X, self.adata.obs[self.target_key]):
+                # Filter validation indices based on labels present in the training data
+                unique_train_labels = np.unique(self.adata.obs[self.target_key][train_index])
+                filtered_val_index = [idx for idx in val_index if self.adata.obs[self.target_key][idx] in unique_train_labels]
 
-            self.adata_train = self.adata_train[train_index, :].copy()
-            self.adata_validation = self.adata_validation[filtered_val_index, :].copy()
-            break
+                self.adata_train = self.adata_train[train_index, :].copy()
+                self.adata_validation = self.adata_validation[filtered_val_index, :].copy()
+                break
 
         self.data_env = prep_data(adata=self.adata_train, 
                                   pathways_file_path=pathways_file_path, 
@@ -1262,6 +1224,7 @@ class train_module():
     
     def train_model(self,
                     model, 
+                    model_name,
                     optimizer, 
                     lr_scheduler, 
                     loss_module, 
@@ -1272,7 +1235,9 @@ class train_module():
                     num_epochs, 
                     eval_freq,
                     earlystopping_threshold,
-                    use_classifier):
+                    use_classifier,
+                    accum_grad: int=1,
+                    model_classifier: nn.Module=None):
         """
         Don't use this function by itself! It's aimed to be used in the train() function.
         """
@@ -1283,6 +1248,8 @@ class train_module():
 
         # Add model to device
         model.to(device)
+        if use_classifier:
+            model_classifier.to(device)
 
         # Initiate EarlyStopping
         early_stopping = EarlyStopping(earlystopping_threshold)
@@ -1303,65 +1270,108 @@ class train_module():
             # Training
             model.train()
             train_loss = []
-            for data_inputs, data_labels, data_batches, data_not_tokenized in train_loader:
+            all_preds_train = []
+            all_labels_train = []
+            for batch_idx, data_inputs, data_labels, data_batches, data_not_tokenized in enumerate(train_loader):
 
                 data_labels = data_labels.to(device)
                 data_inputs_step = data_inputs.to(device)
                 data_not_tokenized_step = data_not_tokenized.to(device)
 
-                if self.data_env.use_gene2vec_emb:
-                    preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor, use_classifier=use_classifier)
+                if model_name == "Model3":
+                    if self.data_env.use_gene2vec_emb:
+                        preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs_step, data_not_tokenized_step)
+                elif model_name == "Model2":
+                    if self.data_env.use_gene2vec_emb:
+                        preds = model(data_inputs_step, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs_step)
+                elif model_name == "Model1":
+                    preds = model(data_inputs_step)
+
+                if use_classifier:
+                    print("preds: ", preds)
+                    preds_latent = preds.cpu().detach().to(device)
+                    print("preds_latent: ", preds_latent)
+                    lahkajshh
+                    preds = model_classifier(preds_latent)
+                
+                # Whether to use classifier loss or latent space creation loss
+                if use_classifier:
+                    loss = loss_module(preds, data_labels)/accum_grad
                 else:
-                    preds = model(data_inputs_step, use_classifier=use_classifier)
-
-                all_train_preds_temp = preds
-
-                # Check and fix the number of dimensions
-                if all_train_preds_temp.dim() == 1:
-                    all_train_preds_temp = all_train_preds_temp.unsqueeze(0)  # Add a dimension along axis 0
-
-                if self.batch_keys is not None:
-                    data_batches = [batch.to(device) for batch in data_batches]
-                    loss = loss_module(all_train_preds_temp, data_labels, data_batches)
-                else:
-                    loss = loss_module(all_train_preds_temp, data_labels)
+                    if self.batch_keys is not None:
+                        data_batches = [batch.to(device) for batch in data_batches]
+                        loss = loss_module(preds, data_labels, data_batches)/accum_grad
+                    else:
+                        loss = loss_module(preds, data_labels)/accum_grad
 
                 loss.backward()
 
                 train_loss.append(loss.item())
 
-                optimizer.step()
-                optimizer.zero_grad()
+                # Perform updates to model weights
+                if ((batch_idx + 1) % accum_grad == 0) or (batch_idx + 1 == len(train_loader)):
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                #optimizer.step()
+                #optimizer.zero_grad()
+
+                all_preds_train.extend(preds.cpu().detach().numpy())
+                all_labels_train.extend(data_labels.cpu().detach().numpy())
 
             # Validation
             if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
                 model.eval()
                 val_loss = []
                 all_preds = []
+                all_labels = []
                 with torch.no_grad():
+                    counter = 0
                     for data_inputs, data_labels, data_batches, data_not_tokenized in val_loader:
+                        counter += 1
 
                         data_inputs_step = data_inputs.to(device)
                         data_labels_step = data_labels.to(device)
                         data_not_tokenized_step = data_not_tokenized.to(device)
 
-                        if self.data_env.use_gene2vec_emb:
-                            preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor, use_classifier=use_classifier)
-                        else:
-                            preds = model(data_inputs_step, use_classifier=use_classifier)
+                        if model_name == "Model3":
+                            if self.data_env.use_gene2vec_emb:
+                                preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
+                            else:
+                                preds = model(data_inputs_step, data_not_tokenized_step)
+                        elif model_name == "Model2":
+                            if self.data_env.use_gene2vec_emb:
+                                preds = model(data_inputs_step, gene2vec_tensor)
+                            else:
+                                preds = model(data_inputs_step)
+                        elif model_name == "Model1":
+                            preds = model(data_inputs_step)
+
+                        if use_classifier:
+                            preds_latent = preds.cpu().detach().to(device)
+                            preds = model_classifier(preds_latent)
 
                         # Check and fix the number of dimensions
                         if preds.dim() == 1:
                             preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
-                        if self.batch_keys is not None:
-                            data_batches = [batch.to(device) for batch in data_batches]
-                            loss = loss_module(preds, data_labels_step, data_batches) 
+                        # Whether to use classifier loss or latent space creation loss
+                        if use_classifier:
+                            loss = loss_module(preds, data_labels_step)/accum_grad
                         else:
-                            loss = loss_module(preds, data_labels_step)
+                            if self.batch_keys is not None:
+                                data_batches = [batch.to(device) for batch in data_batches]
+                                loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
+                            else:
+                                loss = loss_module(preds, data_labels_step)/accum_grad
 
                         val_loss.append(loss.item())
                         all_preds.extend(preds.cpu().detach().numpy())
+                        all_labels.extend(data_labels_step.cpu().detach().numpy())
 
                 # Metrics
                 avg_train_loss = sum(train_loss) / len(train_loss)
@@ -1371,7 +1381,15 @@ class train_module():
                 early_stopping(avg_val_loss)
 
                 # Print epoch information
-                print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
+                if use_classifier:
+
+                    # Calculate accuracy
+                    accuracy_train = accuracy_score(all_labels_train, all_preds_train)
+                    accuracy = accuracy_score(all_labels, all_preds)
+
+                    print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
+                else:
+                    print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
 
                 # Apply early stopping
                 if early_stopping.early_stop:
@@ -1382,17 +1400,27 @@ class train_module():
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
                     best_preds = all_preds
-                    
-                    # Move the model to CPU before saving
-                    model.to('cpu')
-                    
-                    # Save the entire model to a file
-                    #torch.save(model, f'{out_path}model.pt')
-                    #torch.save(model.state_dict(), f'{out_path}model.pt')
-                    torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
-                    
-                    # Move the model back to the original device
-                    model.to(device)
+
+                    if use_classifier:
+                        # Move the model to CPU before saving
+                        model_classifier.to('cpu')
+                        
+                        # Save the entire model to a file
+                        torch.save(model_classifier.module.state_dict() if hasattr(model_classifier, 'module') else model_classifier.state_dict(), f'{out_path}model_classifier.pt')
+                        
+                        # Move the model back to the original device
+                        model_classifier.to(device)
+                    else:
+                        # Move the model to CPU before saving
+                        model.to('cpu')
+                        
+                        # Save the entire model to a file
+                        #torch.save(model, f'{out_path}model.pt')
+                        #torch.save(model.state_dict(), f'{out_path}model.pt')
+                        torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
+                        
+                        # Move the model back to the original device
+                        model.to(device)
 
             # Update learning rate
             lr_scheduler.step()
@@ -1407,6 +1435,8 @@ class train_module():
     
     def train(self, 
                  model: nn.Module,
+                 model_name: str,
+                 model_classifier: nn.Module=None,
                  device: str=None,
                  seed: int=42,
                  batch_size: int=236,
@@ -1417,11 +1447,20 @@ class train_module():
                  max_temperature: float=1.0,
                  init_lr: float=0.001,
                  lr_scheduler_warmup: int=4,
-                 lr_scheduler_maxiters: int=25,
-                 eval_freq: int=2,
-                 epochs: int=20,
+                 lr_scheduler_maxiters: int=100,
+                 eval_freq: int=1,
+                 epochs: int=100,
                  earlystopping_threshold: int=10,
-                 train_classifier: bool=False):
+                 accum_grad: int=1,
+                 train_classifier: bool=False,
+                 batch_size_classifier: int=256,
+                 init_lr_classifier: float=0.001,
+                 lr_scheduler_warmup_classifier: int=4,
+                 lr_scheduler_maxiters_classifier: int=100,
+                 eval_freq_classifier: int=5,
+                 epochs_classifier: int=100,
+                 earlystopping_threshold_classifier: int=10,
+                 accum_grad_classifier: int=1):
         """
         Perform training of the machine learning model.
 
@@ -1481,8 +1520,11 @@ class train_module():
             List of predictions.
         """
 
+        model_step_1 = copy.deepcopy(model)
+
         self.batch_size = batch_size
 
+        out_path = self.save_model_path
 
         if device is not None:
             device = device
@@ -1506,10 +1548,10 @@ class train_module():
         total_train_start = time.time()
 
         train_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=True, drop_last=True)
+        val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
         #val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
 
-        total_params = sum(p.numel() for p in model.parameters())
+        total_params = sum(p.numel() for p in model_step_1.parameters())
         print(f"Number of parameters: {total_params}")
 
         # Define custom SNN loss
@@ -1524,61 +1566,18 @@ class train_module():
                                     max_temperature=max_temperature)
         
         # Define Adam optimer
-        optimizer = optim.Adam([{'params': model.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
+        optimizer = optim.Adam([{'params': model_step_1.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
         
         # Define scheduler for the learning rate
         lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
-        out_path = self.save_model_path
 
         # To run on multiple GPUs:
         if torch.cuda.device_count() > 1:
-            model= nn.DataParallel(model)
+            model_step_1= nn.DataParallel(model_step_1)
 
         # Train
-        loss, preds = self.train_model(model=model, 
-                                    optimizer=optimizer, 
-                                    lr_scheduler=lr_scheduler, 
-                                    loss_module=loss_module, 
-                                    device=device, 
-                                    out_path=out_path,
-                                    train_loader=train_loader, 
-                                    val_loader=val_loader,
-                                    num_epochs=epochs, 
-                                    eval_freq=eval_freq,
-                                    earlystopping_threshold=earlystopping_threshold,
-                                    use_classifier=False)
-        
-        all_preds.extend(preds)
-
-        del model, loss_module, optimizer, lr_scheduler
-
-        print()
-        print(f"Loss score: {np.mean(loss):.4f}")
-        print()
-
-        total_train_end = time.time()
-        print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
-        print()
-
-        if train_classifier:
-            print("Start training classifier")
-            print()
-
-            # Load model state
-            model.load_state_dict(torch.load(f'{out_path}model.pt'))
-
-            # Define data
-            train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
-            val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
-
-            # Define loss
-            loss_module = nn.CrossEntropyLoss() 
-            # Define Adam optimer
-            optimizer = optim.Adam([{'params': model.parameters(), 'lr': init_lr}, {'params': loss_module.parameters(), 'lr': init_lr}], weight_decay=5e-5)
-            lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
-
-            # Train
-            loss, preds = self.train_model(model=model, 
+        loss, preds = self.train_model(model=model_step_1, 
+                                        model_name=model_name,
                                         optimizer=optimizer, 
                                         lr_scheduler=lr_scheduler, 
                                         loss_module=loss_module, 
@@ -1589,13 +1588,61 @@ class train_module():
                                         num_epochs=epochs, 
                                         eval_freq=eval_freq,
                                         earlystopping_threshold=earlystopping_threshold,
-                                        use_classifier=True)
-            
-            print()
-            print(f"Loss score: {np.mean(loss):.4f}")
+                                        accum_grad=accum_grad,
+                                        use_classifier=False)
+        
+        all_preds.extend(preds)
+
+        del model_step_1, loss_module, optimizer, lr_scheduler
+
+        total_train_end = time.time()
+        print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
+        print()
+
+        if train_classifier:
+            print("Start training classifier")
             print()
 
-            #return all_preds
+            if model_classifier == None:
+                raise ValueError('Need to define model_classifier if train_classifier=True.')
+
+            total_train_start = time.time()
+
+            model_step_2 = copy.deepcopy(model)
+
+            # Load model state
+            model_step_2.load_state_dict(torch.load(f'{out_path}model.pt'))
+
+            # Define data
+            train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size_classifier, shuffle=True, drop_last=True)
+            val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size_classifier, shuffle=True, drop_last=True)
+
+            # Define loss
+            loss_module = nn.CrossEntropyLoss() 
+            # Define Adam optimer
+            optimizer = optim.Adam([{'params': model_step_2.parameters(), 'lr': init_lr_classifier}], weight_decay=5e-5)
+            lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup_classifier, max_iters=lr_scheduler_maxiters_classifier)
+
+            # Train
+            loss, preds = self.train_model(model=model_step_2, 
+                                        model_classifier=model_classifier,
+                                        optimizer=optimizer, 
+                                        lr_scheduler=lr_scheduler, 
+                                        loss_module=loss_module, 
+                                        device=device, 
+                                        out_path=out_path,
+                                        train_loader=train_loader, 
+                                        val_loader=val_loader,
+                                        num_epochs=epochs_classifier, 
+                                        eval_freq=eval_freq_classifier,
+                                        earlystopping_threshold=earlystopping_threshold_classifier,
+                                        accum_grad=accum_grad_classifier,
+                                        use_classifier=True)
+            
+            del model_step_2, loss_module, optimizer, lr_scheduler
+            
+            total_train_end = time.time()
+            print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
     
     def generate_representation(self, 
                                 data_, 
@@ -1611,6 +1658,10 @@ class train_module():
         # Make predictions
         predictions = self.predict(data_=adata, model=model, model_path=model_path, batch_size=batch_size)
         adata.obsm["predictions"] = predictions
+
+        # Make path if it doesn't exist
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
 
         
         def CentroidRepresentation(adata_):
@@ -1716,12 +1767,15 @@ class train_module():
     
     def predict(self, 
                 data_, 
+                model_name: str,
                 model_path: str, 
-                model=None, 
+                model: nn.Module=None, 
+                model_classifier: nn.Module=None,
                 batch_size: int=32, 
                 device: str=None, 
                 return_attention: bool=False,
                 use_classifier: bool=False,
+                detect_unknowns: bool=True,
                 unknown_threshold: float=0.5):
         """
         Generate latent represntations for data using the trained model.
@@ -1762,37 +1816,53 @@ class train_module():
         else:
             model.load_state_dict(torch.load(f'{model_path}model.pt'))
         # To run on multiple GPUs:
-        if torch.cuda.device_count() > 1:
-            model= nn.DataParallel(model)
+        #if torch.cuda.device_count() > 1:
+        #    model= nn.DataParallel(model)
         model.to(device)
+
+        if use_classifier:
+            if model_classifier == None:
+                raise ValueError('model_classifier needs to be defined if use_classifier=True')
+            
+            model_classifier.load_state_dict(torch.load(f'{model_path}model_classifier.pt'))
+            
+            model_classifier.to(device)
 
         data_loader = data.DataLoader(data_, batch_size=batch_size, shuffle=False)
 
         # Define gene2vec_tensor if gene2ve is used
         if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
-            gene2vec_tensor_ref = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
+            #gene2vec_tensor_ref = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
             gene2vec_tensor = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
-            if torch.cuda.device_count() > 1:
-                for i in range(1, torch.cuda.device_count()):
-                    gene2vec_tensor = torch.cat((gene2vec_tensor, gene2vec_tensor_ref), dim=0)
+            #if torch.cuda.device_count() > 1:
+            #    for i in range(1, torch.cuda.device_count()):
+            #        gene2vec_tensor = torch.cat((gene2vec_tensor, gene2vec_tensor_ref), dim=0)
             gene2vec_tensor = gene2vec_tensor.to(device)
-            #gene2vec_tensor = self.data_env.gene2vec_tensor.to(device)
 
         preds = []
         model.eval()
         with torch.no_grad():
-            for data_inputs, data_pathways in data_loader:
+            for data_inputs, data_not_tokenized in data_loader:
 
                 data_inputs = data_inputs.to(device)
-                data_pathways = data_pathways.to(device)
+                data_not_tokenized = data_not_tokenized.to(device)
 
-                if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
-                    if return_attention:
-                        _, pred = model(data_inputs, data_pathways, gene2vec_tensor, return_attention, use_classifier=use_classifier)
+                if model_name == "Model3":
+                    if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
+                        preds = model(data_inputs, data_not_tokenized, gene2vec_tensor)
                     else:
-                        pred = model(data_inputs, data_pathways, gene2vec_tensor, return_attention, use_classifier=use_classifier)
-                else:
-                    pred = model(data_inputs, use_classifier=use_classifier)
+                        preds = model(data_inputs, data_not_tokenized)
+                elif model_name == "Model2":
+                    if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
+                        preds = model(data_inputs, gene2vec_tensor)
+                    else:
+                        preds = model(data_inputs)
+                elif model_name == "Model1":
+                    preds = model(data_inputs)
+
+                if use_classifier:
+                    preds_latent = preds.cpu().detach().to(device)
+                    pred = model_classifier(preds_latent)
 
                 pred = pred.cpu().detach().numpy()
 
@@ -1813,17 +1883,19 @@ class train_module():
             preds = np.array(preds)
 
             binary_preds = []
+            pred_prob = []
             # Loop through the predictions
             for pred in preds:
                 # Apply thresholding
-                binary_pred = np.where(pred >= unknown_threshold, 1, 0)
+                binary_pred = np.where(pred == np.max(pred), 1, 0)
 
                 # Check if the max probability is below the threshold
-                if np.max(pred) < unknown_threshold:
+                if (np.max(pred) < unknown_threshold) and detect_unknowns:
                     # If below the threshold, classify as "unknown"
                     binary_pred = np.zeros_like(binary_pred) - 1  # Set all elements to -1 to denote "unknown"
 
                 binary_preds.append(binary_pred)
+                pred_prob.append(pred[binary_pred==1])
 
             # Convert the list of arrays to a numpy array
             binary_preds = np.array(binary_preds)
@@ -1834,12 +1906,15 @@ class train_module():
                 if np.all(row == -1):
                     labels.append("Unknown")
                 else:
-                    temp = onehot_label_encoder.inverse_transform(row) # .reshape(-1, 1)
+                    temp = onehot_label_encoder.inverse_transform(row.reshape(1, -1))
                     labels.append(label_encoder.inverse_transform(temp))
+            #labels = np.array(labels)
+            labels = np.array([np.ravel(label)[0] for label in labels])
 
-            labels = np.array(labels)
+            print("pred_prob: ",pred_prob)
+            ksdhkjsadh
 
-            return labels
+            return labels, pred_prob
 
         else:
             return np.array(preds)
@@ -1888,17 +1963,13 @@ class prep_test_data(data.Dataset):
             self.use_HVG_buckets = True
             self.all_thresholds_values = torch.load(f"{model_path}/ModelMetadata/all_bucketization_threshold_values.pt")
 
-
-            print("self.all_thresholds_values length (should be 1000 if correct): ", len(self.all_thresholds_values))
-            sakhkasdhjas
-
             self.X_not_tokenized = self.X.clone()
             self.X = self.bucketize_expression_levels_per_gene(self.X, self.all_thresholds_values) 
             
             # If value is above max value during tokenization, it will be put in a new bucket the model hasn't seen.
             # To fix this we simply put the value in the previous bucket, which the model has seen.
             # This make it possible to make predictions on new data outside of the training values range.
-            if torch.max(self.X) == len(self.all_thresholds_values):
+            if torch.max(self.X) == (len(self.all_thresholds_values[0])-1):
                 # Mask where the specified value is located
                 mask = self.X == len(self.all_thresholds_values)
 
