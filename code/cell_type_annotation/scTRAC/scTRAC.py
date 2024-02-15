@@ -2,13 +2,13 @@ import os
 import torch
 import torch.nn as nn
 import pathlib
-from functions import train as trainer_fun
-from functions.predict import predict as predict_fun
-from functions.make_cell_type_representations import generate_representation as generate_representation_fun
-from models import Model1 as Model1
-from models import Model2 as Model2
-from models import Model3 as Model3
-from models import ModelClassifier as ModelClassifier
+from .functions import train as trainer_fun
+from .functions import predict as predict_fun
+from .functions import make_cell_type_representations as generate_representation_fun
+from .models import Model1 as Model1
+from .models import Model2 as Model2
+from .models import Model3 as Model3
+from .models import ModelClassifier as ModelClassifier
 
 class scTRAC():
 
@@ -71,7 +71,8 @@ class scTRAC():
                                                  batch_keys=[self.batch_key],
                                                  validation_pct=validation_pct)
             
-            model = Model1.Model1(output_dim=self.latent_dim)
+            model = Model1.Model1(input_dim=self.HVGs,
+                                  output_dim=self.latent_dim)
             
         elif self.model_name == "Model2":
 
@@ -119,7 +120,15 @@ class scTRAC():
                                   HVG_embedding_dim=200,
                                   use_gene2vec_emb=True)
             
+        if train_classifier:
+            model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
+                                                               num_cell_types=len(adata.obs[self.target_key].unique()))
+        else:
+            model_classifier = None
+            
         train_env.train(model=model,
+                        model_name=self.model_name,
+                        model_classifier=model_classifier,
                         device=device,
                         seed=seed,
                         batch_size=batch_size,
@@ -156,7 +165,8 @@ class scTRAC():
         
         if self.model_name == "Model1":
 
-            model = Model1.Model1(output_dim=self.latent_dim)
+            model = Model1.Model1(input_dim=self.HVGs,
+                                  output_dim=self.latent_dim)
 
         elif self.model_name == "Model2":
 
@@ -179,19 +189,22 @@ class scTRAC():
                                   HVG_embedding_dim=200,
                                   use_gene2vec_emb=True)
 
-        model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
-                                                           num_cell_types=len(adata.obs[self.target_key].unique()))
+        if use_classifier:
+            model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
+                                                               num_cell_types=len(adata.obs[self.target_key].unique()))
+        else:
+            model_classifier = None
         
-        pred, pred_prob = predict_fun(data_=adata,
-                                      model_name=self.model_name,
-                                      model_path=self.model_path,
-                                      model=model,
-                                      model_classifier=model_classifier,
-                                      batch_size=batch_size,
-                                      device=device,
-                                      use_classifier=use_classifier,
-                                      detect_unknowns=detect_unknowns,
-                                      unknown_threshold=unknown_threshold)
+        pred, pred_prob = predict_fun.predict(data_=adata,
+                                              model_name=self.model_name,
+                                              model_path=self.model_path,
+                                              model=model,
+                                              model_classifier=model_classifier,
+                                              batch_size=batch_size,
+                                              device=device,
+                                              use_classifier=use_classifier,
+                                              detect_unknowns=detect_unknowns,
+                                              unknown_threshold=unknown_threshold)
         
         if return_pred_probs:
             return pred, pred_prob
@@ -204,13 +217,13 @@ class scTRAC():
                                  batch_size: int=32,
                                  method: str="centroid"):
 
-        representations = generate_representation_fun(data_=adata, 
-                                                    model=self.model, 
-                                                    model_path=self.model_path, 
-                                                    target_key=self.target_key,
-                                                    save_path=save_path, 
-                                                    batch_size=batch_size, 
-                                                    method=method)
+        representations = generate_representation_fun.generate_representation(data_=adata, 
+                                                                              model=self.model, 
+                                                                              model_path=self.model_path, 
+                                                                              target_key=self.target_key,
+                                                                              save_path=save_path, 
+                                                                              batch_size=batch_size, 
+                                                                              method=method)
     
         return representations
     

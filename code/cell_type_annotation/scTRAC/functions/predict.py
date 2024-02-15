@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import numpy as np
-import time as time
 
 
 def predict(data_, 
@@ -86,19 +85,19 @@ def predict(data_,
 
             if model_name == "Model3":
                 if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
-                    preds = model(data_inputs, data_not_tokenized, gene2vec_tensor)
+                    pred = model(data_inputs, data_not_tokenized, gene2vec_tensor)
                 else:
-                    preds = model(data_inputs, data_not_tokenized)
+                    pred = model(data_inputs, data_not_tokenized)
             elif model_name == "Model2":
                 if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
-                    preds = model(data_inputs, gene2vec_tensor)
+                    pred = model(data_inputs, gene2vec_tensor)
                 else:
-                    preds = model(data_inputs)
+                    pred = model(data_inputs)
             elif model_name == "Model1":
-                preds = model(data_inputs)
+                pred = model(data_inputs)
 
             if use_classifier:
-                preds_latent = preds.cpu().detach().to(device)
+                preds_latent = pred.cpu().detach().to(device)
                 pred = model_classifier(preds_latent)
 
             pred = pred.cpu().detach().numpy()

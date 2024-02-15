@@ -77,11 +77,15 @@ class ModelClassifier(nn.Module):
                  num_cell_types: int,
                  classifier_act_layer=nn.ReLU,
                  classifier_norm_layer=nn.BatchNorm1d,
+                 first_layer_dim: int=256,
+                 second_layer_dim: int=256,
                  classifier_drop_out: float=0.2):
         super().__init__()
 
         self.classifier = ClassifierEncoder(input_dim=input_dim,
                                             output_dim=num_cell_types,
+                                            first_layer_dim=first_layer_dim,
+                                            second_layer_dim=second_layer_dim,
                                             act_layer=classifier_act_layer,
                                             norm_layer=classifier_norm_layer,
                                             drop_out=classifier_drop_out)

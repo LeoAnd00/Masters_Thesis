@@ -3,7 +3,7 @@ import numpy as np
 import time as time
 import pandas as pd
 from scipy.spatial.distance import cdist
-from predict import predict as predict
+from .predict import predict as predict
 
 def generate_representation(data_, 
                             model, 

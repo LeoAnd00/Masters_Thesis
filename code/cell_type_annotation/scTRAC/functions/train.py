@@ -1267,7 +1267,9 @@ class train_module():
             train_loss = []
             all_preds_train = []
             all_labels_train = []
-            for batch_idx, data_inputs, data_labels, data_batches, data_not_tokenized in enumerate(train_loader):
+            batch_idx = -1
+            for data_inputs, data_labels, data_batches, data_not_tokenized in train_loader:
+                batch_idx += 1
 
                 data_labels = data_labels.to(device)
                 data_inputs_step = data_inputs.to(device)
@@ -1287,10 +1289,7 @@ class train_module():
                     preds = model(data_inputs_step)
 
                 if use_classifier:
-                    print("preds: ", preds)
                     preds_latent = preds.cpu().detach().to(device)
-                    print("preds_latent: ", preds_latent)
-                    lahkajshh
                     preds = model_classifier(preds_latent)
                 
                 # Whether to use classifier loss or latent space creation loss
@@ -1325,9 +1324,7 @@ class train_module():
                 all_preds = []
                 all_labels = []
                 with torch.no_grad():
-                    counter = 0
                     for data_inputs, data_labels, data_batches, data_not_tokenized in val_loader:
-                        counter += 1
 
                         data_inputs_step = data_inputs.to(device)
                         data_labels_step = data_labels.to(device)
@@ -1378,9 +1375,44 @@ class train_module():
                 # Print epoch information
                 if use_classifier:
 
+                    binary_preds_train = []
+                    # Loop through the predictions
+                    for pred in all_preds_train:
+                        # Apply thresholding
+                        binary_pred = np.argmax(pred)
+
+                        binary_preds_train.append(binary_pred)
+
+                    # Convert the list of arrays to a numpy array
+                    binary_preds_train = np.array(binary_preds_train)
+
+                    binary_labels_train = []
+                    for pred in all_labels_train:
+                        binary_pred = np.argmax(pred)
+
+                        binary_labels_train.append(binary_pred)
+
+                    binary_labels_train = np.array(binary_labels_train)
+
+                    binary_preds_valid = []
+                    for label in all_preds:
+                        binary_pred = np.argmax(label)
+
+                        binary_preds_valid.append(binary_pred)
+
+                    binary_preds_valid = np.array(binary_preds_valid)
+
+                    binary_labels_valid = []
+                    for label in all_labels:
+                        binary_pred = np.argmax(label)
+
+                        binary_labels_valid.append(binary_pred)
+
+                    binary_labels_valid = np.array(binary_labels_valid)
+
                     # Calculate accuracy
-                    accuracy_train = accuracy_score(all_labels_train, all_preds_train)
-                    accuracy = accuracy_score(all_labels, all_preds)
+                    accuracy_train = accuracy_score(binary_labels_train, binary_preds_train)
+                    accuracy = accuracy_score(binary_labels_valid, binary_preds_valid)
 
                     print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
                 else:
@@ -1615,6 +1647,7 @@ class train_module():
 
             # Train
             self.train_model(model=model_step_2, 
+                            model_name=model_name,
                             model_classifier=model_classifier,
                             optimizer=optimizer, 
                             lr_scheduler=lr_scheduler, 
