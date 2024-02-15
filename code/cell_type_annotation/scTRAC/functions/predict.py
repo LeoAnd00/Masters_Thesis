@@ -131,7 +131,7 @@ def predict(data_,
                 binary_pred = np.zeros_like(binary_pred) - 1  # Set all elements to -1 to denote "unknown"
 
             binary_preds.append(binary_pred)
-            pred_prob.append(pred[binary_pred==1])
+            pred_prob.append(float(pred[binary_pred==1]))
 
         # Convert the list of arrays to a numpy array
         binary_preds = np.array(binary_preds)
@@ -146,9 +146,6 @@ def predict(data_,
                 labels.append(label_encoder.inverse_transform(temp))
         #labels = np.array(labels)
         labels = np.array([np.ravel(label)[0] for label in labels])
-
-        print("pred_prob: ",pred_prob)
-        ksdhkjsadh
 
         return labels, pred_prob
 

@@ -192,19 +192,30 @@ class scTRAC():
         if use_classifier:
             model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
                                                                num_cell_types=len(adata.obs[self.target_key].unique()))
+            
+            pred, pred_prob = predict_fun.predict(data_=adata,
+                                                  model_name=self.model_name,
+                                                  model_path=self.model_path,
+                                                  model=model,
+                                                  model_classifier=model_classifier,
+                                                  batch_size=batch_size,
+                                                  device=device,
+                                                  use_classifier=use_classifier,
+                                                  detect_unknowns=detect_unknowns,
+                                                  unknown_threshold=unknown_threshold)
         else:
             model_classifier = None
-        
-        pred, pred_prob = predict_fun.predict(data_=adata,
-                                              model_name=self.model_name,
-                                              model_path=self.model_path,
-                                              model=model,
-                                              model_classifier=model_classifier,
-                                              batch_size=batch_size,
-                                              device=device,
-                                              use_classifier=use_classifier,
-                                              detect_unknowns=detect_unknowns,
-                                              unknown_threshold=unknown_threshold)
+
+            pred = predict_fun.predict(data_=adata,
+                                       model_name=self.model_name,
+                                       model_path=self.model_path,
+                                       model=model,
+                                       model_classifier=model_classifier,
+                                       batch_size=batch_size,
+                                       device=device,
+                                       use_classifier=use_classifier,
+                                       detect_unknowns=detect_unknowns,
+                                       unknown_threshold=unknown_threshold)
         
         if return_pred_probs:
             return pred, pred_prob
