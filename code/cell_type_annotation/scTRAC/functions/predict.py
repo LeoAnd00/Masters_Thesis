@@ -77,6 +77,8 @@ def predict(data_,
 
     preds = []
     model.eval()
+    if use_classifier:
+        model_classifier.eval()
     with torch.no_grad():
         for data_inputs, data_not_tokenized in data_loader:
 
@@ -147,9 +149,12 @@ def predict(data_,
         #labels = np.array(labels)
         labels = np.array([np.ravel(label)[0] for label in labels])
 
+        pred_prob = np.array(pred_prob)
+
         return labels, pred_prob
 
     else:
+        
         return np.array(preds)
 
 class prep_test_data(data.Dataset):

@@ -1259,11 +1259,16 @@ class train_module():
 
         # Training loop
         best_val_loss = np.inf  
+        best_epoch = 0
         train_start = time.time()
         for epoch in tqdm(range(num_epochs)):
 
             # Training
-            model.train()
+            if use_classifier:
+                model.eval()
+                model_classifier.train()
+            else:
+                model.train()
             train_loss = []
             all_preds_train = []
             all_labels_train = []
@@ -1320,6 +1325,8 @@ class train_module():
             # Validation
             if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
                 model.eval()
+                if use_classifier:
+                    model_classifier.eval()
                 val_loss = []
                 all_preds = []
                 all_labels = []
@@ -1426,7 +1433,7 @@ class train_module():
                 # Save model if performance has improved
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
-                    best_preds = all_preds
+                    best_epoch = epoch + 1
 
                     if use_classifier:
                         # Move the model to CPU before saving
@@ -1454,6 +1461,8 @@ class train_module():
 
         print()
         print(f"**Finished training**")
+        print()
+        print(f"Best validation loss (reached after {best_epoch} epochs): {best_val_loss}")
         print()
         train_end = time.time()
         print(f"Training time: {(train_end - train_start)/60:.2f} minutes")
@@ -1642,7 +1651,7 @@ class train_module():
             # Define loss
             loss_module = nn.CrossEntropyLoss() 
             # Define Adam optimer
-            optimizer = optim.Adam([{'params': model_step_2.parameters(), 'lr': init_lr_classifier}], weight_decay=5e-5)
+            optimizer = optim.Adam([{'params': model_classifier.parameters(), 'lr': init_lr}], weight_decay=5e-5)
             lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup_classifier, max_iters=lr_scheduler_maxiters_classifier)
 
             # Train
