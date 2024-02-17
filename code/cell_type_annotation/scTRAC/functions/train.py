@@ -1466,11 +1466,12 @@ class train_module():
         print()
         train_end = time.time()
         print(f"Training time: {(train_end - train_start)/60:.2f} minutes")
+
+        return best_val_loss
     
     def train(self, 
                  model: nn.Module,
                  model_name: str,
-                 model_classifier: nn.Module=None,
                  device: str=None,
                  seed: int=42,
                  batch_size: int=236,
@@ -1485,16 +1486,7 @@ class train_module():
                  eval_freq: int=1,
                  epochs: int=100,
                  earlystopping_threshold: int=10,
-                 accum_grad: int=1,
-                 train_classifier: bool=False,
-                 batch_size_classifier: int=256,
-                 init_lr_classifier: float=0.001,
-                 lr_scheduler_warmup_classifier: int=4,
-                 lr_scheduler_maxiters_classifier: int=100,
-                 eval_freq_classifier: int=5,
-                 epochs_classifier: int=100,
-                 earlystopping_threshold_classifier: int=10,
-                 accum_grad_classifier: int=1):
+                 accum_grad: int=1):
         """
         Perform training of the machine learning model.
 
@@ -1556,8 +1548,6 @@ class train_module():
 
         model_step_1 = copy.deepcopy(model)
 
-        self.batch_size = batch_size
-
         out_path = self.save_model_path
 
         if device is not None:
@@ -1609,7 +1599,7 @@ class train_module():
             model_step_1= nn.DataParallel(model_step_1)
 
         # Train
-        self.train_model(model=model_step_1, 
+        _ = self.train_model(model=model_step_1, 
                         model_name=model_name,
                         optimizer=optimizer, 
                         lr_scheduler=lr_scheduler, 
@@ -1630,48 +1620,85 @@ class train_module():
         print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
         print()
 
-        if train_classifier:
-            print("Start training classifier")
-            print()
+    def train_classifier(self, 
+                        model: nn.Module,
+                        model_name: str,
+                        model_classifier: nn.Module=None,
+                        device: str=None,
+                        seed: int=42,
+                        init_lr: float=0.001,
+                        batch_size: int=256,
+                        lr_scheduler_warmup: int=4,
+                        lr_scheduler_maxiters: int=100,
+                        eval_freq: int=5,
+                        epochs: int=100,
+                        earlystopping_threshold: int=10,
+                        accum_grad: int=1):
 
-            if model_classifier == None:
-                raise ValueError('Need to define model_classifier if train_classifier=True.')
+        print("Start training classifier")
+        print()
 
-            total_train_start = time.time()
+        if model_classifier == None:
+            raise ValueError('Need to define model_classifier if train_classifier=True.')
+        
+        out_path = self.save_model_path
 
-            model_step_2 = copy.deepcopy(model)
-
-            # Load model state
-            model_step_2.load_state_dict(torch.load(f'{out_path}model.pt'))
-
-            # Define data
-            train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size_classifier, shuffle=True, drop_last=True)
-            val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size_classifier, shuffle=True, drop_last=True)
-
-            # Define loss
-            loss_module = nn.CrossEntropyLoss() 
-            # Define Adam optimer
-            optimizer = optim.Adam([{'params': model_classifier.parameters(), 'lr': init_lr}], weight_decay=5e-5)
-            lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup_classifier, max_iters=lr_scheduler_maxiters_classifier)
-
-            # Train
-            self.train_model(model=model_step_2, 
-                            model_name=model_name,
-                            model_classifier=model_classifier,
-                            optimizer=optimizer, 
-                            lr_scheduler=lr_scheduler, 
-                            loss_module=loss_module, 
-                            device=device, 
-                            out_path=out_path,
-                            train_loader=train_loader, 
-                            val_loader=val_loader,
-                            num_epochs=epochs_classifier, 
-                            eval_freq=eval_freq_classifier,
-                            earlystopping_threshold=earlystopping_threshold_classifier,
-                            accum_grad=accum_grad_classifier,
-                            use_classifier=True)
+        if device is not None:
+            device = device
+        else:
+            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        
+        # Ensure reproducibility
+        def rep_seed(seed):
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(seed)
+                torch.cuda.manual_seed_all(seed)
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+            random.seed(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
             
-            del model_step_2, loss_module, optimizer, lr_scheduler
-            
-            total_train_end = time.time()
-            print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
+        rep_seed(seed)
+
+        total_train_start = time.time()
+
+        model_step_2 = copy.deepcopy(model)
+
+        # Load model state
+        model_step_2.load_state_dict(torch.load(f'{out_path}model.pt'))
+
+        # Define data
+        train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+        val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+
+        # Define loss
+        loss_module = nn.CrossEntropyLoss() 
+        # Define Adam optimer
+        optimizer = optim.Adam([{'params': model_classifier.parameters(), 'lr': init_lr}], weight_decay=5e-5)
+        lr_scheduler = CosineWarmupScheduler(optimizer=optimizer, warmup=lr_scheduler_warmup, max_iters=lr_scheduler_maxiters)
+
+        # Train
+        val_loss = self.train_model(model=model_step_2, 
+                        model_name=model_name,
+                        model_classifier=model_classifier,
+                        optimizer=optimizer, 
+                        lr_scheduler=lr_scheduler, 
+                        loss_module=loss_module, 
+                        device=device, 
+                        out_path=out_path,
+                        train_loader=train_loader, 
+                        val_loader=val_loader,
+                        num_epochs=epochs, 
+                        eval_freq=eval_freq,
+                        earlystopping_threshold=earlystopping_threshold,
+                        accum_grad=accum_grad,
+                        use_classifier=True)
+        
+        del model_step_2, loss_module, optimizer, lr_scheduler
+        
+        total_train_end = time.time()
+        print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
+
+        return val_loss
+    

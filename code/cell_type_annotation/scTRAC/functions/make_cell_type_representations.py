@@ -17,6 +17,8 @@ def generate_representation(data_,
     predictions = predict(data_=data_, model=model, model_path=model_path, batch_size=batch_size)
     data_.obsm["predictions"] = predictions
 
+    save_path = f'{model_path}{save_path}'
+
     # Make path if it doesn't exist
     if not os.path.exists(save_path):
         os.makedirs(save_path)
