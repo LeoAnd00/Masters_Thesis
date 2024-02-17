@@ -64,10 +64,10 @@ class scTRAC():
               batch_size_classifier: int = 256,
               init_lr_classifier: float = 0.001,
               lr_scheduler_warmup_classifier: int = 4,
-              lr_scheduler_maxiters_classifier: int = 110,
+              lr_scheduler_maxiters_classifier: int = 50,
               eval_freq_classifier: int = 1,
-              epochs_classifier: int = 100,
-              earlystopping_threshold_classifier: int = 40,
+              epochs_classifier: int = 50,
+              earlystopping_threshold_classifier: int = 10,
               accum_grad_classifier: int = 1):
         
         if self.model_name == "Model1":
