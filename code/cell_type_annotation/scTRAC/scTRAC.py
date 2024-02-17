@@ -46,6 +46,7 @@ class scTRAC():
               adata,
               train_classifier: bool=False,
               optimize_classifier: bool=True,
+              num_trials: int=100,
               device: str=None,
               validation_pct: float=0.2,
               gene_set_gene_limit: int=10,
@@ -194,8 +195,8 @@ class scTRAC():
                     # Parameters to optimize
                     n_neurons_layer1 = trial.suggest_int('n_neurons_layer1', 128, 1024, step=128)
                     n_neurons_layer2 = trial.suggest_int('n_neurons_layer2', 128, 1024, step=128)
-                    learning_rate = trial.suggest_loguniform('learning_rate', 1e-6, 1e-3, step=1e-5)
-                    dropout = trial.suggest_uniform('dropout', 0.0, 0.3, step=0.1)
+                    learning_rate = trial.suggest_loguniform('learning_rate', 1e-6, 1e-3)
+                    dropout = trial.suggest_float('dropout', 0.0, 0.3, step=0.1)
 
                     model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
                                                                        first_layer_dim=n_neurons_layer1,
@@ -215,12 +216,13 @@ class scTRAC():
                                                         eval_freq=eval_freq_classifier,
                                                         epochs=epochs_classifier,
                                                         earlystopping_threshold=earlystopping_threshold_classifier,
-                                                        accum_grad=accum_grad_classifier)
+                                                        accum_grad=accum_grad_classifier,
+                                                        only_print_best=True)
                     return val_loss
                 
                 # Define the study and optimize
                 study = optuna.create_study(direction='minimize')
-                study.optimize(objective, n_trials=100)
+                study.optimize(objective, n_trials=num_trials)
 
                 print('Number of finished trials: ', len(study.trials))
                 print('Best trial:')

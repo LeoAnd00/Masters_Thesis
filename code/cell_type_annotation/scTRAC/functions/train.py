@@ -1231,6 +1231,7 @@ class train_module():
                     eval_freq,
                     earlystopping_threshold,
                     use_classifier,
+                    only_print_best: bool=False,
                     accum_grad: int=1,
                     model_classifier: nn.Module=None):
         """
@@ -1421,9 +1422,11 @@ class train_module():
                     accuracy_train = accuracy_score(binary_labels_train, binary_preds_train)
                     accuracy = accuracy_score(binary_labels_valid, binary_preds_valid)
 
-                    print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
+                    if only_print_best == False:
+                        print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
                 else:
-                    print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
+                    if only_print_best == False:
+                        print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
 
                 # Apply early stopping
                 if early_stopping.early_stop:
@@ -1633,7 +1636,8 @@ class train_module():
                         eval_freq: int=5,
                         epochs: int=100,
                         earlystopping_threshold: int=10,
-                        accum_grad: int=1):
+                        accum_grad: int=1,
+                        only_print_best: bool=False):
 
         print("Start training classifier")
         print()
@@ -1693,7 +1697,8 @@ class train_module():
                         eval_freq=eval_freq,
                         earlystopping_threshold=earlystopping_threshold,
                         accum_grad=accum_grad,
-                        use_classifier=True)
+                        use_classifier=True,
+                        only_print_best=only_print_best)
         
         del model_step_2, loss_module, optimizer, lr_scheduler
         
