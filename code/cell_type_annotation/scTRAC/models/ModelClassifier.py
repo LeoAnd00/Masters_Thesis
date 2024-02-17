@@ -77,8 +77,8 @@ class ModelClassifier(nn.Module):
                  num_cell_types: int,
                  classifier_act_layer=nn.ReLU,
                  classifier_norm_layer=nn.BatchNorm1d,
-                 first_layer_dim: int=256,
-                 second_layer_dim: int=256,
+                 first_layer_dim: int=512,
+                 second_layer_dim: int=512,
                  classifier_drop_out: float=0.2):
         super().__init__()
 

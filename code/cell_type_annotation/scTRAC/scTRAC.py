@@ -1,6 +1,8 @@
 import os
 import torch
 import torch.nn as nn
+import numpy as np
+import random
 import pathlib
 import json
 import optuna
@@ -55,17 +57,17 @@ class scTRAC():
               init_lr: float=0.001,
               epochs: int=100,
               lr_scheduler_warmup: int=4,
-              lr_scheduler_maxiters: int=100,
+              lr_scheduler_maxiters: int=110,
               eval_freq: int=1,
-              earlystopping_threshold: int=10,
+              earlystopping_threshold: int=20,
               accum_grad: int = 1,
               batch_size_classifier: int = 256,
               init_lr_classifier: float = 0.001,
               lr_scheduler_warmup_classifier: int = 4,
-              lr_scheduler_maxiters_classifier: int = 50,
+              lr_scheduler_maxiters_classifier: int = 110,
               eval_freq_classifier: int = 1,
-              epochs_classifier: int = 50,
-              earlystopping_threshold_classifier: int = 10,
+              epochs_classifier: int = 100,
+              earlystopping_threshold_classifier: int = 40,
               accum_grad_classifier: int = 1):
         
         if self.model_name == "Model1":
@@ -78,6 +80,7 @@ class scTRAC():
                                                  batch_keys=[self.batch_key],
                                                  validation_pct=validation_pct)
             
+            self.rep_seed(seed=seed)
             model = Model1.Model1(input_dim=self.HVGs,
                                   output_dim=self.latent_dim)
             
@@ -110,6 +113,7 @@ class scTRAC():
                                                  use_gene2vec_emb=True,
                                                  gene2vec_path=self.gene2vec_path)
             
+            self.rep_seed(seed=seed)
             model = Model2.Model2(num_HVGs=self.HVGs,
                                   output_dim=self.latent_dim,
                                   HVG_tokens=self.num_HVG_buckets,
@@ -146,6 +150,7 @@ class scTRAC():
                                                  use_gene2vec_emb=True,
                                                  gene2vec_path=self.gene2vec_path)
             
+            self.rep_seed(seed=seed)
             model = Model3.Model3(mask=train_env.data_env.pathway_mask,
                                   num_HVGs=self.HVGs,
                                   output_dim=self.latent_dim,
@@ -193,11 +198,13 @@ class scTRAC():
                 def objective(trial):
 
                     # Parameters to optimize
-                    n_neurons_layer1 = trial.suggest_int('n_neurons_layer1', 128, 1024, step=128)
-                    n_neurons_layer2 = trial.suggest_int('n_neurons_layer2', 128, 1024, step=128)
-                    learning_rate = trial.suggest_loguniform('learning_rate', 1e-6, 1e-3)
-                    dropout = trial.suggest_float('dropout', 0.0, 0.3, step=0.1)
+                    n_neurons_layer1 = trial.suggest_int('n_neurons_layer1', 64, 2048, step=64)
+                    n_neurons_layer2 = trial.suggest_int('n_neurons_layer2', 64, 2048, step=64)
+                    learning_rate = trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
+                    #dropout = trial.suggest_float('dropout', 0.0, 0.5, step=0.1)
+                    dropout = 0.2
 
+                    self.rep_seed(seed=seed)
                     model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
                                                                        first_layer_dim=n_neurons_layer1,
                                                                        second_layer_dim=n_neurons_layer2,
@@ -241,7 +248,7 @@ class scTRAC():
                     'num_cell_types': len(adata.obs[self.target_key].unique()),
                     'first_layer_dim': opt_dict['n_neurons_layer1'],
                     'second_layer_dim': opt_dict['n_neurons_layer2'],
-                    'classifier_drop_out': opt_dict['dropout']
+                    'classifier_drop_out': 0.2#opt_dict['dropout']
                 }
 
                 # Define the file path to save the configuration
@@ -251,7 +258,30 @@ class scTRAC():
                 with open(config_file_path, 'w') as f:
                     json.dump(config, f, indent=4)
 
+                self.rep_seed(seed=seed)
+                model_classifier = ModelClassifier.ModelClassifier(input_dim=config["input_dim"],
+                                                               num_cell_types=config["num_cell_types"],
+                                                               first_layer_dim=config["first_layer_dim"],
+                                                               second_layer_dim=config["second_layer_dim"],
+                                                               classifier_drop_out=config["classifier_drop_out"])
+            
+                _ = train_env.train_classifier(model=model,
+                                                    model_name=self.model_name,
+                                                    model_classifier=model_classifier,
+                                                    device=device,
+                                                    seed=seed,
+                                                    init_lr=opt_dict["learning_rate"],
+                                                    batch_size=batch_size_classifier,
+                                                    lr_scheduler_warmup=lr_scheduler_warmup_classifier,
+                                                    lr_scheduler_maxiters=lr_scheduler_maxiters_classifier,
+                                                    eval_freq=eval_freq_classifier,
+                                                    epochs=epochs_classifier,
+                                                    earlystopping_threshold=earlystopping_threshold_classifier,
+                                                    accum_grad=accum_grad_classifier,
+                                                    only_print_best=True)
+
             else:
+                self.rep_seed(seed=seed)
                 model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
                                                                 num_cell_types=len(adata.obs[self.target_key].unique()))
                 
@@ -269,21 +299,21 @@ class scTRAC():
                                             earlystopping_threshold=earlystopping_threshold_classifier,
                                             accum_grad=accum_grad_classifier)
                 
-            # Sample configuration dictionary
-            config = {
-                'input_dim': self.latent_dim,
-                'num_cell_types': len(adata.obs[self.target_key].unique()),
-                'first_layer_dim': 256,
-                'second_layer_dim': 256,
-                'classifier_drop_out': 0.2
-            }
+                # Sample configuration dictionary
+                config = {
+                    'input_dim': self.latent_dim,
+                    'num_cell_types': len(adata.obs[self.target_key].unique()),
+                    'first_layer_dim': 512,
+                    'second_layer_dim': 512,
+                    'classifier_drop_out': 0.2
+                }
 
-            # Define the file path to save the configuration
-            config_file_path = f'{self.model_path}config/model_classifier_config.json'
+                # Define the file path to save the configuration
+                config_file_path = f'{self.model_path}config/model_classifier_config.json'
 
-            # Save the configuration dictionary to a JSON file
-            with open(config_file_path, 'w') as f:
-                json.dump(config, f, indent=4)
+                # Save the configuration dictionary to a JSON file
+                with open(config_file_path, 'w') as f:
+                    json.dump(config, f, indent=4)
                 
 
     def predict(self,
@@ -434,6 +464,16 @@ class scTRAC():
             "c8": [root / "resources/c8_pathways.json"]
         }
         return gene_set_files[gene_set_name][0]
+    
+    def rep_seed(self,seed):
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 
