@@ -1,10 +1,6 @@
 import torch
 import torch.nn as nn
 
-#
-# Model using just a encoder for HVGs
-#
-
 class OutputEncoder(nn.Module):
     def __init__(self, 
                  input_dim: int, 
@@ -48,23 +44,18 @@ class Model1(nn.Module):
     input_dim : int
         The input dimension of the model. (Number of HVGs)
     output_dim : int
-        The output dimension of the model, representing cell type embeddings (default is 100).
+        The output dimension of the model, representing cell type embeddings. Default is 100.
     drop_out : float, optional
-        The dropout ratio used in the output projection layer (default is 0.2).
+        The dropout ratio used in the output projection layer. Default is 0.2.
     act_layer : nn.Module, optional
-        The activation function layer to use (default is nn.ReLU).
+        The activation function layer to use. Default is nn.ReLU.
     norm_layer : nn.Module, optional
-        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
-
-    Attributes
-    ----------
-    output_encoder : OutputEncoder
-        The Output Encoder component for generating cell type embeddings.
+        The normalization layer to use. Default is nn.BatchNorm1d.
 
     Methods
     -------
-    forward(x, pathways)
-        Forward pass of the CellType2Vec model.
+    forward(x)
+        Forward pass of Model1.
     """
 
     def __init__(self, 
@@ -83,7 +74,7 @@ class Model1(nn.Module):
 
     def forward(self, x):
         """
-        Forward pass of the CellType2Vec model.
+        Forward pass of Model1.
 
         Parameters
         ----------
