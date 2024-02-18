@@ -177,7 +177,7 @@ class classifier_train():
                               model_name="Model1")
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=15)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)

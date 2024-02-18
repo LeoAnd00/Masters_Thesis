@@ -26,6 +26,47 @@ class scTRAC():
                  model_name: str="Model3",
                  model_path: str="trained_models/",
                  gene_set_name: str="c5"):
+        """
+        scTRAC is a machine learning model designed to generate a lower dimensional latent space for scRNA-Seq data.\n
+        It can also be used for classifying cell types and identify potentially novel cell types.
+
+        Parameters
+        ----------
+        target_key
+            Specify key in adata.obs that contain target labels. For example "cell type".
+        batch_key
+            Specify key in adata.obs that contain batch effect key one wants to correct for. For example "patientID".
+        latent_dim
+            Dimension of latent space produced by scTRAC. Default is 100.
+        HVGs
+            Number of highly variable genes (HVGs) to select as input to scTRAC. Default is 2000.
+        num_HVG_buckets
+            Number of buckets the expression levels will be divided into. Default is 1000.
+        num_gene_sets
+            Number of gene sets to use. Default is 500.
+        model_name
+            Name of model to use (Options: "Model1", "Model2", "Model3"). Default is "Model3".
+        model_path
+            Path where model will be saved. Default is "trained_models/".
+        gene_set_name
+            Name of gene set file to use (Options: "c2", "c3", "c5", "c7", "c8", "all"). Default is "c5".
+
+        Latent Space Example
+        --------
+        >>> model = scTRAC.scTRAC(target_key="cell_type", batch_key="batch")
+        >>> model.train(adata=adata_train)
+        >>> predictions = model.predict(adata=adata_test)
+
+        Classifier Example
+        --------
+        >>> model = scTRAC.scTRAC(target_key="cell_type", batch_key="batch")
+        >>> model.train(adata=adata_train, train_classifier=True)
+        >>> predictions = model.predict(adata=adata_test, use_classifier=True, detect_unknowns=True)
+
+        Returns
+        -------
+        None
+        """
         
         self.model_name = model_name
         self.model_path = model_path + f"{self.model_name}/"
@@ -69,6 +110,76 @@ class scTRAC():
               epochs_classifier: int = 50,
               earlystopping_threshold_classifier: int = 10,
               accum_grad_classifier: int = 1):
+        """
+        Fit scTRAC to your Anndata.\n
+        Saves model and relevant information to be able to make predictions on new data.
+
+        Parameters
+        ----------
+        adata 
+            An AnnData object containing single-cell RNA-seq data.
+        train_classifier
+            Whether to train scTRAC as a classifier (True) or to produce a latent space (False). Default is False.
+        optimize_classifier
+            Whether to use Optuna to optimize the classifier part of the model, assuming train_classifier is True. Default is True.
+        num_trials
+            Number of trials for optimizing classifier, assuming train_classifier and optimize_classifier are True. Default is 100.
+        device
+            Which device to use, like "cpu" or "cuda". If left as None it will automatically select "cuda" if available, else "cpu".\n
+            Default is None.
+        validation_pct
+            The percentage of data used for validation. Default is 0.2, meaning 20%.
+        gene_set_gene_limit
+            Minimum number of HVGs a gene set must have to be considered. Default is 10.
+        seed
+            Which random seed to use. Default is 42.
+        batch_size
+            Mini-batch size used for training latent space producing part of scTRAC. Default is 236.
+        init_lr
+            Initial learning rate for training latent space producing part of scTRAC. Default is 0.001.
+        epochs
+            Number of epochs for training latent space producing part of scTRAC. Default is 100.
+        lr_scheduler_warmup
+            Number of epochs for the warm up part of the CosineWarmupScheduler for training latent space producing part of scTRAC.\n
+            Default is 4.
+        lr_scheduler_maxiters
+            Number of epochs at which the learning rate would become zero for training latent space producing part of scTRAC.\n
+            Default is 110.
+        eval_freq
+            Number of epochs between calculating loss of validation data for training latent space producing part of scTRAC.\n 
+            Default is 1.
+        earlystopping_threshold
+            Number of validated epochs before terminating training if no improvements to the validation loss is made for training\n 
+            latent space producing part of scTRAC. Default is 20.
+        accum_grad
+            Number of Mini-batches to calculate gradient for before updating weights for training latent space producing part of\n 
+            scTRAC. Default is 1.
+        batch_size_classifier
+            Mini-batch size used for training classifier part of scTRAC. Default is 256.
+        init_lr_classifier
+            Initial learning rate for training classifier part of scTRAC. Default is 0.001.
+        epochs_classifier
+            Number of epochs for training classifier part of scTRAC. Default is 50.
+        lr_scheduler_warmup_classifier
+            Number of epochs for the warm up part of the CosineWarmupScheduler for training classifier part of scTRAC.\n
+            Default is 4.
+        lr_scheduler_maxiters_classifier
+            Number of epochs at which the learning rate would become zero for training classifier part of scTRAC.\n
+            Default is 50.
+        eval_freq_classifier
+            Number of epochs between calculating loss of validation data for training classifier part of scTRAC.\n 
+            Default is 1.
+        earlystopping_threshold_classifier
+            Number of validated epochs before terminating training if no improvements to the validation loss is made for training\n 
+            classifier part of scTRAC. Default is 10.
+        accum_grad_classifier
+            Number of Mini-batches to calculate gradient for before updating weights for training classifier part of\n 
+            scTRAC. Default is 1.
+
+        Returns
+        -------
+        None
+        """
         
         if self.model_name == "Model1":
 
@@ -201,8 +312,7 @@ class scTRAC():
                     n_neurons_layer1 = trial.suggest_int('n_neurons_layer1', 64, 2048, step=64)
                     n_neurons_layer2 = trial.suggest_int('n_neurons_layer2', 64, 2048, step=64)
                     learning_rate = trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
-                    #dropout = trial.suggest_float('dropout', 0.0, 0.5, step=0.1)
-                    dropout = 0.2
+                    dropout = trial.suggest_float('dropout', 0.0, 0.5, step=0.1)
 
                     self.rep_seed(seed=seed)
                     model_classifier = ModelClassifier.ModelClassifier(input_dim=self.latent_dim,
@@ -248,7 +358,7 @@ class scTRAC():
                     'num_cell_types': len(adata.obs[self.target_key].unique()),
                     'first_layer_dim': opt_dict['n_neurons_layer1'],
                     'second_layer_dim': opt_dict['n_neurons_layer2'],
-                    'classifier_drop_out': 0.2#opt_dict['dropout']
+                    'classifier_drop_out': opt_dict['dropout']
                 }
 
                 # Define the file path to save the configuration
@@ -321,9 +431,38 @@ class scTRAC():
                 batch_size: int=32, 
                 device: str=None, 
                 use_classifier: bool=False,
-                detect_unknowns: bool=True,
+                detect_unknowns: bool=False,
                 unknown_threshold: float=0.5,
                 return_pred_probs: bool=False):
+        """
+        Make predictions using scTRAC.\n
+        Make sure you've got a trained model before calling this function.
+
+        Parameters
+        ----------
+        adata 
+            An AnnData object containing single-cell RNA-seq data.
+        batch_size
+            Mini-batch size used for making predictions. Default is 32.
+        device
+            Which device to use, like "cpu" or "cuda". If left as None it will automatically select "cuda" if available, else "cpu".\n
+            Default is None.
+        use_classifier
+            Whether to make cell type prediction using classifier part od scTRAC (True) or predict latent space (False). Default is False.
+        detect_unknowns
+            Whether to consider samples with a confidence below unknown_threshold as unknown/novel. Default is False.
+        unknown_threshold
+            Confidence threshold of which if a sample has a confidence below it, it is considered unknown/novel. Default is 0.5.
+        return_pred_probs
+            Whether to return the probability/confidence of scTRAC cell type predictions. Default is False.
+
+        Returns
+        -------
+        If return_pred_probs == False:
+            return pred
+        If return_pred_probs == True:
+            return pred, pred_prob
+        """
         
         # Define the file path from which to load the configuration
         config_file_path = f'{self.model_path}config/model_config.json'
@@ -407,6 +546,25 @@ class scTRAC():
                                  save_path: str="cell_type_vector_representation/CellTypeRepresentations.csv",
                                  batch_size: int=32,
                                  method: str="centroid"):
+        """
+        Generates cell type representation vectors using the latent space produced by scTRAC.
+
+        Parameters
+        ----------
+        adata 
+            An AnnData object containing single-cell RNA-seq data.
+        save_path
+            Path where a .csv file containing the vector representation of each cell type will be saved.\n
+            Default is "cell_type_vector_representation/CellTypeRepresentations.csv"
+        batch_size
+            Mini-batch size used for making predictions. Default is 32.
+        method
+            Which method to use for making representations (Options: "centroid", "median", "medoid"). Default is "centroid".
+
+        Returns
+        -------
+        representations
+        """
         
         # Define the file path from which to load the configuration
         config_file_path = f'{self.model_path}config/model_config.json'
@@ -451,8 +609,19 @@ class scTRAC():
     
         return representations
     
-    def get_gene_set(self,
-                gene_set_name: str):
+    def get_gene_set(self, gene_set_name: str):
+        """
+        Makes path to specified gene set dataset.
+
+        Parameters
+        ----------
+        gene_set_name
+            Specify whether to use "c2", "c3", "c5", "c7", "c8", or "all" gene set.
+
+        Returns
+        -------
+        gene_set_file_name
+        """
     
         root = pathlib.Path(__file__).parent
         gene_set_files = {
@@ -465,7 +634,19 @@ class scTRAC():
         }
         return gene_set_files[gene_set_name][0]
     
-    def rep_seed(self,seed):
+    def rep_seed(self, seed=42):
+        """
+        Sets the random seed for torch, random and numpy.
+
+        Parameters
+        ----------
+        seed
+            Which random seed to use. Default is 42.
+
+        Returns
+        -------
+        None
+        """
         if torch.cuda.is_available():
             torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
