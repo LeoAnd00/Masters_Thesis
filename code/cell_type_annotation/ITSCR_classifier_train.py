@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import scanpy as sc
-import scib
 import torch.nn as nn
 import torch
 import random
@@ -10,18 +9,10 @@ import tensorflow as tf
 import warnings
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-from IPython.display import display
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
-from sklearn.decomposition import PCA
-from functions import data_preprocessing as dp
-#from functions import train_with_validation as trainer
-from functions import train_with_validationV2 as trainer
 from sklearn.model_selection import StratifiedKFold
-from models import Model1 as Model1
-from models import Model2 as Model2
-from scTRAC import scTRAC as scTRAC
+import scTRAC.scTRAC as scTRAC
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -275,52 +266,19 @@ class classifier_train():
 
         HVGs_num = self.HVGs
 
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        pathways_file_path=None,
-                                        num_pathways=500,
-                                        pathway_gene_limit=10,
-                                        save_model_path=save_path,
-                                        HVG=True,
-                                        HVGs=HVGs_num,
-                                        HVG_buckets=HVG_buckets_,
-                                        use_HVG_buckets=True,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=True,
-                                        gene2vec_path=self.gene2vec_path)
-        #Model
-        model = Model2.Model2(num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
-                            output_dim=100,
-                            HVG_tokens=HVG_buckets_,
-                            HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
-                            use_gene2vec_emb=True,
-                            include_classifier=True,
-                            num_cell_types=len(adata_in_house.obs['cell_type'].unique()))
-                                                                          
-        # Train
+        model = scTRAC.scTRAC(target_key=self.label_key,
+                              latent_dim=100,
+                              batch_key="batch",
+                              model_name="Model2")
+        
         if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=self.seed,
-                                batch_size=236,#256,
-                                use_target_weights=True,
-                                use_batch_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=110,#25,
-                                eval_freq=1,
-                                epochs=100,#20,
-                                earlystopping_threshold=40,#5)
-                                train_classifier=True)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = train_env.predict(data_=adata_in_house_test, model=model, model_path=save_path, return_attention=False, use_classifier=False)
+        predictions = model.predict(adata=adata_in_house_test)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions = train_env.predict(data_=adata_in_house_test, model=model, model_path=save_path, return_attention=False, use_classifier=True)
+        predictions = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
 
         del predictions
@@ -413,54 +371,19 @@ class classifier_train():
 
         HVGs_num = self.HVGs
 
-        train_env = trainer.train_module(data_path=adata_in_house,
-                                        pathways_file_path=self.pathway_path,
-                                        num_pathways=500,
-                                        pathway_gene_limit=10,
-                                        save_model_path=save_path,
-                                        HVG=True,
-                                        HVGs=HVGs_num,
-                                        HVG_buckets=HVG_buckets_,
-                                        use_HVG_buckets=True,
-                                        target_key=self.label_key,
-                                        batch_keys=["batch"],
-                                        use_gene2vec_emb=True,
-                                        gene2vec_path=self.gene2vec_path)
-        #Model
-        model = scTRAC.Model3(mask=train_env.data_env.pathway_mask,
-                                            num_HVGs=min([HVGs_num,int(train_env.data_env.X.shape[1])]),
-                                            output_dim=100,
-                                            num_pathways=500,
-                                            HVG_tokens=HVG_buckets_,
-                                            HVG_embedding_dim=train_env.data_env.gene2vec_tensor.shape[1],
-                                            use_gene2vec_emb=True,
-                                            include_classifier=True,
-                                            num_cell_types=len(adata_in_house.obs['cell_type'].unique()))
-                                                                          
-        # Train
+        model = scTRAC.scTRAC(target_key=self.label_key,
+                              latent_dim=100,
+                              batch_key="batch",
+                              model_name="Model3")
+        
         if train:
-            _ = train_env.train(model=model,
-                                device=None,
-                                seed=self.seed,
-                                batch_size=236,#256,
-                                use_target_weights=True,
-                                use_batch_weights=True,
-                                init_temperature=0.25,
-                                min_temperature=0.1,
-                                max_temperature=2.0,
-                                init_lr=0.001,
-                                lr_scheduler_warmup=4,
-                                lr_scheduler_maxiters=110,#25,
-                                eval_freq=1,
-                                epochs=100,#20,
-                                earlystopping_threshold=40,#5)
-                                train_classifier=True)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = train_env.predict(data_=adata_in_house_test, model=model, model_path=save_path, return_attention=False, use_classifier=False)
+        predictions = model.predict(adata=adata_in_house_test)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions = train_env.predict(data_=adata_in_house_test, model=model, model_path=save_path, return_attention=False, use_classifier=True)
+        predictions = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
 
         del predictions
