@@ -1,10 +1,5 @@
 import torch
 import torch.nn as nn
-
-#
-# Model for classifying cell types
-#
-
     
 class ClassifierEncoder(nn.Module):
     def __init__(self, 
@@ -50,26 +45,25 @@ class ModelClassifier(nn.Module):
 
     Parameters
     ----------
-    input_dim : int
+    input_dim 
         The input dimension of the model. (Number of HVGs)
-    output_dim : int
-        The output dimension of the model, representing cell type embeddings (default is 100).
-    drop_out : float, optional
-        The dropout ratio used in the output projection layer (default is 0.2).
-    act_layer : nn.Module, optional
-        The activation function layer to use (default is nn.ReLU).
-    norm_layer : nn.Module, optional
-        The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.BatchNorm1d).
-
-    Attributes
-    ----------
-    output_encoder : OutputEncoder
-        The Output Encoder component for generating cell type embeddings.
+    num_cell_types 
+        The output dimension of the model, representing the number of cell types.
+    classifier_act_layer 
+        The activation function layer to use. Default is nn.ReLU.
+    classifier_norm_layer 
+        The normalization layer to use. Default is nn.BatchNorm1d.
+    first_layer_dim
+        Number of neurons in the first layer. Default is 512.
+    second_layer_dim
+        Number of neurons in the second layer. Default is 512.
+    classifier_drop_out 
+        The dropout ratio. Default is 0.2.
 
     Methods
     -------
-    forward(x, pathways)
-        Forward pass of the CellType2Vec model.
+    forward(x)
+        Forward pass of the classifier.
     """
 
     def __init__(self, 
@@ -92,7 +86,7 @@ class ModelClassifier(nn.Module):
 
     def forward(self, x):
         """
-        Forward pass of the CellType2Vec model.
+        Forward pass of the model.
 
         Parameters
         ----------
