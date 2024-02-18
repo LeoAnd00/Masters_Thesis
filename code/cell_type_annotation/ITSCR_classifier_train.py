@@ -83,6 +83,12 @@ class classifier_train():
         self.seed = seed
         self.HVGs = HVGs
 
+        self.metrics = None
+        self.metrics_Model1 = None
+        self.metrics_Model2 = None
+        self.metrics_Model3 = None
+        self.metrics_TOSICA = None
+
         # Ensure reproducibility
         def rep_seed(seed):
             # Check if a GPU is available
@@ -129,10 +135,93 @@ class classifier_train():
         self.original_adata = self.adata.copy()
         self.original_test_adata = self.test_adata.copy()
 
+        if HVG:
+            sc.pp.highly_variable_genes(self.adata, n_top_genes=HVGs, flavor="cell_ranger")
+            self.test_adata = self.test_adata[:, self.adata.var["highly_variable"]].copy()
+            self.adata = self.adata[:, self.adata.var["highly_variable"]].copy()
+
         # Settings for visualizations
         sc.settings.set_figure_params(dpi_save=600,  frameon=False, transparent=True, fontsize=12)
         self.celltype_title = 'Cell type'
         self.batcheffect_title = 'Batch effect'
+
+    def tosica(self):
+        """
+        Evaluate and visualization on performance of TOSICA (https://github.com/JackieHanLab/TOSICA/tree/main) on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+        #import TOSICA
+        import TOSICA.TOSICA as TOSICA
+        #from TOSICA.TOSICA import TOSICA as TOSICA
+
+        adata_tosica = self.adata.copy()
+        TOSICA.train(adata_tosica, gmt_path='human_gobp', label_name=self.label_key,project='hGOBP_TOSICA')
+
+        model_weight_path = './hGOBP_TOSICA/model-9.pth'
+        adata_tosica = self.test_adata.copy()
+        new_adata = TOSICA.pre(adata_tosica, model_weight_path = model_weight_path,project='hGOBP_TOSICA')
+
+        adata_tosica.obs[f"{self.label_key}_prediction"] = new_adata.obs['Prediction'].copy()
+
+        del new_adata
+
+        # Extract the unique labels
+        unique_labels1 = np.unique(adata_tosica.obs[self.label_key])
+        unique_labels2 = np.unique(adata_tosica.obs[f"{self.label_key}_prediction"])
+        unique_labels = np.unique(np.concatenate([unique_labels1,unique_labels2]))
+        np.random.shuffle(unique_labels)
+
+        # Get the Tab20 color map with the number of colors you need
+        tab20_colors = cm.get_cmap('gist_ncar', (len(unique_labels)+2))
+
+        # Define your color palette
+        your_color_palette = [tab20_colors(i) for i in range(len(unique_labels))]
+
+        # Define your own colormap dictionary
+        color_dict = dict(zip(unique_labels, your_color_palette))
+
+        # Create a colormap object using LinearSegmentedColormap
+        custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", your_color_palette)
+
+        # Convert string labels to numerical labels
+        label_encoder_temp = LabelEncoder()
+        label_encoder_temp.fit(unique_labels)
+        y_true = label_encoder_temp.transform(adata_tosica.obs[self.label_key])
+        y_pred = label_encoder_temp.transform(adata_tosica.obs[f"{self.label_key}_prediction"])
+
+        # Calculate accuracy
+        accuracy = accuracy_score(y_true, y_pred)
+        print("Accuracy:", accuracy)
+
+        # Calculate balanced accuracy
+        balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+        print("Balanced Accuracy:", balanced_accuracy)
+
+        # Calculate F1 score
+        f1 = f1_score(y_true, y_pred, average='weighted')
+        print("F1 Score:", f1)
+
+        # Creating a metrics dataFrame
+        self.metrics_TOSICA = pd.DataFrame({
+                                            'Accuracy': [accuracy],
+                                            'Balanced Accuracy': [balanced_accuracy],
+                                            'F1 Score': [f1]
+                                           })
+        
+        del adata_tosica
 
     def Model1_classifier(self, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
@@ -219,6 +308,13 @@ class classifier_train():
         # Calculate F1 score
         f1 = f1_score(y_true, y_pred, average='weighted')
         print("F1 Score:", f1)
+
+        # Creating a metrics dataFrame
+        self.metrics_Model1 = pd.DataFrame({
+                                            'Accuracy': [accuracy],
+                                            'Balanced Accuracy': [balanced_accuracy],
+                                            'F1 Score': [f1]
+                                           })
 
         if umap_plot:
             sc.tl.umap(adata_in_house_test)
@@ -324,6 +420,12 @@ class classifier_train():
         f1 = f1_score(y_true, y_pred, average='weighted')
         print("F1 Score:", f1)
 
+        # Creating a metrics dataFrame
+        self.metrics_Model2 = pd.DataFrame({
+                                            'Accuracy': [accuracy],
+                                            'Balanced Accuracy': [balanced_accuracy],
+                                            'F1 Score': [f1]
+                                           })
 
         if umap_plot:
             sc.tl.umap(adata_in_house_test)
@@ -429,6 +531,12 @@ class classifier_train():
         f1 = f1_score(y_true, y_pred, average='weighted')
         print("F1 Score:", f1)
 
+        # Creating a metrics dataFrame
+        self.metrics_Model3 = pd.DataFrame({
+                                            'Accuracy': [accuracy],
+                                            'Balanced Accuracy': [balanced_accuracy],
+                                            'F1 Score': [f1]
+                                           })
 
         if umap_plot:
             sc.tl.umap(adata_in_house_test)
@@ -442,6 +550,54 @@ class classifier_train():
             sc.pl.umap(adata_in_house_test, palette=color_dict, color=f"{self.label_key}_prediction", ncols=1, title=f"Predicted cell types", show=False, save=f"{self.image_path}Model3_predicted_cell_type.svg")
         
         del adata_in_house_test
+
+    def make_benchamrk_results_dataframe(self, min_max_normalize: bool=False):
+        """
+        Generates a dataframe named 'metrics' containing the performance metrics of different methods.
+
+        Parameters
+        ----------
+        min_max_normalize : bool, optional
+            If True, performs min-max normalization on the metrics dataframe (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method consolidates performance metrics from various methods into a single dataframe.
+        If min_max_normalize is True, the metrics dataframe is normalized between 0 and 1.
+        """
+
+        calculated_metrics = []
+        calculated_metrics_names = []
+        if self.metrics_Model1 is not None:
+            calculated_metrics.append(self.metrics_Model1)
+            calculated_metrics_names.append("Model1")
+        if self.metrics_Model2 is not None:
+            calculated_metrics.append(self.metrics_Model2)
+            calculated_metrics_names.append("Model2")
+        if self.metrics_Model3 is not None:
+            calculated_metrics.append(self.metrics_Model3)
+            calculated_metrics_names.append("Model3")
+        if self.metrics_TOSICA is not None:
+            calculated_metrics.append(self.metrics_TOSICA)
+            calculated_metrics_names.append("TOSICA")
+
+        if len(calculated_metrics_names) != 0:
+            metrics = pd.concat(calculated_metrics, axis="columns")
+
+            metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
+
+            #metrics = metrics.T
+
+            if self.metrics is None:
+                self.metrics = metrics#.sort_values(by='Overall', ascending=False)
+            else:
+                self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
+
+        self.metrics = self.metrics.sort_values(by='Accuracy', ascending=False)
 
     def save_results_as_csv(self, name: str='benchmarks/results/Benchmark_results'):
         """
