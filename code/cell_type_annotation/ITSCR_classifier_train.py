@@ -223,7 +223,7 @@ class classifier_train():
         
         del adata_tosica
 
-    def Model1_classifier(self, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def Model1_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
 
@@ -254,7 +254,8 @@ class classifier_train():
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
                               batch_key="batch",
-                              model_name="Model1")
+                              model_name="Model1",
+                              model_path=save_path)
         
         if train:
             model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
@@ -329,7 +330,7 @@ class classifier_train():
             
         del adata_in_house_test
 
-    def Model2_classifier(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def Model2_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
 
@@ -365,7 +366,8 @@ class classifier_train():
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
                               batch_key="batch",
-                              model_name="Model2")
+                              model_name="Model2",
+                              model_path=save_path)
         
         if train:
             model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
@@ -440,7 +442,7 @@ class classifier_train():
         
         del adata_in_house_test
 
-    def Model3_classifier(self, save_path: str, umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def Model3_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
 
@@ -476,7 +478,8 @@ class classifier_train():
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
                               batch_key="batch",
-                              model_name="Model3")
+                              model_name="Model3",
+                              model_path=save_path)
         
         if train:
             model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
