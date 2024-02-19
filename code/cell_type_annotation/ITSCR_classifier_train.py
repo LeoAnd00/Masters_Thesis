@@ -41,7 +41,7 @@ class classifier_train():
     HVG : bool, optional 
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
-        The number of highly variable genes to select if HVG is enabled (default is 4000).
+        The number of highly variable genes to select if HVG is enabled (default is 2000).
     num_patients_for_training : int, optional
         The number of patients/samples to use for training.
     num_patients_for_testing : int, optional
@@ -64,11 +64,10 @@ class classifier_train():
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
                  HVG: bool=True, 
-                 HVGs: int=4000, 
+                 HVGs: int=2000, 
                  num_folds: int=5,
                  fold: int=1,
-                 seed: int=42,
-                 select_patients_seed: int=42):
+                 seed: int=42):
         
         adata = sc.read(data_path, cache=True)
 
@@ -116,10 +115,10 @@ class classifier_train():
             # Disable CuDNN's benchmarking mode for deterministic behavior
             torch.backends.cudnn.benchmark = False
 
-        rep_seed(select_patients_seed)
+        rep_seed(self.seed)
 
         # Initialize Stratified K-Fold
-        stratified_kfold = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=select_patients_seed)
+        stratified_kfold = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=42)
 
         # Iterate through the folds
         self.adata = self.adata.copy()
@@ -258,7 +257,12 @@ class classifier_train():
                               model_path=save_path)
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
+            model.train(adata=adata_in_house, 
+                        train_classifier=True, 
+                        optimize_classifier=True, 
+                        seed=self.seed,
+                        num_trials=100, 
+                        only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
@@ -370,7 +374,12 @@ class classifier_train():
                               model_path=save_path)
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
+            model.train(adata=adata_in_house, 
+                        train_classifier=True, 
+                        optimize_classifier=True,  
+                        seed=self.seed,
+                        num_trials=100, 
+                        only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
@@ -482,7 +491,12 @@ class classifier_train():
                               model_path=save_path)
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
+            model.train(adata=adata_in_house, 
+                        train_classifier=True, 
+                        optimize_classifier=True,  
+                        seed=self.seed,
+                        num_trials=100, 
+                        only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
