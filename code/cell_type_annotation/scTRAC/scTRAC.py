@@ -91,6 +91,7 @@ class scTRAC():
               optimize_classifier: bool=True,
               only_print_best: bool=False,
               num_trials: int=100,
+              use_already_trained_latent_space_generator: bool=False,
               device: str=None,
               validation_pct: float=0.2,
               gene_set_gene_limit: int=10,
@@ -128,6 +129,9 @@ class scTRAC():
             Default is False.
         num_trials
             Number of trials for optimizing classifier, assuming train_classifier and optimize_classifier are True. Default is 100.
+        use_already_trained_latent_space_generator
+            If you've already trained scTRAC on making a latent space you can use this model when training the classifier (True),\n 
+            or if you haven't trained it you can train it as a first step of training the classifier (False). Default is False.
         device
             Which device to use, like "cpu" or "cuda". If left as None it will automatically select "cuda" if available, else "cpu".\n
             Default is None.
@@ -288,24 +292,25 @@ class scTRAC():
             # Save the configuration dictionary to a JSON file
             with open(config_file_path, 'w') as f:
                 json.dump(config, f, indent=4)
-            
-        train_env.train(model=model,
-                        model_name=self.model_name,
-                        device=device,
-                        seed=seed,
-                        batch_size=batch_size,
-                        use_target_weights=True,
-                        use_batch_weights=True,
-                        init_temperature=0.25,
-                        min_temperature=0.1,
-                        max_temperature=2.0,
-                        init_lr=init_lr,
-                        lr_scheduler_warmup=lr_scheduler_warmup,
-                        lr_scheduler_maxiters=lr_scheduler_maxiters,
-                        eval_freq=eval_freq,
-                        epochs=epochs,
-                        earlystopping_threshold=earlystopping_threshold,
-                        accum_grad=accum_grad)
+
+        if use_already_trained_latent_space_generator == False: 
+            train_env.train(model=model,
+                            model_name=self.model_name,
+                            device=device,
+                            seed=seed,
+                            batch_size=batch_size,
+                            use_target_weights=True,
+                            use_batch_weights=True,
+                            init_temperature=0.25,
+                            min_temperature=0.1,
+                            max_temperature=2.0,
+                            init_lr=init_lr,
+                            lr_scheduler_warmup=lr_scheduler_warmup,
+                            lr_scheduler_maxiters=lr_scheduler_maxiters,
+                            eval_freq=eval_freq,
+                            epochs=epochs,
+                            earlystopping_threshold=earlystopping_threshold,
+                            accum_grad=accum_grad)
                         
         
         if train_classifier:
