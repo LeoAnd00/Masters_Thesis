@@ -257,7 +257,7 @@ class classifier_train():
                               model_name="Model1")
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
@@ -368,7 +368,7 @@ class classifier_train():
                               model_name="Model2")
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
@@ -479,7 +479,7 @@ class classifier_train():
                               model_name="Model3")
         
         if train:
-            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100)
+            model.train(adata=adata_in_house, train_classifier=True, optimize_classifier=True, num_trials=100, only_print_best=True)
         
         adata_in_house_test = self.original_test_adata.copy()
         predictions = model.predict(adata=adata_in_house_test)
@@ -589,8 +589,6 @@ class classifier_train():
             metrics = pd.concat(calculated_metrics, axis="columns")
 
             metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
-
-            #metrics = metrics.T
 
             if self.metrics is None:
                 self.metrics = metrics#.sort_values(by='Overall', ascending=False)

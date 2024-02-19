@@ -11,7 +11,10 @@ Contains information on which human genes are realted in different pathways in h
 Pathway information can be downloaded from [GSEA](https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp).
 
 ## Structur
-- **c2.cp.reactome.v2023.1.Hs.symbols.gmt:** Canonical Pathways gene sets derived from the PID pathway database.
-- **c3.all.v2023.1.Hs.symbols.gmt:** Gene sets representing potential targets of regulation by transcription factors or microRNAs.
-- **c5.go.bp.v2023.1.Hs.symbols.gmt:** Gene sets derived from the GO Biological Process ontology.
-- **c7.all.v2023.1.Hs.symbols.gmt:** Gene sets that represent cell states and perturbations within the immune system.
+All gene set files below have been filtered so that only gene sets with less than 300 genes are kept.
+- **c2_pathways.json:** Canonical Pathways gene sets derived from the PID pathway database.
+- **c3_pathways.json:** Gene sets representing potential targets of regulation by transcription factors or microRNAs.
+- **c5_pathways.json:** Gene sets derived from the GO Biological Process ontology.
+- **c7_pathways.json:** Gene sets that represent cell states and perturbations within the immune system.
+- **c8_pathways.json:** Gene sets that contain curated cluster markers for cell types identified in single-cell sequencing studies of human tissue.
+- **all_pathways.json:** All gene sets above in one file.

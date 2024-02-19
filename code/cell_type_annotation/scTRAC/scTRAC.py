@@ -89,6 +89,7 @@ class scTRAC():
               adata,
               train_classifier: bool=False,
               optimize_classifier: bool=True,
+              only_print_best: bool=False,
               num_trials: int=100,
               device: str=None,
               validation_pct: float=0.2,
@@ -122,6 +123,9 @@ class scTRAC():
             Whether to train scTRAC as a classifier (True) or to produce a latent space (False). Default is False.
         optimize_classifier
             Whether to use Optuna to optimize the classifier part of the model, assuming train_classifier is True. Default is True.
+        only_print_best
+            Whether to only print the results of the best epoch of each trial (True) or print performance at each epoch (False).
+            Default is False.
         num_trials
             Number of trials for optimizing classifier, assuming train_classifier and optimize_classifier are True. Default is 100.
         device
@@ -334,7 +338,7 @@ class scTRAC():
                                                         epochs=epochs_classifier,
                                                         earlystopping_threshold=earlystopping_threshold_classifier,
                                                         accum_grad=accum_grad_classifier,
-                                                        only_print_best=True)
+                                                        only_print_best=only_print_best)
                     return val_loss
                 
                 # Define the study and optimize
