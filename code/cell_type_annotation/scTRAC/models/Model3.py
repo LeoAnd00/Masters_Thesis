@@ -51,7 +51,6 @@ class MultiheadAttention(nn.Module):
 
     def forward(self, x, return_attention=False):
         batch_size, seq_length, _ = x.size()
-        #batch_size, seq_length = x.size() # Use when having a vector input instead of matrix
         qkv = self.qkv_proj(x)#.to_sparse()
 
         # Separate Q, K, V from linear output
@@ -106,16 +105,16 @@ def get_weight(att_mat):
     """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     att_mat = torch.stack(att_mat).squeeze(1)
-    #print(att_mat.size())
+    
     # Average the attention weights across all heads.
     att_mat = torch.mean(att_mat, dim=2)
-    #print(att_mat.size())
+    
     # To account for residual connections, we add an identity matrix to the
     # attention matrix and re-normalize the weights.
     residual_att = torch.eye(att_mat.size(3))
     aug_att_mat = att_mat.to(device) + residual_att.to(device)
     aug_att_mat = aug_att_mat / aug_att_mat.sum(dim=-1).unsqueeze(-1)
-    #print(aug_att_mat.size())
+    
     # Recursively multiply the weight matrices
     joint_attentions = torch.zeros(aug_att_mat.size()).to(device)
     joint_attentions[0] = aug_att_mat[0]
@@ -123,12 +122,10 @@ def get_weight(att_mat):
     for n in range(1, aug_att_mat.size(0)):
         joint_attentions[n] = torch.matmul(aug_att_mat[n], joint_attentions[n-1])
 
-    #print(joint_attentions.size())
     # Attention from the output token to the input space.
     v = joint_attentions[-1]
-    #print(v.size())
     v = v[:,0,1:]
-    #print(v.size())
+    
     return v
     
 class AttentionBlock(nn.Module):
@@ -217,14 +214,6 @@ class AttentionBlock(nn.Module):
                                           out_features=attn_input_dim, 
                                           act_layer=act_layer, 
                                           drop=mlp_drop)
-        
-        self.linear_out = nn.Linear(output_dim,int(output_dim/4))
-        self.act_layer_out=nn.ReLU()
-        self.linear_out2 = nn.Linear(int(output_dim/4),1)
-
-        self.linear_out_attn = nn.Linear(output_dim,int(output_dim/4))
-        self.act_layer_out_attn=nn.ReLU()
-        self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
     def forward(self, x, return_attention=False):
         """
@@ -255,92 +244,6 @@ class AttentionBlock(nn.Module):
             return x, attn_matrix
         else:
             return x
-
-
-class MultiheadAttention_pathways(nn.Module):
-    """
-    Modified from: https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html 
-    """
-
-    def __init__(self, 
-                 input_dim: int, 
-                 embed_dim: int, 
-                 num_heads: int, 
-                 output_dim: int, 
-                 attn_bias: bool=True):
-        super().__init__()
-        assert embed_dim % num_heads == 0, "Embedding dimension must be 0 modulo number of heads."
-
-        self.attn_bias = attn_bias
-
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-
-        self.qkv_proj = nn.Linear(input_dim, 3*embed_dim, bias=attn_bias)
-        self.o_proj = nn.Linear(embed_dim, output_dim)
-
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        # Original Transformer initialization, see PyTorch documentation
-        #nn.init.xavier_uniform_(self.qkv_proj.weight)
-        nn.init.xavier_uniform_(self.o_proj.weight)
-        if self.attn_bias:
-            #self.qkv_proj.bias.data.fill_(0)
-            self.o_proj.bias.data.fill_(0)
-
-    def forward(self, x, return_attention=False):
-        batch_size, seq_length, _ = x.size()
-        qkv = self.qkv_proj(x)#.to_sparse()
-
-        # Separate Q, K, V from linear output
-        qkv = qkv.reshape(batch_size, seq_length, self.num_heads, 3*self.head_dim)
-        qkv = qkv.permute(0, 2, 1, 3) # [Batch, Head, SeqLen, Dims]
-        q, k, v = qkv.chunk(3, dim=-1)
-
-        # Determine value outputs
-        values, attention_matrix = scaled_dot_product(q, k, v)
-        values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
-        values = values.reshape(batch_size, seq_length, self.embed_dim)
-
-        attn_output = self.o_proj(values).squeeze()
-
-        if return_attention:
-            return attn_output, attention_matrix
-        else:
-            return attn_output
-        
-class AttentionMlp_pathways(nn.Module):
-    def __init__(self, 
-                 in_features: int, 
-                 hidden_features: int, 
-                 out_features: int, 
-                 drop: float=0., 
-                 act_layer=nn.ReLU):
-        super().__init__()
-        self.mlp_linear1 = nn.Linear(in_features, hidden_features)
-        self.mlp_act = act_layer()
-        self.mlp_linear2 = nn.Linear(hidden_features, out_features)
-        self.mlp_drop = nn.Dropout(drop)
-
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        nn.init.xavier_uniform_(self.mlp_linear1.weight)
-        self.mlp_linear1.bias.data.fill_(0)
-        nn.init.xavier_uniform_(self.mlp_linear2.weight)
-        self.mlp_linear2.bias.data.fill_(0)
-
-    def forward(self, x):
-        x = self.mlp_linear1(x)
-        x = self.mlp_act(x)
-        x = self.mlp_drop(x)
-        x = self.mlp_linear2(x)
-        x = self.mlp_drop(x)
-        return x
-    
-
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
@@ -583,14 +486,14 @@ class AttentionBlock_pathways(nn.Module):
 
         self.drop_path = DropPath(mlp_drop) if mlp_drop > 0. else nn.Identity()
 
-        self.attnblock_attn = MultiheadAttention_pathways(attn_input_dim, 
+        self.attnblock_attn = MultiheadAttention(attn_input_dim, 
                                                  attn_embed_dim, 
                                                  num_heads, 
                                                  output_dim, 
                                                  attn_bias)
         
         mlp_hidden_dim = int(attn_input_dim * mlp_ratio)
-        self.attnblock_mlp = AttentionMlp_pathways(in_features=attn_input_dim, 
+        self.attnblock_mlp = AttentionMlp(in_features=attn_input_dim, 
                                           hidden_features=mlp_hidden_dim, 
                                           out_features=attn_input_dim, 
                                           act_layer=act_layer, 
@@ -817,7 +720,7 @@ class HVGTransformer(nn.Module):
                                 norm_layer=norm_layer, 
                                 act_layer=act_layer) for idx in range(int(depth))])
 
-    def forward(self, x, gene2vec_emb, return_attention=False):
+    def forward(self, x, return_attention=False):
         """
         Forward pass of the transformer model.
 
@@ -825,15 +728,13 @@ class HVGTransformer(nn.Module):
         ----------
         x : torch.Tensor
             Tokenized expression levels.
-        gene2vec_emb : torch.Tensor
-            Gene2vec representations of all HVGs.
         return_attention : bool, optional
             Whether to return label token attention (defualt is False).
 
         Returns
         -------
         torch.Tensor
-            Output tensor after processing through the Pathway Transformer model.
+            Output tensor after processing through the Transformer model.
         """
         attn_matrix = []
         for idx, layer in enumerate(self.blocks):
@@ -872,7 +773,7 @@ class OutputEncoder(nn.Module):
         self.norm_layer2 = norm_layer(int(input_dim/4))
         self.dropout2 = nn.Dropout(drop_out)
         self.linear2_act = act_layer()
-        self.output = nn.Linear(int(input_dim/4), int(output_dim))#, int(output_dim/2))
+        self.output = nn.Linear(int(input_dim/4), int(output_dim))
         self.dropout3 = nn.Dropout(drop_out)
 
         self.pathways_norm_layer_in = norm_layer(int(num_pathways))
@@ -883,7 +784,7 @@ class OutputEncoder(nn.Module):
         self.pathways_norm_layer2 = norm_layer(int(num_pathways/4))
         self.pathways_dropout2 = nn.Dropout(drop_out)
         self.pathways_linear2_act = act_layer()
-        self.pathways_output = nn.Linear(int(num_pathways/4), int(output_dim))#, int(output_dim/2))
+        self.pathways_output = nn.Linear(int(num_pathways/4), int(output_dim))
         self.pathways_dropout3 = nn.Dropout(drop_out)
 
         self.final_output = nn.Linear(int(2*output_dim), int(output_dim))
@@ -919,7 +820,7 @@ class OutputEncoder(nn.Module):
 
 class Model3(nn.Module):
     """
-    A PyTorch module for a Model3.
+    A PyTorch module for Model3.
 
     Parameters
     ----------
@@ -982,7 +883,7 @@ class Model3(nn.Module):
     Methods
     -------
     forward(x, x_not_tokenized, gene2vec_emb, return_attention, return_pathway_attention)
-        Forward pass of the CellType2Vec model.
+        Forward pass of Model3.
     """
 
     def __init__(self, 
@@ -1067,9 +968,7 @@ class Model3(nn.Module):
         return_attention : bool, optional
             Whether to return label token attention from HVG transformer encoder (defualt is False).
         return_pathway_attention : bool, optional
-            Whether to return label token attention from pathway transformer encoder (defualt is False).
-        use_classifier : bool, optional
-            Whether to use the model as a classifier.
+            Whether to return label token attention from gene set transformer encoder (defualt is False).
 
         Returns
         -------
@@ -1085,9 +984,9 @@ class Model3(nn.Module):
         x = torch.cat((label_token, x), dim=1) 
 
         if return_attention:
-            x, attn_matrix = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            x, attn_matrix = self.hvg_transformer(x, return_attention)
         else:
-            x = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            x = self.hvg_transformer(x, return_attention)
 
         
         if return_pathway_attention:
