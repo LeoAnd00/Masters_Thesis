@@ -359,7 +359,7 @@ class HVGTransformer(nn.Module):
                                 act_layer=act_layer,
                                 last=False) for idx in range(int(depth))])
 
-    def forward(self, x, gene2vec_emb, return_attention=False):
+    def forward(self, x, return_attention=False):
         """
         Forward pass of the transformer model.
 
@@ -367,15 +367,13 @@ class HVGTransformer(nn.Module):
         ----------
         x : torch.Tensor
             Tokenized expression levels.
-        gene2vec_emb : torch.Tensor
-            Gene2vec representations of all HVGs.
         return_attention : bool, optional
             Whether to return label token attention (defualt is False).
 
         Returns
         -------
         torch.Tensor
-            Output tensor after processing through the Pathway Transformer model.
+            Output tensor after processing through the Transformer model.
         """
         attn_matrix = []
         for idx, layer in enumerate(self.blocks):
@@ -487,13 +485,11 @@ class Model2(nn.Module):
         The Output Encoder component for generating cell type embeddings.
     hvg_transformer : HVGTransformer
         Transformer for processing High-Variance Genes (HVGs) expressions.
-    pathway_transformer : PathwayTransformer
-        Transformer for processing pathway data.
 
     Methods
     -------
-    forward(x, x_not_tokenized, gene2vec_emb, return_attention, return_pathway_attention)
-        Forward pass of the CellType2Vec model.
+    forward(x, gene2vec_emb, return_attention)
+        Forward pass of Model2.
     """
 
     def __init__(self, 
@@ -542,7 +538,7 @@ class Model2(nn.Module):
 
     def forward(self, x, gene2vec_emb, return_attention=False):
         """
-        Forward pass of the CellType2Vec model.
+        Forward pass of Model2.
 
         Parameters
         ----------
@@ -554,8 +550,6 @@ class Model2(nn.Module):
             Whether to return label token attention from HVG transformer encoder (defualt is False).
         return_pathway_attention : bool, optional
             Whether to return label token attention from pathway transformer encoder (defualt is False).
-        use_classifier : bool, optional
-            Whether to use the model as a classifier.
 
         Returns
         -------
@@ -571,9 +565,9 @@ class Model2(nn.Module):
         x = torch.cat((label_token, x), dim=1) 
 
         if return_attention:
-            x, attn_matrix = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            x, attn_matrix = self.hvg_transformer(x, return_attention)
         else:
-            x = self.hvg_transformer(x, gene2vec_emb, return_attention)
+            x = self.hvg_transformer(x, return_attention)
 
         # If the batch size is 1, this is needed to fix dimension issue
         if x.dim() == 2:
