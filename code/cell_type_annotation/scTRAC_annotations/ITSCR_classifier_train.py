@@ -252,6 +252,7 @@ class classifier_train():
 
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
+                              HVGs=self.HVGs,
                               batch_key="batch",
                               model_name="Model1",
                               model_path=save_path)
@@ -369,6 +370,7 @@ class classifier_train():
 
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
+                              HVGs=self.HVGs,
                               batch_key="batch",
                               model_name="Model2",
                               model_path=save_path)
@@ -486,6 +488,7 @@ class classifier_train():
 
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
+                              HVGs=self.HVGs,
                               batch_key="batch",
                               model_name="Model3",
                               model_path=save_path)
@@ -568,14 +571,13 @@ class classifier_train():
         
         del adata_in_house_test
 
-    def make_benchamrk_results_dataframe(self, min_max_normalize: bool=False):
+    def make_benchamrk_results_dataframe(self):
         """
         Generates a dataframe named 'metrics' containing the performance metrics of different methods.
 
         Parameters
         ----------
-        min_max_normalize : bool, optional
-            If True, performs min-max normalization on the metrics dataframe (default is False).
+        None
 
         Returns
         -------
@@ -584,7 +586,6 @@ class classifier_train():
         Notes
         -----
         This method consolidates performance metrics from various methods into a single dataframe.
-        If min_max_normalize is True, the metrics dataframe is normalized between 0 and 1.
         """
 
         calculated_metrics = []

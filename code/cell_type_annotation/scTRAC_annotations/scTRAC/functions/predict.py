@@ -52,8 +52,8 @@ def predict(data_,
 
     model.load_state_dict(torch.load(f'{model_path}model.pt'))
     # To run on multiple GPUs:
-    #if torch.cuda.device_count() > 1:
-    #    model= nn.DataParallel(model)
+    if torch.cuda.device_count() > 1:
+        model= nn.DataParallel(model)
     model.to(device)
 
     if use_classifier:
@@ -68,12 +68,12 @@ def predict(data_,
 
     # Define gene2vec_tensor if gene2ve is used
     if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
-        #gene2vec_tensor_ref = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
+        gene2vec_tensor_ref = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
         gene2vec_tensor = torch.load(f"{model_path}/ModelMetadata/gene2vec_tensor.pt")
-        #if torch.cuda.device_count() > 1:
-        #    for i in range(1, torch.cuda.device_count()):
-        #        gene2vec_tensor = torch.cat((gene2vec_tensor, gene2vec_tensor_ref), dim=0)
-        gene2vec_tensor = gene2vec_tensor.to(device)
+        if torch.cuda.device_count() > 1:
+            for i in range(1, torch.cuda.device_count()):
+                gene2vec_tensor = torch.cat((gene2vec_tensor, gene2vec_tensor_ref), dim=0)
+        #gene2vec_tensor = gene2vec_tensor.to(device)
 
     preds = []
     model.eval()
