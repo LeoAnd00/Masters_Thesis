@@ -209,10 +209,10 @@ class prep_test_data(data.Dataset):
             # This make it possible to make predictions on new data outside of the training values range.
             if torch.max(self.X) == (len(self.all_thresholds_values[0])-1):
                 # Mask where the specified value is located
-                mask = self.X == len(self.all_thresholds_values)
+                mask = self.X == (len(self.all_thresholds_values[0])-1)
 
                 # Replace the specified value with the new value
-                self.X[mask] = len(self.all_thresholds_values) - 1
+                self.X[mask] = (len(self.all_thresholds_values[0])-1) - 1
         else:
             self.use_HVG_buckets = False
 
