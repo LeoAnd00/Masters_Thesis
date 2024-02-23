@@ -10,7 +10,7 @@ from matplotlib import cm
 import re
 import torch
 import random
-from benchmarks.benchmark_generalizability import benchmark as benchmark
+from benchmarks.benchmark_generalizability_fun import benchmark as benchmark
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -47,7 +47,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
     
     # Calculate for model at different number of patient for training and different random seeds
     list_of_data_pct = [0.8]#[0.2, 0.4, 0.6, 0.8]
-    folds = [1]#[42,43,44,45,46]
+    folds = [1]#[1,2,3,4,5]
     num_folds = 5
     seed = 42
     counter = 0
@@ -74,7 +74,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                                             seed=seed)
                     
                     # Calculate for unintegrated and PCA
-                    if train_pct == list_of_data_pct[0]:
+                    """if train_pct == list_of_data_pct[0]:
                         print("Start evaluating unintegrated data")
                         print()
                         benchmark_env.unintegrated(save_figure=False, umap_plot=False)
@@ -83,25 +83,29 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                         print()
                         benchmark_env.pca(save_figure=False, umap_plot=False)
 
-                    #print("**Start benchmarking scVI method**")
-                    #vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
+                    print("**Start benchmarking scVI method**")
+                    vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
 
-                    #print("**Start benchmarking scANVI method**")
-                    #benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
+                    print("**Start benchmarking scANVI method**")
+                    benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
 
-                    #print("**Start benchmarking scGen method**")
-                    #benchmark_env.scgen(umap_plot=False,save_figure=False)
+                    print("**Start benchmarking scGen method**")
+                    benchmark_env.scgen(umap_plot=False,save_figure=False)
+
+                    print("**Start benchmarking TOSICA method**")
+                    benchmark_env.tosica(umap_plot=False,save_figure=False)"""
 
                     # Calculate for model
                     print(f"Start training model with {train_pct} percent of data for training, fold {fold} and seed {seed}")
                     print()
                     if fold == 1:
-                        #benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/train_pct_{train_pct}_fold_{fold}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/train_pct_{train_pct}_fold_{fold}_seed_{seed}_', train=True, umap_plot=False, save_figure=True)
-                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/train_pct_{train_pct}_fold_{fold}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
+                        #benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
+                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
+                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
                     else:
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/train_pct_{train_pct}_fold_{fold}_seed_{seed}_', train=True, umap_plot=False, save_figure=False)
-
+                        #benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
+                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+                    
                     benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
 
                     benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
@@ -117,9 +121,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                         benchmark_env.metrics['train_pct'][benchmark_env.metrics.index == 'Unintegrated'] = list_of_data_pct
                         benchmark_env.metrics['train_pct'][benchmark_env.metrics.index == 'PCA'] = list_of_data_pct
 
-                    if counter > 1:
-                        benchmark_env.read_csv(name=result_csv_path)
-                    #benchmark_env.read_csv(name=result_csv_path)
+                    #if counter > 1:
+                    #    benchmark_env.read_csv(name=result_csv_path)
+                    benchmark_env.read_csv(name=result_csv_path)
 
                     benchmark_env.save_results_as_csv(name=result_csv_path)
 
