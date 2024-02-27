@@ -1281,7 +1281,7 @@ class train_module():
                 data_inputs_step = data_inputs.to(device)
                 data_not_tokenized_step = data_not_tokenized.to(device)
 
-                if model_name == "Model3":
+                if (model_name == "Model3") or (model_name == "Model4"):
                     if self.data_env.use_gene2vec_emb:
                         preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
                     else:
@@ -1338,7 +1338,7 @@ class train_module():
                         data_labels_step = data_labels.to(device)
                         data_not_tokenized_step = data_not_tokenized.to(device)
 
-                        if model_name == "Model3":
+                        if (model_name == "Model3") or (model_name == "Model4"):
                             if self.data_env.use_gene2vec_emb:
                                 preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
                             else:
@@ -1376,6 +1376,7 @@ class train_module():
                 # Metrics
                 avg_train_loss = sum(train_loss) / len(train_loss)
                 avg_val_loss = sum(val_loss) / len(val_loss)
+                #avg_val_loss = avg_train_loss
 
                 # Check early stopping
                 early_stopping(avg_val_loss)
@@ -1574,8 +1575,9 @@ class train_module():
         total_train_start = time.time()
 
         train_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
-        #val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
+        #val_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=False, drop_last=True)
+        min_batch_size = int(np.min([self.data_env_validation.X.shape[0], batch_size]))
+        val_loader = data.DataLoader(self.data_env_validation, batch_size=min_batch_size, shuffle=False, drop_last=True)
 
         total_params = sum(p.numel() for p in model_step_1.parameters())
         print(f"Number of parameters: {total_params}")
@@ -1674,7 +1676,9 @@ class train_module():
 
         # Define data
         train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+        #val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+        min_batch_size = int(np.min([self.data_env_validation_for_classification.X.shape[0], batch_size]))
+        val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=min_batch_size, shuffle=False, drop_last=True)
 
         # Define loss
         loss_module = nn.CrossEntropyLoss() 

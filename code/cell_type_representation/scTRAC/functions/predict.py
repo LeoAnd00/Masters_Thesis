@@ -85,7 +85,7 @@ def predict(data_,
             data_inputs = data_inputs.to(device)
             data_not_tokenized = data_not_tokenized.to(device)
 
-            if model_name == "Model3":
+            if (model_name == "Model3") or (model_name == "Model4"):
                 if os.path.exists(f"{model_path}/ModelMetadata/gene2vec_tensor.pt"):
                     pred = model(data_inputs, data_not_tokenized, gene2vec_tensor)
                 else:

@@ -57,8 +57,6 @@ class benchmark():
 
     def __init__(self, 
                  data_path: str, 
-                 pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
-                 gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
                  image_path: str='',
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
@@ -75,8 +73,6 @@ class benchmark():
 
         self.adata = adata
         self.label_key = label_key
-        self.pathway_path = pathway_path
-        self.gene2vec_path = gene2vec_path
         self.image_path = image_path
         self.seed = seed
         self.HVGs = HVGs
@@ -93,6 +89,7 @@ class benchmark():
         self.Model1 = None
         self.Model2 = None
         self.Model3 = None
+        self.Model4 = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -576,6 +573,8 @@ class benchmark():
             model.train(adata=adata_in_house, 
                         train_classifier=False, 
                         seed=self.seed,
+                        #epochs = 50,
+                        #lr_scheduler_maxiters = 50,
                         only_print_best=False)
 
         del adata_in_house
@@ -752,14 +751,18 @@ class benchmark():
 
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
+                              num_HVG_buckets=1000,
                               batch_key="batch",
                               model_name="Model3",
-                              model_path=save_path)
+                              model_path=save_path,
+                              gene_set_name="c5")
         
         if train:
             model.train(adata=adata_in_house, 
                         seed=self.seed,
                         num_trials=100, 
+                        epochs = 50,
+                        lr_scheduler_maxiters = 50,
                         only_print_best=False)
 
         del adata_in_house
@@ -804,6 +807,101 @@ class benchmark():
             sc.tl.umap(adata_in_house_test)
             sc.pl.umap(adata_in_house_test, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model3_testing_cell_type.svg")
             sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model3_testing_batch_effect.svg")
+
+        del adata_in_house_test
+
+    def Model4_benchmark(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+        """
+        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model will be saved.
+        umap_plot : bool, optional
+            Whether to plot resulting latent space using UMAP (default: True).
+        train : bool, optional
+            Whether to train the model (True) or use a existing model (False) (default: True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This method computes various metrics to evaluate performance.
+
+        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
+        The UMAP plots can be saved as SVG files if save_figure is True.
+        """
+
+        save_path = f"{save_path}Fold_{self.fold}/"
+
+        adata_in_house = self.original_adata.copy()
+
+        HVG_buckets_ = 1000
+
+        HVGs_num = self.HVGs
+
+        model = scTRAC.scTRAC(target_key=self.label_key,
+                              latent_dim=100,
+                              batch_key="batch",
+                              model_name="Model4",
+                              model_path=save_path,
+                              gene_set_name="c5")
+        
+        if train:
+            model.train(adata=adata_in_house, 
+                        seed=self.seed,
+                        num_trials=100, 
+                        #epochs = 50,
+                        #lr_scheduler_maxiters = 50,
+                        only_print_best=False)
+
+        del adata_in_house
+        
+        adata_in_house_test = self.original_test_adata.copy()
+        predictions = model.predict(adata=adata_in_house_test)
+        adata_in_house_test.obsm["In_house"] = predictions
+
+        del predictions
+        sc.pp.neighbors(adata_in_house_test, use_rep="In_house")
+
+        self.Model4 = scib.metrics.metrics(
+            self.original_test_adata,
+            adata_in_house_test,
+            "batch", 
+            self.label_key,
+            embed="In_house",
+            isolated_labels_asw_=True,
+            silhouette_=True,
+            hvg_score_=True,
+            graph_conn_=True,
+            pcr_=True,
+            isolated_labels_f1_=True,
+            trajectory_=False,
+            nmi_=True,
+            ari_=True,
+            cell_cycle_=True,
+            kBET_=False,
+            ilisi_=False,
+            clisi_=False,
+            organism="human",
+        )
+
+        random_order = np.random.permutation(adata_in_house_test.n_obs)
+        adata_in_house_test = adata_in_house_test[random_order, :]
+
+        if umap_plot:
+            sc.tl.umap(adata_in_house_test)
+            sc.pl.umap(adata_in_house_test, color=self.label_key, ncols=1, title=self.celltype_title)
+            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title)
+        if save_figure:
+            sc.tl.umap(adata_in_house_test)
+            sc.pl.umap(adata_in_house_test, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model4_testing_cell_type.svg")
+            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model4_testing_batch_effect.svg")
 
         del adata_in_house_test
 
@@ -855,6 +953,9 @@ class benchmark():
         if self.Model3 is not None:
             calculated_metrics.append(self.Model3)
             calculated_metrics_names.append("Model3")
+        if self.Model4 is not None:
+            calculated_metrics.append(self.Model4)
+            calculated_metrics_names.append("Model4")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")
