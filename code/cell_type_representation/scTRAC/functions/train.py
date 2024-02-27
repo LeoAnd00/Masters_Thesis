@@ -935,7 +935,7 @@ class CustomSNNLoss(nn.Module):
 
     def forward(self, input, targets, batches=None):
         """
-        Compute the SNN loss for the input vectors and targets.
+        Compute the SNN loss and cell type centroid loss for the input vectors and targets.
 
         Parameters
         ----------
@@ -949,7 +949,7 @@ class CustomSNNLoss(nn.Module):
         Returns
         -------
         loss : Tensor
-            The calculated SNN loss.
+            The calculated SNN loss + cell type centroid loss.
         """
 
         ### Target loss
@@ -968,13 +968,13 @@ class CustomSNNLoss(nn.Module):
         for idx, (sim_vec, target) in enumerate(zip(cosine_similarity_matrix,targets)):
             positiv_samples = sim_vec[(targets == target)]
             negativ_samples = sim_vec[(targets != target)]
-            # Must be more or equal to 2 samples per sample type for the loss to work
+            # Must be more or equal to 2 samples per sample type for the loss to work since we dont count
+            # the diagonal values, hence "- sim_vec[idx]". We don't count this since we are not interested
+            # in the cosine similarit of a vector to itself
             if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
                 positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                 negativ_sum = torch.sum(negativ_samples)
                 loss = -torch.log(positiv_sum / (positiv_sum + negativ_sum))
-                # New loss:
-                #loss = -torch.log(1/positiv_sum)
                 loss_dict[str(target)] = torch.cat((loss_dict[str(target)], loss.unsqueeze(0)))
 
         del cosine_similarity_matrix
@@ -1013,11 +1013,12 @@ class CustomSNNLoss(nn.Module):
                 for idx, (sim_vec, target_batch, target) in enumerate(zip(cosine_similarity_matrix,batch,targets)):
                     positiv_samples = sim_vec[(targets == target) & (batch == target_batch)]
                     negativ_samples = sim_vec[(targets == target) & (batch != target_batch)]
-                    # Must be more or equal to 2 samples per sample type for the loss to work
+                    # Must be more or equal to 2 samples per sample type for the loss to work since we dont count
+                    # the diagonal values, hence "- sim_vec[idx]". We don't count this since we are not interested
+                    # in the cosine similarit of a vector to itself
                     if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
                         positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                         negativ_sum = torch.sum(negativ_samples)
-                        #loss = -torch.log(negativ_sum / (positiv_sum + negativ_sum))
                         loss = (-torch.log(positiv_sum / (positiv_sum + negativ_sum)))**-1
                         loss_dict[str(target_batch)] = torch.cat((loss_dict[str(target_batch)], loss.unsqueeze(0)))
 
@@ -1299,14 +1300,20 @@ class train_module():
                     preds = model_classifier(preds_latent)
                 
                 # Whether to use classifier loss or latent space creation loss
-                if use_classifier:
-                    loss = loss_module(preds, data_labels)/accum_grad
-                else:
-                    if self.batch_keys is not None:
-                        data_batches = [batch.to(device) for batch in data_batches]
-                        loss = loss_module(preds, data_labels, data_batches)/accum_grad
-                    else:
+                loss = torch.tensor([]).to(device)
+                try:
+                    if use_classifier:
                         loss = loss_module(preds, data_labels)/accum_grad
+                    else:
+                        if self.batch_keys is not None:
+                            data_batches = [batch.to(device) for batch in data_batches]
+                            loss = loss_module(preds, data_labels, data_batches)/accum_grad
+                        else:
+                            loss = loss_module(preds, data_labels)/accum_grad
+                except:
+                    # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                    # Can happen if a mini-batch only contains one cell type
+                    continue
 
                 loss.backward()
 
@@ -1360,14 +1367,20 @@ class train_module():
                             preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
                         # Whether to use classifier loss or latent space creation loss
-                        if use_classifier:
-                            loss = loss_module(preds, data_labels_step)/accum_grad
-                        else:
-                            if self.batch_keys is not None:
-                                data_batches = [batch.to(device) for batch in data_batches]
-                                loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
-                            else:
+                        loss = torch.tensor([]).to(device)
+                        try:
+                            if use_classifier:
                                 loss = loss_module(preds, data_labels_step)/accum_grad
+                            else:
+                                if self.batch_keys is not None:
+                                    data_batches = [batch.to(device) for batch in data_batches]
+                                    loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
+                                else:
+                                    loss = loss_module(preds, data_labels_step)/accum_grad
+                        except:
+                            # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                            # Can happen if a mini-batch only contains one cell type
+                            continue
 
                         val_loss.append(loss.item())
                         all_preds.extend(preds.cpu().detach().numpy())
