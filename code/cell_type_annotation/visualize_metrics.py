@@ -212,7 +212,7 @@ class VisualizeEnv():
                         showfliers = False)
                 axs[col_idx].legend().remove()"""
 
-        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.75), title=None, frameon=False)
+        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
 
         # Adjust layout to prevent clipping of ylabel
         plt.tight_layout()
