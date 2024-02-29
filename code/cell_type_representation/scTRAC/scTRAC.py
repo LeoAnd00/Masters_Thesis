@@ -94,7 +94,7 @@ class scTRAC():
               num_trials: int=100,
               use_already_trained_latent_space_generator: bool=False,
               device: str=None,
-              validation_pct: float=0.0,#0.2,
+              validation_pct: float=0.2,
               gene_set_gene_limit: int=10,
               seed: int=42,
               batch_size: int=256,

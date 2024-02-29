@@ -89,6 +89,7 @@ class prep_data(data.Dataset):
 
     def __init__(self, 
                  adata, 
+                 unique_targets,
                  target_key: str,
                  gene2vec_path: str,
                  save_model_path: str,
@@ -105,6 +106,7 @@ class prep_data(data.Dataset):
                  for_classification: bool=False):
         
         self.adata = adata
+        self.unique_targets = unique_targets
         self.target_key = target_key
         self.batch_keys = batch_keys
         self.HVG = HVG
@@ -143,14 +145,17 @@ class prep_data(data.Dataset):
         if for_classification:
             # Encode the target information
             self.label_encoder = LabelEncoder()
-            self.target_label_encoded = self.label_encoder.fit_transform(self.labels)
+            self.label_encoder.fit(self.unique_targets)
+            self.target_label_encoded = self.label_encoder.transform(self.labels)
             self.onehot_label_encoder = OneHotEncoder()
-            self.target = self.onehot_label_encoder.fit_transform(self.target_label_encoded.reshape(-1, 1))
+            self.onehot_label_encoder.fit(self.label_encoder.transform(self.unique_targets).reshape(-1, 1))
+            self.target = self.onehot_label_encoder.transform(self.target_label_encoded.reshape(-1, 1))
             self.target = self.target.toarray()
         else:
             # Encode the target information
             self.label_encoder = LabelEncoder()
-            self.target = self.label_encoder.fit_transform(self.labels)
+            self.label_encoder.fit(self.unique_targets)
+            self.target = self.label_encoder.transform(self.labels)
 
         # Calculate the avergae centroid distance between cell type clusters of PCA transformed data
         self.cell_type_centroids_distances_matrix = self.cell_type_centroid_distances(n_components=model_output_dim)
@@ -407,7 +412,7 @@ class prep_data(data.Dataset):
                 average_distance_matrix[i, j] = average_distance
 
         # Convert average_distance_matrix into a DataFrame
-        average_distance_df = pd.DataFrame(average_distance_matrix, index=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()), columns=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()))
+        average_distance_df = pd.DataFrame(average_distance_matrix, index=self.label_encoder.transform(adata.obs['cell_type'].unique()), columns=self.label_encoder.transform(adata.obs['cell_type'].unique()))
 
         # Replace NaN values with 0
         average_distance_df = average_distance_df.fillna(0)
@@ -1137,6 +1142,8 @@ class train_module():
         elif validation_pct < 0.0:
             raise ValueError('Invalid choice of validation_pct. Needs to be 0.0 <= validation_pct < 1.0')
 
+        unique_targets = np.unique(self.adata.obs[self.target_key])
+
         if validation_pct == 0.0:
             self.adata_train = self.adata.copy()
             self.adata_validation = self.adata.copy()
@@ -1157,6 +1164,7 @@ class train_module():
                 break
 
         self.data_env = prep_data(adata=self.adata_train, 
+                                  unique_targets=unique_targets,
                                   pathways_file_path=pathways_file_path, 
                                   num_pathways=num_pathways, 
                                   pathway_gene_limit=pathway_gene_limit,
@@ -1185,6 +1193,7 @@ class train_module():
                                                         save_model_path=save_model_path)
         
         self.data_env_for_classification = prep_data(adata=self.adata_train, 
+                                                    unique_targets=unique_targets,
                                                     pathways_file_path=pathways_file_path, 
                                                     num_pathways=num_pathways, 
                                                     pathway_gene_limit=pathway_gene_limit,
@@ -1686,6 +1695,10 @@ class train_module():
 
         # Load model state
         model_step_2.load_state_dict(torch.load(f'{out_path}model.pt'))
+
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model_step_2= nn.DataParallel(model_step_2)
 
         # Define data
         train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
