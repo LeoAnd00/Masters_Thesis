@@ -187,6 +187,17 @@ class VisualizeEnv():
             if col_idx != 1:
                 axs[col_idx].legend().remove()
 
+            # Add grid
+            # Calculate the x positions of the grid lines to be between the ticks
+            x_ticks = axs[col_idx].get_xticks()
+            x_grid_positions = (x_ticks[:-1] + x_ticks[1:]) / 2
+
+            # Set the grid positions to be between the x ticks
+            axs[col_idx].set_xticks(x_grid_positions, minor=True)
+
+            # Add grid lines between the x positions
+            axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
+
             """if col_idx == 0:
                 sns.boxplot(y = variable,
                         x = group,
@@ -292,6 +303,17 @@ class VisualizeEnv():
                         ax=axs[col_idx], 
                         showfliers = False)
                 axs[col_idx].legend().remove()
+
+            # Add grid
+            # Calculate the x positions of the grid lines to be between the ticks
+            x_ticks = axs[col_idx].get_xticks()
+            x_grid_positions = (x_ticks[:-1] + x_ticks[1:]) / 2
+
+            # Set the grid positions to be between the x ticks
+            axs[col_idx].set_xticks(x_grid_positions, minor=True)
+
+            # Add grid lines between the x positions
+            axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
         #sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
 
