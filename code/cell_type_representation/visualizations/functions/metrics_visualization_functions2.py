@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from IPython.display import display
@@ -10,7 +11,7 @@ class VisualizeEnv():
     def __init__(self):
         self.color_dict = None
 
-    def read_csv(self, files: list):
+    def read_csv(self, files: list, minmax_norm: bool=True):
         """
         Reads a CSV file and updates the performance metrics dataframe.
 
@@ -31,7 +32,39 @@ class VisualizeEnv():
         all_dataframes = []
         for file in files:
             metrics = pd.read_csv(f'{file}.csv', index_col=0)
+
+            if minmax_norm:
+                columns = ["ASW_label/batch", 
+                            "PCR_batch", 
+                            "graph_conn",
+                            "ASW_label", 
+                            "isolated_label_silhouette", 
+                            "NMI_cluster/label", 
+                            "ARI_cluster/label",
+                            "isolated_label_F1",
+                            "cell_cycle_conservation"]
+                # Min-max normalize each metric
+                for metric in columns:
+                    for fold in np.unique(metrics["fold"]):
+                        mask = metrics["fold"] == fold
+                        metrics.loc[mask, metric] = (metrics.loc[mask, metric] - metrics.loc[mask, metric].min()) / (metrics.loc[mask, metric].max() - metrics.loc[mask, metric].min())
+
+                # calc overall scores for each fold and method
+                for fold in np.unique(metrics["fold"]):
+                    for method in np.unique(metrics.index):
+                        mask = metrics["fold"] == fold
+                        mask2 = metrics.index == method
+                        metrics.loc[mask & mask2,"Overall Batch"] = metrics.loc[mask & mask2,["ASW_label/batch", "PCR_batch", "graph_conn"]].mean(axis=1)
+                        metrics.loc[mask & mask2,"Overall Bio"] = metrics.loc[mask & mask2,["ASW_label", 
+                                                        "isolated_label_silhouette", 
+                                                        "NMI_cluster/label", 
+                                                        "ARI_cluster/label",
+                                                        "isolated_label_F1",
+                                                        "cell_cycle_conservation"]].mean(axis=1)
+                        metrics.loc[mask & mask2,"Overall"] = 0.4 * metrics.loc[mask & mask2,"Overall Batch"] + 0.6 * metrics.loc[mask & mask2,"Overall Bio"] 
+
             metrics = metrics.iloc[:,:-3]
+
             all_dataframes.append(metrics)
 
         self.metrics = pd.concat(all_dataframes, axis=0)
@@ -220,7 +253,7 @@ class VisualizeEnv():
 
         plt.show()
 
-    def BoxPlotVisualization(self, files, dataset_names, image_path: str=None):
+    def BoxPlotVisualization(self, files, dataset_names, image_path: str=None, minmax_norm: bool=True):
         """
         Generate a bar plot visualization for each metric, displaying the mean values
         with error bars representing standard deviation across different model types.
@@ -238,6 +271,38 @@ class VisualizeEnv():
         all_dataframes = []
         for file, dataset_name in zip(files,dataset_names):
             metrics = pd.read_csv(f'{file}.csv', index_col=0)
+
+            if minmax_norm:
+                columns = ["ASW_label/batch", 
+                            "PCR_batch", 
+                            "graph_conn",
+                            "ASW_label", 
+                            "isolated_label_silhouette", 
+                            "NMI_cluster/label", 
+                            "ARI_cluster/label",
+                            "isolated_label_F1",
+                            "cell_cycle_conservation"]
+                # Min-max normalize each metric
+                for metric in columns:
+                    for fold in np.unique(metrics["fold"]):
+                        mask = metrics["fold"] == fold
+                        metrics.loc[mask, metric] = (metrics.loc[mask, metric] - metrics.loc[mask, metric].min()) / (metrics.loc[mask, metric].max() - metrics.loc[mask, metric].min())
+
+                # calc overall scores for each fold and method
+                for fold in np.unique(metrics["fold"]):
+                    for method in np.unique(metrics.index):
+                        mask = metrics["fold"] == fold
+                        mask2 = metrics.index == method
+                        metrics.loc[mask & mask2,"Overall Batch"] = metrics.loc[mask & mask2,["ASW_label/batch", "PCR_batch", "graph_conn"]].mean(axis=1)
+                        metrics.loc[mask & mask2,"Overall Bio"] = metrics.loc[mask & mask2,["ASW_label", 
+                                                        "isolated_label_silhouette", 
+                                                        "NMI_cluster/label", 
+                                                        "ARI_cluster/label",
+                                                        "isolated_label_F1",
+                                                        "cell_cycle_conservation"]].mean(axis=1)
+                        metrics.loc[mask & mask2,"Overall"] = 0.4 * metrics.loc[mask & mask2,"Overall Batch"] + 0.6 * metrics.loc[mask & mask2,"Overall Bio"] 
+
+
             metrics = metrics.iloc[:,:-3]
             metrics["Dataset"] = [dataset_name]*metrics.shape[0]
             all_dataframes.append(metrics)
