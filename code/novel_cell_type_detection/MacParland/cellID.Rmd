@@ -21,6 +21,7 @@ library(ggpubr) #library for plotting
 ```
 
 
+
 Train for each fold and predict test data
 ```{r}
 final_dataframe_group <- NULL
@@ -80,8 +81,8 @@ for (fold in seq(1, 5)) {
   test_data_X_group_gs_prediction <- rownames(test_data_X_group_gs)[apply(test_data_X_group_gs, 2, which.max)]
   
   # For detecting novel cell type
-  pred_score <- apply(test_data_X_group_gs, 2, max)/max(apply(test_data_X_group_gs, 2, max))
-  test_data_X_group_gs_prediction_signif <- ifelse(pred_score>=0.5, yes = test_data_X_group_gs_prediction, "Novel")
+  pred_score <- apply(test_data_X_group_gs, 2, max)#apply(test_data_X_group_gs, 2, max)/max(apply(test_data_X_group_gs, 2, max))
+  test_data_X_group_gs_prediction_signif <- ifelse(pred_score>2, yes = test_data_X_group_gs_prediction, "Novel")
   
   # Cell predict
   test_data_X_cell_gs <- RunCellHGT(test_data_X, pathways = train_data_X_cell_gs, dims = 1:50)
@@ -91,8 +92,8 @@ for (fold in seq(1, 5)) {
   test_data_X_cell_gs_prediction <- train_data_X$cell_type[test_data_X_cell_gs_matchn]
   
   # For detecting novel cell type
-  pred_score <- apply(test_data_X_cell_gs, 2, max)/max(apply(test_data_X_cell_gs, 2, max))
-  test_data_X_cell_gs_prediction_signif <- ifelse(pred_score>=0.5, yes = as.vector(test_data_X_cell_gs_prediction), "Novel")
+  pred_score <- apply(test_data_X_cell_gs, 2, max)#apply(test_data_X_cell_gs, 2, max)/max(apply(test_data_X_cell_gs, 2, max))
+  test_data_X_cell_gs_prediction_signif <- ifelse(pred_score>2, yes = as.vector(test_data_X_cell_gs_prediction), "Novel")
   
   # Store prediction, true values, and fold
   final_dataframe_temp_group <- data.frame(pred = test_data_X_group_gs_prediction_signif, true_label = test_data_X$cell_type, fold = fold)

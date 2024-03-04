@@ -80,14 +80,14 @@ class metrics():
                                             "balanced_accuracy": balanced_accuracy_not_novel,
                                             "f1_score": f1_not_novel,
                                             "dataset": dataset_name,
-                                            "novel": "False",
+                                            "novel": "Known",
                                             "fold": fold_idx}, index=[0])
                 temp = pd.DataFrame({"method": method_name, 
                                     "accuracy": accuracy_novel, 
                                     "balanced_accuracy": balanced_accuracy_novel,
                                     "f1_score": f1_novel,
                                     "dataset": dataset_name,
-                                    "novel": "True",
+                                    "novel": "Novel",
                                     "fold": fold_idx}, index=[0])
                 self.metrics = pd.concat([self.metrics, temp], ignore_index=True)
             else:
@@ -96,7 +96,7 @@ class metrics():
                                     "balanced_accuracy": balanced_accuracy_not_novel,
                                     "f1_score": f1_not_novel,
                                     "dataset": dataset_name,
-                                    "novel": "False",
+                                    "novel": "Known",
                                     "fold": fold_idx}, index=[0])
                 self.metrics = pd.concat([self.metrics, temp], ignore_index=True)
                 temp = pd.DataFrame({"method": method_name, 
@@ -104,7 +104,7 @@ class metrics():
                                     "balanced_accuracy": balanced_accuracy_novel,
                                     "f1_score": f1_novel,
                                     "dataset": dataset_name,
-                                    "novel": "True",
+                                    "novel": "Novel",
                                     "fold": fold_idx}, index=[0])
                 self.metrics = pd.concat([self.metrics, temp], ignore_index=True)
 
