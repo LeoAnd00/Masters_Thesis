@@ -58,6 +58,7 @@ class classifier_train():
 
     def __init__(self, 
                  data_path: str, 
+                 dataset_name: str,
                  pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
                  gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
                  image_path: str='',
@@ -73,6 +74,8 @@ class classifier_train():
 
         adata.obs["batch"] = adata.obs[batch_key]
 
+        del adata.layers['log1p_counts']
+
         self.adata = adata
 
         self.label_key = label_key
@@ -81,6 +84,8 @@ class classifier_train():
         self.image_path = image_path
         self.seed = seed
         self.HVGs = HVGs
+        self.fold = fold
+        self.dataset_name = dataset_name
 
         self.metrics = None
         self.metrics_Model1 = None
@@ -215,10 +220,12 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_TOSICA = pd.DataFrame({
-                                            'Accuracy': [accuracy],
-                                            'Balanced Accuracy': [balanced_accuracy],
-                                            'F1 Score': [f1]
+        self.metrics_TOSICA = pd.DataFrame({'method': "TOSICA",
+                                            'accuracy': [accuracy],
+                                            'balanced_accuracy': [balanced_accuracy],
+                                            'f1_score': [f1],
+                                            'dataset': self.dataset_name,
+                                            'fold': self.fold
                                            })
         
         del adata_tosica
@@ -249,6 +256,8 @@ class classifier_train():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
+        save_path = f"{save_path}Fold_{self.fold}/"
+
         adata_in_house = self.original_adata.copy()
 
         model = scTRAC.scTRAC(target_key=self.label_key,
@@ -260,7 +269,7 @@ class classifier_train():
         
         if train:
             model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = True,
+                        use_already_trained_latent_space_generator = False,
                         train_classifier=True, 
                         optimize_classifier=True, 
                         seed=self.seed,
@@ -318,10 +327,12 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model1 = pd.DataFrame({
-                                            'Accuracy': [accuracy],
-                                            'Balanced Accuracy': [balanced_accuracy],
-                                            'F1 Score': [f1]
+        self.metrics_Model1 = pd.DataFrame({'method': "Model1",
+                                            'accuracy': [accuracy],
+                                            'balanced_accuracy': [balanced_accuracy],
+                                            'f1_score': [f1],
+                                            'dataset': self.dataset_name,
+                                            'fold': self.fold
                                            })
 
         if umap_plot:
@@ -363,6 +374,7 @@ class classifier_train():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
+        save_path = f"{save_path}Fold_{self.fold}/"
 
         adata_in_house = self.original_adata.copy()
 
@@ -377,7 +389,6 @@ class classifier_train():
         
         if train:
             model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = True,
                         train_classifier=True, 
                         optimize_classifier=True,  
                         seed=self.seed,
@@ -435,10 +446,12 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model2 = pd.DataFrame({
-                                            'Accuracy': [accuracy],
-                                            'Balanced Accuracy': [balanced_accuracy],
-                                            'F1 Score': [f1]
+        self.metrics_Model2 = pd.DataFrame({'method': "Model2",
+                                            'accuracy': [accuracy],
+                                            'balanced_accuracy': [balanced_accuracy],
+                                            'f1_score': [f1],
+                                            'dataset': self.dataset_name,
+                                            'fold': self.fold
                                            })
 
         if umap_plot:
@@ -480,6 +493,7 @@ class classifier_train():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
+        save_path = f"{save_path}Fold_{self.fold}/"
 
         adata_in_house = self.original_adata.copy()
 
@@ -552,10 +566,12 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model3 = pd.DataFrame({
-                                            'Accuracy': [accuracy],
-                                            'Balanced Accuracy': [balanced_accuracy],
-                                            'F1 Score': [f1]
+        self.metrics_Model3 = pd.DataFrame({'method': "Model3",
+                                            'accuracy': [accuracy],
+                                            'balanced_accuracy': [balanced_accuracy],
+                                            'f1_score': [f1],
+                                            'dataset': self.dataset_name,
+                                            'fold': self.fold
                                            })
 
         if umap_plot:
@@ -606,14 +622,14 @@ class classifier_train():
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")
 
-            metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
+            #metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
 
             if self.metrics is None:
                 self.metrics = metrics#.sort_values(by='Overall', ascending=False)
             else:
                 self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
 
-        self.metrics = self.metrics.sort_values(by='Accuracy', ascending=False)
+        self.metrics = self.metrics.sort_values(by='accuracy', ascending=False)
 
     def save_results_as_csv(self, name: str='benchmarks/results/Benchmark_results'):
         """

@@ -89,6 +89,7 @@ class prep_data(data.Dataset):
 
     def __init__(self, 
                  adata, 
+                 unique_targets,
                  target_key: str,
                  gene2vec_path: str,
                  save_model_path: str,
@@ -105,6 +106,7 @@ class prep_data(data.Dataset):
                  for_classification: bool=False):
         
         self.adata = adata
+        self.unique_targets = unique_targets
         self.target_key = target_key
         self.batch_keys = batch_keys
         self.HVG = HVG
@@ -143,14 +145,17 @@ class prep_data(data.Dataset):
         if for_classification:
             # Encode the target information
             self.label_encoder = LabelEncoder()
-            self.target_label_encoded = self.label_encoder.fit_transform(self.labels)
+            self.label_encoder.fit(self.unique_targets)
+            self.target_label_encoded = self.label_encoder.transform(self.labels)
             self.onehot_label_encoder = OneHotEncoder()
-            self.target = self.onehot_label_encoder.fit_transform(self.target_label_encoded.reshape(-1, 1))
+            self.onehot_label_encoder.fit(self.label_encoder.transform(self.unique_targets).reshape(-1, 1))
+            self.target = self.onehot_label_encoder.transform(self.target_label_encoded.reshape(-1, 1))
             self.target = self.target.toarray()
         else:
             # Encode the target information
             self.label_encoder = LabelEncoder()
-            self.target = self.label_encoder.fit_transform(self.labels)
+            self.label_encoder.fit(self.unique_targets)
+            self.target = self.label_encoder.transform(self.labels)
 
         # Calculate the avergae centroid distance between cell type clusters of PCA transformed data
         self.cell_type_centroids_distances_matrix = self.cell_type_centroid_distances(n_components=model_output_dim)
@@ -407,7 +412,7 @@ class prep_data(data.Dataset):
                 average_distance_matrix[i, j] = average_distance
 
         # Convert average_distance_matrix into a DataFrame
-        average_distance_df = pd.DataFrame(average_distance_matrix, index=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()), columns=self.label_encoder.fit_transform(adata.obs['cell_type'].unique()))
+        average_distance_df = pd.DataFrame(average_distance_matrix, index=self.label_encoder.transform(adata.obs['cell_type'].unique()), columns=self.label_encoder.transform(adata.obs['cell_type'].unique()))
 
         # Replace NaN values with 0
         average_distance_df = average_distance_df.fillna(0)
@@ -935,7 +940,7 @@ class CustomSNNLoss(nn.Module):
 
     def forward(self, input, targets, batches=None):
         """
-        Compute the SNN loss for the input vectors and targets.
+        Compute the SNN loss and cell type centroid loss for the input vectors and targets.
 
         Parameters
         ----------
@@ -949,7 +954,7 @@ class CustomSNNLoss(nn.Module):
         Returns
         -------
         loss : Tensor
-            The calculated SNN loss.
+            The calculated SNN loss + cell type centroid loss.
         """
 
         ### Target loss
@@ -968,13 +973,13 @@ class CustomSNNLoss(nn.Module):
         for idx, (sim_vec, target) in enumerate(zip(cosine_similarity_matrix,targets)):
             positiv_samples = sim_vec[(targets == target)]
             negativ_samples = sim_vec[(targets != target)]
-            # Must be more or equal to 2 samples per sample type for the loss to work
+            # Must be more or equal to 2 samples per sample type for the loss to work since we dont count
+            # the diagonal values, hence "- sim_vec[idx]". We don't count this since we are not interested
+            # in the cosine similarit of a vector to itself
             if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
                 positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                 negativ_sum = torch.sum(negativ_samples)
                 loss = -torch.log(positiv_sum / (positiv_sum + negativ_sum))
-                # New loss:
-                #loss = -torch.log(1/positiv_sum)
                 loss_dict[str(target)] = torch.cat((loss_dict[str(target)], loss.unsqueeze(0)))
 
         del cosine_similarity_matrix
@@ -1013,11 +1018,12 @@ class CustomSNNLoss(nn.Module):
                 for idx, (sim_vec, target_batch, target) in enumerate(zip(cosine_similarity_matrix,batch,targets)):
                     positiv_samples = sim_vec[(targets == target) & (batch == target_batch)]
                     negativ_samples = sim_vec[(targets == target) & (batch != target_batch)]
-                    # Must be more or equal to 2 samples per sample type for the loss to work
+                    # Must be more or equal to 2 samples per sample type for the loss to work since we dont count
+                    # the diagonal values, hence "- sim_vec[idx]". We don't count this since we are not interested
+                    # in the cosine similarit of a vector to itself
                     if len(positiv_samples) >= 2 and len(negativ_samples) >= 1:
                         positiv_sum = torch.sum(positiv_samples) - sim_vec[idx]
                         negativ_sum = torch.sum(negativ_samples)
-                        #loss = -torch.log(negativ_sum / (positiv_sum + negativ_sum))
                         loss = (-torch.log(positiv_sum / (positiv_sum + negativ_sum)))**-1
                         loss_dict[str(target_batch)] = torch.cat((loss_dict[str(target_batch)], loss.unsqueeze(0)))
 
@@ -1136,6 +1142,8 @@ class train_module():
         elif validation_pct < 0.0:
             raise ValueError('Invalid choice of validation_pct. Needs to be 0.0 <= validation_pct < 1.0')
 
+        unique_targets = np.unique(self.adata.obs[self.target_key])
+
         if validation_pct == 0.0:
             self.adata_train = self.adata.copy()
             self.adata_validation = self.adata.copy()
@@ -1156,6 +1164,7 @@ class train_module():
                 break
 
         self.data_env = prep_data(adata=self.adata_train, 
+                                  unique_targets=unique_targets,
                                   pathways_file_path=pathways_file_path, 
                                   num_pathways=num_pathways, 
                                   pathway_gene_limit=pathway_gene_limit,
@@ -1184,6 +1193,7 @@ class train_module():
                                                         save_model_path=save_model_path)
         
         self.data_env_for_classification = prep_data(adata=self.adata_train, 
+                                                    unique_targets=unique_targets,
                                                     pathways_file_path=pathways_file_path, 
                                                     num_pathways=num_pathways, 
                                                     pathway_gene_limit=pathway_gene_limit,
@@ -1281,7 +1291,7 @@ class train_module():
                 data_inputs_step = data_inputs.to(device)
                 data_not_tokenized_step = data_not_tokenized.to(device)
 
-                if model_name == "Model3":
+                if (model_name == "Model3") or (model_name == "Model4"):
                     if self.data_env.use_gene2vec_emb:
                         preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
                     else:
@@ -1299,14 +1309,20 @@ class train_module():
                     preds = model_classifier(preds_latent)
                 
                 # Whether to use classifier loss or latent space creation loss
-                if use_classifier:
-                    loss = loss_module(preds, data_labels)/accum_grad
-                else:
-                    if self.batch_keys is not None:
-                        data_batches = [batch.to(device) for batch in data_batches]
-                        loss = loss_module(preds, data_labels, data_batches)/accum_grad
-                    else:
+                loss = torch.tensor([]).to(device)
+                try:
+                    if use_classifier:
                         loss = loss_module(preds, data_labels)/accum_grad
+                    else:
+                        if self.batch_keys is not None:
+                            data_batches = [batch.to(device) for batch in data_batches]
+                            loss = loss_module(preds, data_labels, data_batches)/accum_grad
+                        else:
+                            loss = loss_module(preds, data_labels)/accum_grad
+                except:
+                    # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                    # Can happen if a mini-batch only contains one cell type
+                    continue
 
                 loss.backward()
 
@@ -1338,7 +1354,7 @@ class train_module():
                         data_labels_step = data_labels.to(device)
                         data_not_tokenized_step = data_not_tokenized.to(device)
 
-                        if model_name == "Model3":
+                        if (model_name == "Model3") or (model_name == "Model4"):
                             if self.data_env.use_gene2vec_emb:
                                 preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
                             else:
@@ -1360,14 +1376,20 @@ class train_module():
                             preds = preds.unsqueeze(0)  # Add a dimension along axis 0
 
                         # Whether to use classifier loss or latent space creation loss
-                        if use_classifier:
-                            loss = loss_module(preds, data_labels_step)/accum_grad
-                        else:
-                            if self.batch_keys is not None:
-                                data_batches = [batch.to(device) for batch in data_batches]
-                                loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
-                            else:
+                        loss = torch.tensor([]).to(device)
+                        try:
+                            if use_classifier:
                                 loss = loss_module(preds, data_labels_step)/accum_grad
+                            else:
+                                if self.batch_keys is not None:
+                                    data_batches = [batch.to(device) for batch in data_batches]
+                                    loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
+                                else:
+                                    loss = loss_module(preds, data_labels_step)/accum_grad
+                        except:
+                            # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                            # Can happen if a mini-batch only contains one cell type
+                            continue
 
                         val_loss.append(loss.item())
                         all_preds.extend(preds.cpu().detach().numpy())
@@ -1376,6 +1398,7 @@ class train_module():
                 # Metrics
                 avg_train_loss = sum(train_loss) / len(train_loss)
                 avg_val_loss = sum(val_loss) / len(val_loss)
+                #avg_val_loss = avg_train_loss
 
                 # Check early stopping
                 early_stopping(avg_val_loss)
@@ -1574,8 +1597,9 @@ class train_module():
         total_train_start = time.time()
 
         train_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
-        #val_loader = data.DataLoader(self.data_env_validation, batch_size=batch_size, shuffle=True, drop_last=True)
+        #val_loader = data.DataLoader(self.data_env, batch_size=batch_size, shuffle=False, drop_last=True)
+        min_batch_size = int(np.min([self.data_env_validation.X.shape[0], batch_size]))
+        val_loader = data.DataLoader(self.data_env_validation, batch_size=min_batch_size, shuffle=False, drop_last=True)
 
         total_params = sum(p.numel() for p in model_step_1.parameters())
         print(f"Number of parameters: {total_params}")
@@ -1672,9 +1696,15 @@ class train_module():
         # Load model state
         model_step_2.load_state_dict(torch.load(f'{out_path}model.pt'))
 
+        # To run on multiple GPUs:
+        if torch.cuda.device_count() > 1:
+            model_step_2= nn.DataParallel(model_step_2)
+
         # Define data
         train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+        #val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
+        min_batch_size = int(np.min([self.data_env_validation_for_classification.X.shape[0], batch_size]))
+        val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=min_batch_size, shuffle=False, drop_last=True)
 
         # Define loss
         loss_module = nn.CrossEntropyLoss() 

@@ -12,6 +12,7 @@ from .functions import make_cell_type_representations as generate_representation
 from .models import Model1 as Model1
 from .models import Model2 as Model2
 from .models import Model3 as Model3
+from .models import Model4 as Model4
 from .models import ModelClassifier as ModelClassifier
 
 class scTRAC():
@@ -96,11 +97,11 @@ class scTRAC():
               validation_pct: float=0.2,
               gene_set_gene_limit: int=10,
               seed: int=42,
-              batch_size: int=236,
+              batch_size: int=256,
               init_lr: float=0.001,
-              epochs: int=100,
+              epochs: int=50,
               lr_scheduler_warmup: int=4,
-              lr_scheduler_maxiters: int=110,
+              lr_scheduler_maxiters: int=50,
               eval_freq: int=1,
               earlystopping_threshold: int=20,
               accum_grad: int = 1,
@@ -230,7 +231,8 @@ class scTRAC():
                                                  target_key=self.target_key,
                                                  batch_keys=[self.batch_key],
                                                  use_gene2vec_emb=True,
-                                                 gene2vec_path=self.gene2vec_path)
+                                                 gene2vec_path=self.gene2vec_path,
+                                                 validation_pct=validation_pct)
             
             self.rep_seed(seed=seed)
             model = Model2.Model2(num_HVGs=self.HVGs,
@@ -267,10 +269,52 @@ class scTRAC():
                                                  target_key=self.target_key,
                                                  batch_keys=[self.batch_key],
                                                  use_gene2vec_emb=True,
-                                                 gene2vec_path=self.gene2vec_path)
+                                                 gene2vec_path=self.gene2vec_path,
+                                                 validation_pct=validation_pct)
             
             self.rep_seed(seed=seed)
             model = Model3.Model3(mask=train_env.data_env.pathway_mask,
+                                  num_HVGs=self.HVGs,
+                                  output_dim=self.latent_dim,
+                                  num_pathways=self.num_gene_sets,
+                                  HVG_tokens=self.num_HVG_buckets,
+                                  HVG_embedding_dim=200,
+                                  use_gene2vec_emb=True)
+            
+            # Sample configuration dictionary
+            config = {
+                'input_dim': self.HVGs,
+                'output_dim': self.latent_dim,
+                'HVG_tokens': self.num_HVG_buckets,
+                'num_pathways': self.num_gene_sets
+            }
+
+            # Define the file path to save the configuration
+            config_file_path = f'{self.model_path}config/model_config.json'
+
+            # Save the configuration dictionary to a JSON file
+            with open(config_file_path, 'w') as f:
+                json.dump(config, f, indent=4)
+
+        elif self.model_name == "Model4":
+
+            train_env = trainer_fun.train_module(data_path=adata,
+                                                 pathways_file_path=self.gene_set_path,
+                                                 num_pathways=self.num_gene_sets,
+                                                 pathway_gene_limit=gene_set_gene_limit,
+                                                 save_model_path=self.model_path,
+                                                 HVG=True,
+                                                 HVGs=self.HVGs,
+                                                 HVG_buckets=self.num_HVG_buckets,
+                                                 use_HVG_buckets=True,
+                                                 target_key=self.target_key,
+                                                 batch_keys=[self.batch_key],
+                                                 use_gene2vec_emb=True,
+                                                 gene2vec_path=self.gene2vec_path,
+                                                 validation_pct=validation_pct)
+            
+            self.rep_seed(seed=seed)
+            model = Model4.Model4(mask=train_env.data_env.pathway_mask,
                                   num_HVGs=self.HVGs,
                                   output_dim=self.latent_dim,
                                   num_pathways=self.num_gene_sets,
@@ -506,6 +550,19 @@ class scTRAC():
                                   HVG_embedding_dim=200,
                                   use_gene2vec_emb=True)
 
+        elif self.model_name == "Model4":
+
+            if os.path.exists(f"{self.model_path}ModelMetadata/gene_set_mask.pt"):
+                pathway_mask = torch.load(f"{self.model_path}ModelMetadata/gene_set_mask.pt")
+
+            model = Model4.Model4(mask=pathway_mask,
+                                  num_HVGs=loaded_config["input_dim"],
+                                  output_dim=loaded_config["output_dim"],
+                                  num_pathways=loaded_config["num_pathways"],
+                                  HVG_tokens=loaded_config["HVG_tokens"],
+                                  HVG_embedding_dim=200,
+                                  use_gene2vec_emb=True)
+
         if use_classifier:
 
             # Define the file path from which to load the configuration
@@ -601,6 +658,19 @@ class scTRAC():
                 pathway_mask = torch.load(f"{self.model_path}ModelMetadata/gene_set_mask.pt")
 
             model = Model3.Model3(mask=pathway_mask,
+                                  num_HVGs=loaded_config["input_dim"],
+                                  output_dim=loaded_config["output_dim"],
+                                  num_pathways=loaded_config["num_pathways"],
+                                  HVG_tokens=loaded_config["HVG_tokens"],
+                                  HVG_embedding_dim=200,
+                                  use_gene2vec_emb=True)
+
+        elif self.model_name == "Model4":
+
+            if os.path.exists(f"{self.model_path}ModelMetadata/gene_set_mask.pt"):
+                pathway_mask = torch.load(f"{self.model_path}ModelMetadata/gene_set_mask.pt")
+
+            model = Model4.Model4(mask=pathway_mask,
                                   num_HVGs=loaded_config["input_dim"],
                                   output_dim=loaded_config["output_dim"],
                                   num_pathways=loaded_config["num_pathways"],
