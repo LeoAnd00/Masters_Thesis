@@ -159,8 +159,6 @@ class AttentionBlock(nn.Module):
         The activation function layer to use (default is nn.ReLU).
     norm_layer : nn.Module, optional
         The normalization layer to use, either nn.LayerNorm or nn.BatchNorm1d (default is nn.LayerNorm).
-    last : bool, optional
-        Whether this is the last attention block in the network (default is False).
 
     Attributes
     ----------
@@ -172,10 +170,6 @@ class AttentionBlock(nn.Module):
         The multihead attention mechanism.
     attnblock_mlp : AttentionMlp
         The feedforward neural network.
-    linear_out : nn.Linear
-        Linear layer for final output (used when 'last' is True).
-    linear_out2 : nn.Linear
-        Second linear layer for final output (used when 'last' is True).
 
     Methods
     -------
@@ -219,14 +213,6 @@ class AttentionBlock(nn.Module):
                                           out_features=attn_input_dim, 
                                           act_layer=act_layer, 
                                           drop=mlp_drop)
-        
-        self.linear_out = nn.Linear(output_dim,int(output_dim/4))
-        self.act_layer_out=nn.ReLU()
-        self.linear_out2 = nn.Linear(int(output_dim/4),1)
-
-        self.linear_out_attn = nn.Linear(output_dim,int(output_dim/4))
-        self.act_layer_out_attn=nn.ReLU()
-        self.linear_out2_attn = nn.Linear(int(output_dim/4),1)
 
     def forward(self, x, return_attention=False):
         """
@@ -356,8 +342,7 @@ class HVGTransformer(nn.Module):
                                 attn_bias=attn_bias,
                                 mlp_drop=drop_ratio,  
                                 norm_layer=norm_layer, 
-                                act_layer=act_layer,
-                                last=False) for idx in range(int(depth))])
+                                act_layer=act_layer) for idx in range(int(depth))])
 
     def forward(self, x, return_attention=False):
         """
