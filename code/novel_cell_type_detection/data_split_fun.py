@@ -60,11 +60,6 @@ def split_data(data_path: str,
         adata = adata_original[train_index, :].copy()
         test_adata = test_adata_original[test_index, :].copy()
 
-        if HVG:
-            sc.pp.highly_variable_genes(adata, n_top_genes=HVGs, flavor="cell_ranger")
-            test_adata = test_adata[:, adata.var["highly_variable"]]
-            adata = adata[:, adata.var["highly_variable"]]
-
         # Define cell types to exclude
         exclude_cell_types = ['Mature_B_Cells', 
                             'Plasma_Cells', 
@@ -77,6 +72,11 @@ def split_data(data_path: str,
 
         # Apply the mask to AnnData object
         adata = adata[mask]
+
+        if HVG:
+            sc.pp.highly_variable_genes(adata, n_top_genes=HVGs, flavor="cell_ranger")
+            test_adata = test_adata[:, adata.var["highly_variable"]]
+            adata = adata[:, adata.var["highly_variable"]]
 
         # Download split data
         adata.write(f'{save_path}_train_fold_{fold_counter}.h5ad')

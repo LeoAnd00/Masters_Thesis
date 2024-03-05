@@ -168,6 +168,7 @@ class VisualizeEnv():
         
             # Set x-axis limit to 1.1
             axs[col_idx].set_ylim(top=1.0)
+            axs[col_idx].set_ylim(bottom=0.0)
 
         #sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
 
