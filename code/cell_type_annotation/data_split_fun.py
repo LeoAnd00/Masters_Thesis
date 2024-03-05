@@ -51,7 +51,7 @@ def split_data(data_path: str,
     stratified_kfold = StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)
 
     # Remove log1p_counts so it takes less space. adata.X is defined as log1p_counts anyways.
-    del adata.layers["log1p_counts"]
+    #del adata.layers["log1p_counts"]
 
     # Iterate through the folds
     adata_original = adata.copy()
@@ -60,8 +60,8 @@ def split_data(data_path: str,
     for train_index, test_index in stratified_kfold.split(adata_original.X, adata_original.obs[label_key]):
         fold_counter += 1
         
-        adata = adata_original[train_index, :]
-        test_adata = test_adata_original[test_index, :]
+        adata = adata_original[train_index, :].copy()
+        test_adata = test_adata_original[test_index, :].copy()
 
         if HVG:
             sc.pp.highly_variable_genes(adata, n_top_genes=HVGs, flavor="cell_ranger")
