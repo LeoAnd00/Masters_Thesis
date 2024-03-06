@@ -331,7 +331,7 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model1 = pd.DataFrame({'method': "Model1",
+        self.metrics_Model1 = pd.DataFrame({'method': "Model1 CL + Centroid Loss",
                                             'accuracy': [accuracy],
                                             'balanced_accuracy': [balanced_accuracy],
                                             'f1_score': [f1],
@@ -449,7 +449,7 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model1_CL_loss = pd.DataFrame({'method': "Model1",
+        self.metrics_Model1_CL_loss = pd.DataFrame({'method': "Model1 CL Loss",
                                             'accuracy': [accuracy],
                                             'balanced_accuracy': [balanced_accuracy],
                                             'f1_score': [f1],
@@ -567,7 +567,7 @@ class classifier_train():
         print("F1 Score:", f1)
 
         # Creating a metrics dataFrame
-        self.metrics_Model1_centroid_loss = pd.DataFrame({'method': "Model1",
+        self.metrics_Model1_centroid_loss = pd.DataFrame({'method': "Model1 Centroid Loss",
                                             'accuracy': [accuracy],
                                             'balanced_accuracy': [balanced_accuracy],
                                             'f1_score': [f1],
@@ -866,7 +866,7 @@ class classifier_train():
             calculated_metrics_names.append("TOSICA")
 
         if len(calculated_metrics_names) != 0:
-            metrics = pd.concat(calculated_metrics, axis="columns")
+            metrics = pd.concat(calculated_metrics, axis="rows")
 
             #metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
 

@@ -189,6 +189,9 @@ class scTRAC():
         -------
         None
         """
+
+        if adata.n_vars < self.HVGs:
+            raise ValueError('Number of genes in adata is less than number of HVGs specified to be used.')
         
         if self.model_name == "Model1":
 

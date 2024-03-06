@@ -1272,218 +1272,222 @@ class train_module():
         best_val_loss = np.inf  
         best_epoch = 0
         train_start = time.time()
-        for epoch in tqdm(range(num_epochs)):
 
-            # Training
-            if use_classifier:
-                model.eval()
-                model_classifier.train()
-            else:
-                model.train()
-            train_loss = []
-            all_preds_train = []
-            all_labels_train = []
-            batch_idx = -1
-            for data_inputs, data_labels, data_batches, data_not_tokenized in train_loader:
-                batch_idx += 1
+        try:
+            for epoch in tqdm(range(num_epochs)):
 
-                data_labels = data_labels.to(device)
-                data_inputs_step = data_inputs.to(device)
-                data_not_tokenized_step = data_not_tokenized.to(device)
-
-                if (model_name == "Model3") or (model_name == "Model4"):
-                    if self.data_env.use_gene2vec_emb:
-                        preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
-                    else:
-                        preds = model(data_inputs_step, data_not_tokenized_step)
-                elif model_name == "Model2":
-                    if self.data_env.use_gene2vec_emb:
-                        preds = model(data_inputs_step, gene2vec_tensor)
-                    else:
-                        preds = model(data_inputs_step)
-                elif model_name == "Model1":
-                    preds = model(data_inputs_step)
-
+                # Training
                 if use_classifier:
-                    preds_latent = preds.cpu().detach().to(device)
-                    preds = model_classifier(preds_latent)
-                
-                # Whether to use classifier loss or latent space creation loss
-                loss = torch.tensor([]).to(device)
-                try:
-                    if use_classifier:
-                        loss = loss_module(preds, data_labels)/accum_grad
-                    else:
-                        if self.batch_keys is not None:
-                            data_batches = [batch.to(device) for batch in data_batches]
-                            loss = loss_module(preds, data_labels, data_batches)/accum_grad
+                    model.eval()
+                    model_classifier.train()
+                else:
+                    model.train()
+                train_loss = []
+                all_preds_train = []
+                all_labels_train = []
+                batch_idx = -1
+                for data_inputs, data_labels, data_batches, data_not_tokenized in train_loader:
+                    batch_idx += 1
+
+                    data_labels = data_labels.to(device)
+                    data_inputs_step = data_inputs.to(device)
+                    data_not_tokenized_step = data_not_tokenized.to(device)
+
+                    if (model_name == "Model3") or (model_name == "Model4"):
+                        if self.data_env.use_gene2vec_emb:
+                            preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
                         else:
-                            loss = loss_module(preds, data_labels)/accum_grad
-                except:
-                    # If loss can't be calculated for current mini-batch it continues to the next mini-batch
-                    # Can happen if a mini-batch only contains one cell type
-                    continue
-
-                loss.backward()
-
-                train_loss.append(loss.item())
-
-                # Perform updates to model weights
-                if ((batch_idx + 1) % accum_grad == 0) or (batch_idx + 1 == len(train_loader)):
-                    optimizer.step()
-                    optimizer.zero_grad()
-
-                #optimizer.step()
-                #optimizer.zero_grad()
-
-                all_preds_train.extend(preds.cpu().detach().numpy())
-                all_labels_train.extend(data_labels.cpu().detach().numpy())
-
-            # Validation
-            if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
-                model.eval()
-                if use_classifier:
-                    model_classifier.eval()
-                val_loss = []
-                all_preds = []
-                all_labels = []
-                with torch.no_grad():
-                    for data_inputs, data_labels, data_batches, data_not_tokenized in val_loader:
-
-                        data_inputs_step = data_inputs.to(device)
-                        data_labels_step = data_labels.to(device)
-                        data_not_tokenized_step = data_not_tokenized.to(device)
-
-                        if (model_name == "Model3") or (model_name == "Model4"):
-                            if self.data_env.use_gene2vec_emb:
-                                preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
-                            else:
-                                preds = model(data_inputs_step, data_not_tokenized_step)
-                        elif model_name == "Model2":
-                            if self.data_env.use_gene2vec_emb:
-                                preds = model(data_inputs_step, gene2vec_tensor)
-                            else:
-                                preds = model(data_inputs_step)
-                        elif model_name == "Model1":
+                            preds = model(data_inputs_step, data_not_tokenized_step)
+                    elif model_name == "Model2":
+                        if self.data_env.use_gene2vec_emb:
+                            preds = model(data_inputs_step, gene2vec_tensor)
+                        else:
                             preds = model(data_inputs_step)
+                    elif model_name == "Model1":
+                        preds = model(data_inputs_step)
+
+                    if use_classifier:
+                        preds_latent = preds.cpu().detach().to(device)
+                        preds = model_classifier(preds_latent)
+                    
+                    # Whether to use classifier loss or latent space creation loss
+                    loss = torch.tensor([]).to(device)
+                    try:
+                        if use_classifier:
+                            loss = loss_module(preds, data_labels)/accum_grad
+                        else:
+                            if self.batch_keys is not None:
+                                data_batches = [batch.to(device) for batch in data_batches]
+                                loss = loss_module(preds, data_labels, data_batches)/accum_grad
+                            else:
+                                loss = loss_module(preds, data_labels)/accum_grad
+                    except:
+                        # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                        # Can happen if a mini-batch only contains one cell type
+                        continue
+
+                    loss.backward()
+
+                    train_loss.append(loss.item())
+
+                    # Perform updates to model weights
+                    if ((batch_idx + 1) % accum_grad == 0) or (batch_idx + 1 == len(train_loader)):
+                        optimizer.step()
+                        optimizer.zero_grad()
+
+                    #optimizer.step()
+                    #optimizer.zero_grad()
+
+                    all_preds_train.extend(preds.cpu().detach().numpy())
+                    all_labels_train.extend(data_labels.cpu().detach().numpy())
+
+                # Validation
+                if (epoch % eval_freq == 0) or (epoch == (num_epochs-1)):
+                    model.eval()
+                    if use_classifier:
+                        model_classifier.eval()
+                    val_loss = []
+                    all_preds = []
+                    all_labels = []
+                    with torch.no_grad():
+                        for data_inputs, data_labels, data_batches, data_not_tokenized in val_loader:
+
+                            data_inputs_step = data_inputs.to(device)
+                            data_labels_step = data_labels.to(device)
+                            data_not_tokenized_step = data_not_tokenized.to(device)
+
+                            if (model_name == "Model3") or (model_name == "Model4"):
+                                if self.data_env.use_gene2vec_emb:
+                                    preds = model(data_inputs_step, data_not_tokenized_step, gene2vec_tensor)
+                                else:
+                                    preds = model(data_inputs_step, data_not_tokenized_step)
+                            elif model_name == "Model2":
+                                if self.data_env.use_gene2vec_emb:
+                                    preds = model(data_inputs_step, gene2vec_tensor)
+                                else:
+                                    preds = model(data_inputs_step)
+                            elif model_name == "Model1":
+                                preds = model(data_inputs_step)
+
+                            if use_classifier:
+                                preds_latent = preds.cpu().detach().to(device)
+                                preds = model_classifier(preds_latent)
+
+                            # Check and fix the number of dimensions
+                            if preds.dim() == 1:
+                                preds = preds.unsqueeze(0)  # Add a dimension along axis 0
+
+                            # Whether to use classifier loss or latent space creation loss
+                            loss = torch.tensor([]).to(device)
+                            try:
+                                if use_classifier:
+                                    loss = loss_module(preds, data_labels_step)/accum_grad
+                                else:
+                                    if self.batch_keys is not None:
+                                        data_batches = [batch.to(device) for batch in data_batches]
+                                        loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
+                                    else:
+                                        loss = loss_module(preds, data_labels_step)/accum_grad
+                            except:
+                                # If loss can't be calculated for current mini-batch it continues to the next mini-batch
+                                # Can happen if a mini-batch only contains one cell type
+                                continue
+
+                            val_loss.append(loss.item())
+                            all_preds.extend(preds.cpu().detach().numpy())
+                            all_labels.extend(data_labels_step.cpu().detach().numpy())
+
+                    # Metrics
+                    avg_train_loss = sum(train_loss) / len(train_loss)
+                    avg_val_loss = sum(val_loss) / len(val_loss)
+                    #avg_val_loss = avg_train_loss
+
+                    # Check early stopping
+                    early_stopping(avg_val_loss)
+
+                    # Print epoch information
+                    if use_classifier:
+
+                        binary_preds_train = []
+                        # Loop through the predictions
+                        for pred in all_preds_train:
+                            # Apply thresholding
+                            binary_pred = np.argmax(pred)
+
+                            binary_preds_train.append(binary_pred)
+
+                        # Convert the list of arrays to a numpy array
+                        binary_preds_train = np.array(binary_preds_train)
+
+                        binary_labels_train = []
+                        for pred in all_labels_train:
+                            binary_pred = np.argmax(pred)
+
+                            binary_labels_train.append(binary_pred)
+
+                        binary_labels_train = np.array(binary_labels_train)
+
+                        binary_preds_valid = []
+                        for label in all_preds:
+                            binary_pred = np.argmax(label)
+
+                            binary_preds_valid.append(binary_pred)
+
+                        binary_preds_valid = np.array(binary_preds_valid)
+
+                        binary_labels_valid = []
+                        for label in all_labels:
+                            binary_pred = np.argmax(label)
+
+                            binary_labels_valid.append(binary_pred)
+
+                        binary_labels_valid = np.array(binary_labels_valid)
+
+                        # Calculate accuracy
+                        accuracy_train = accuracy_score(binary_labels_train, binary_preds_train)
+                        accuracy = accuracy_score(binary_labels_valid, binary_preds_valid)
+
+                        if only_print_best == False:
+                            print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
+                    else:
+                        if only_print_best == False:
+                            print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
+
+                    # Apply early stopping
+                    if early_stopping.early_stop:
+                        print(f"Stopped training using EarlyStopping at epoch {epoch+1}")
+                        break
+
+                    # Save model if performance has improved
+                    if avg_val_loss < best_val_loss:
+                        best_val_loss = avg_val_loss
+                        best_epoch = epoch + 1
 
                         if use_classifier:
-                            preds_latent = preds.cpu().detach().to(device)
-                            preds = model_classifier(preds_latent)
+                            # Move the model to CPU before saving
+                            model_classifier.to('cpu')
+                            
+                            # Save the entire model to a file
+                            torch.save(model_classifier.module.state_dict() if hasattr(model_classifier, 'module') else model_classifier.state_dict(), f'{out_path}model_classifier.pt')
+                            
+                            # Move the model back to the original device
+                            model_classifier.to(device)
+                        else:
+                            # Move the model to CPU before saving
+                            model.to('cpu')
+                            
+                            # Save the entire model to a file
+                            #torch.save(model, f'{out_path}model.pt')
+                            #torch.save(model.state_dict(), f'{out_path}model.pt')
+                            torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
+                            
+                            # Move the model back to the original device
+                            model.to(device)
 
-                        # Check and fix the number of dimensions
-                        if preds.dim() == 1:
-                            preds = preds.unsqueeze(0)  # Add a dimension along axis 0
-
-                        # Whether to use classifier loss or latent space creation loss
-                        loss = torch.tensor([]).to(device)
-                        try:
-                            if use_classifier:
-                                loss = loss_module(preds, data_labels_step)/accum_grad
-                            else:
-                                if self.batch_keys is not None:
-                                    data_batches = [batch.to(device) for batch in data_batches]
-                                    loss = loss_module(preds, data_labels_step, data_batches) /accum_grad
-                                else:
-                                    loss = loss_module(preds, data_labels_step)/accum_grad
-                        except:
-                            # If loss can't be calculated for current mini-batch it continues to the next mini-batch
-                            # Can happen if a mini-batch only contains one cell type
-                            continue
-
-                        val_loss.append(loss.item())
-                        all_preds.extend(preds.cpu().detach().numpy())
-                        all_labels.extend(data_labels_step.cpu().detach().numpy())
-
-                # Metrics
-                avg_train_loss = sum(train_loss) / len(train_loss)
-                avg_val_loss = sum(val_loss) / len(val_loss)
-                #avg_val_loss = avg_train_loss
-
-                # Check early stopping
-                early_stopping(avg_val_loss)
-
-                # Print epoch information
-                if use_classifier:
-
-                    binary_preds_train = []
-                    # Loop through the predictions
-                    for pred in all_preds_train:
-                        # Apply thresholding
-                        binary_pred = np.argmax(pred)
-
-                        binary_preds_train.append(binary_pred)
-
-                    # Convert the list of arrays to a numpy array
-                    binary_preds_train = np.array(binary_preds_train)
-
-                    binary_labels_train = []
-                    for pred in all_labels_train:
-                        binary_pred = np.argmax(pred)
-
-                        binary_labels_train.append(binary_pred)
-
-                    binary_labels_train = np.array(binary_labels_train)
-
-                    binary_preds_valid = []
-                    for label in all_preds:
-                        binary_pred = np.argmax(label)
-
-                        binary_preds_valid.append(binary_pred)
-
-                    binary_preds_valid = np.array(binary_preds_valid)
-
-                    binary_labels_valid = []
-                    for label in all_labels:
-                        binary_pred = np.argmax(label)
-
-                        binary_labels_valid.append(binary_pred)
-
-                    binary_labels_valid = np.array(binary_labels_valid)
-
-                    # Calculate accuracy
-                    accuracy_train = accuracy_score(binary_labels_train, binary_preds_train)
-                    accuracy = accuracy_score(binary_labels_valid, binary_preds_valid)
-
-                    if only_print_best == False:
-                        print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Training Accuracy: {accuracy_train} | Validation loss: {avg_val_loss:.4f} | Validation Accuracy: {accuracy}")
-                else:
-                    if only_print_best == False:
-                        print(f"Epoch {epoch+1} | Training loss: {avg_train_loss:.4f} | Validation loss: {avg_val_loss:.4f}")
-
-                # Apply early stopping
-                if early_stopping.early_stop:
-                    print(f"Stopped training using EarlyStopping at epoch {epoch+1}")
-                    break
-
-                # Save model if performance has improved
-                if avg_val_loss < best_val_loss:
-                    best_val_loss = avg_val_loss
-                    best_epoch = epoch + 1
-
-                    if use_classifier:
-                        # Move the model to CPU before saving
-                        model_classifier.to('cpu')
-                        
-                        # Save the entire model to a file
-                        torch.save(model_classifier.module.state_dict() if hasattr(model_classifier, 'module') else model_classifier.state_dict(), f'{out_path}model_classifier.pt')
-                        
-                        # Move the model back to the original device
-                        model_classifier.to(device)
-                    else:
-                        # Move the model to CPU before saving
-                        model.to('cpu')
-                        
-                        # Save the entire model to a file
-                        #torch.save(model, f'{out_path}model.pt')
-                        #torch.save(model.state_dict(), f'{out_path}model.pt')
-                        torch.save(model.module.state_dict() if hasattr(model, 'module') else model.state_dict(), f'{out_path}model.pt')
-                        
-                        # Move the model back to the original device
-                        model.to(device)
-
-            # Update learning rate
-            lr_scheduler.step()
+                # Update learning rate
+                lr_scheduler.step()
+        except:
+            print(f"**Training forced to finish early due to error during training**")
 
         print()
         print(f"**Finished training**")

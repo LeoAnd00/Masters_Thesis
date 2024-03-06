@@ -189,6 +189,9 @@ class scTRAC():
         -------
         None
         """
+
+        if adata.n_vars < self.HVGs:
+            raise ValueError('Number of genes in adata is less than number of HVGs specified to be used.')
         
         if self.model_name == "Model1":
 
@@ -680,6 +683,7 @@ class scTRAC():
 
         representations = generate_representation_fun.generate_representation(data_=adata, 
                                                                               model=model, 
+                                                                              model_name=self.model_name,
                                                                               model_path=self.model_path, 
                                                                               target_key=self.target_key,
                                                                               save_path=save_path, 

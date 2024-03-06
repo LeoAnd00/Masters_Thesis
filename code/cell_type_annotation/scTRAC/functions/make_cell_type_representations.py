@@ -7,6 +7,7 @@ from .predict import predict as predict
 
 def generate_representation(data_, 
                             model, 
+                            model_name,
                             model_path: str, 
                             target_key: str,
                             save_path: str="cell_type_vector_representation/CellTypeRepresentations.csv", 
@@ -14,7 +15,7 @@ def generate_representation(data_,
                             method: str="centroid"):
 
     # Make predictions
-    predictions = predict(data_=data_, model=model, model_path=model_path, batch_size=batch_size)
+    predictions = predict(data_=data_, model=model, model_name=model_name, model_path=model_path, batch_size=batch_size)
     data_.obsm["predictions"] = predictions
 
     save_path = f'{model_path}{save_path}'
