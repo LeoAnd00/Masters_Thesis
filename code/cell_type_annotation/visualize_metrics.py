@@ -279,71 +279,106 @@ class VisualizeEnv():
         # Apply min-max normalization to each group
         normalized_averages = grouped_averages.transform(min_max_normalize)
 
-        # Group by "Method"
-        method_averages = normalized_averages.groupby("Method")[["Accuracy", "Balanced Accuracy", "F1 Score"]].mean()
+        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10 * 2, 5 * 1), sharey=False, gridspec_kw={'width_ratios': [3, 1]})
 
-        # Calculate the mean across metrics for each method
-        method_averages['Overall'] = method_averages.mean(axis=1)
+        for col_idx, ax in enumerate(axs):
 
-        metrics = pd.DataFrame({"Accuracy": method_averages["Accuracy"],
-                                "Balanced Accuracy": method_averages["Balanced Accuracy"],
-                                "F1 Score": method_averages["F1 Score"],
-                                "Overall": method_averages["Overall"],
-                                "Method": method_averages.index})
-        metrics.reset_index(drop=True, inplace=True)
+            if col_idx == 0:
+                metrics = pd.DataFrame({"Accuracy": normalized_averages.reset_index()["Accuracy"],
+                                        "Balanced Accuracy": normalized_averages.reset_index()["Balanced Accuracy"],
+                                        "F1 Score": normalized_averages.reset_index()["F1 Score"],
+                                        "Method": normalized_averages.index.get_level_values("Method")})
+                metrics.reset_index(drop=True, inplace=True)
 
-        # Define the order of metrics
-        metric_order = ["Accuracy", "Balanced Accuracy", "F1 Score", "Overall"]
+                # Melt the DataFrame to reshape it
+                metrics = pd.melt(metrics, id_vars=['Method'], var_name='Metric', value_name='Value')
 
-        # Melt the DataFrame to convert it to long format
-        melted_metrics = pd.melt(metrics, id_vars='Method', var_name='Metric', value_name='Value')
-        
-        # Set up the figure and axis
-        plt.figure(figsize=(8, 6))
+                variable = metrics["Value"].to_list()
+                group = metrics['Metric'].to_list()
+                group2 = metrics['Method'].to_list()
+                hue_order = ["Model1 | HVGs", 
+                            "scNym", 
+                            "scNym | HVGs", 
+                            "Seurat", 
+                            "Seurat | HVGs", 
+                            "TOSICA | HVGs", 
+                            "SciBet", 
+                            "SciBet | HVGs", 
+                            "CellID_cell", 
+                            "CellID_group", 
+                            "CellID_cell | HVGs", 
+                            "CellID_group | HVGs"]
+                
+                #sns.move_legend(axs[col_idx], "upper left", bbox_to_anchor=(1, 0.75))
+                sns.boxplot(y = variable,
+                            x = group,
+                            hue = group2, 
+                            width = 0.6,
+                            linewidth=0.4,
+                            hue_order = hue_order,
+                            ax=axs[col_idx], 
+                            showfliers = False)
+                if col_idx != 1:
+                    axs[col_idx].legend().remove()
 
-        # Sort the melted DataFrame by the 'Overall' metric
-        overall_sorted = melted_metrics[melted_metrics['Metric'] == 'Overall'].sort_values(by='Value', ascending=False)
-        melted_metrics = pd.concat([overall_sorted, melted_metrics[melted_metrics['Metric'] != 'Overall']])
+                # Add grid
+                # Calculate the x positions of the grid lines to be between the ticks
+                x_ticks = axs[col_idx].get_xticks()
+                x_grid_positions = (x_ticks[:-1] + x_ticks[1:]) / 2
 
-        hue_order = ["Model1 | HVGs", 
-                         "scNym", 
-                         "scNym | HVGs", 
-                         "Seurat", 
-                         "Seurat | HVGs", 
-                         "TOSICA | HVGs", 
-                         "SciBet", 
-                         "SciBet | HVGs", 
-                         "CellID_cell", 
-                         "CellID_group", 
-                         "CellID_cell | HVGs", 
-                         "CellID_group | HVGs"]
+                # Set the grid positions to be between the x ticks
+                axs[col_idx].set_xticks(x_grid_positions, minor=True)
 
-        # Plot the grouped bar plot with opaque bars and borders
-        sns.barplot(x='Metric', y='Value', hue='Method', data=melted_metrics, hue_order=hue_order, order=metric_order, ci=None, dodge=True, alpha=1.0, edgecolor='black')
+                # Add grid lines between the x positions
+                axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
-        # Get the current ticks and positions for the x-axis
-        x_positions = np.arange(len(metric_order)) 
+                axs[col_idx].set_ylabel('Normalized Score Across Datasets')
 
-        # Calculate the positions for the minor grid lines
-        minor_positions = []
-        for i in range(len(metric_order) - 1):
-            minor_positions.append((x_positions[i] + x_positions[i + 1]) / 2)
+            elif col_idx == 1:
+                # Group by "Method"
+                method_averages = normalized_averages.groupby("Method")[["Accuracy", "Balanced Accuracy", "F1 Score"]].mean()
 
-        # Add minor grid lines between the x positions
-        plt.grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
+                # Calculate the mean across metrics for each method
+                method_averages['Overall'] = method_averages.mean(axis=1)
 
-        # Set the positions for the minor ticks
-        plt.gca().set_xticks(minor_positions, minor=True)
+                metrics = pd.DataFrame({"Accuracy": method_averages["Accuracy"],
+                                        "Balanced Accuracy": method_averages["Balanced Accuracy"],
+                                        "F1 Score": method_averages["F1 Score"],
+                                        "Overall": method_averages["Overall"],
+                                        "Method": method_averages.index})
+                metrics.reset_index(drop=True, inplace=True)
 
-        # Adjust legend placement and content orientation
-        plt.legend(title=None, loc='upper left', bbox_to_anchor=(1, 0.7), ncol=1, frameon=False, fontsize='small')
+                # Melt the DataFrame to convert it to long format
+                melted_metrics = pd.melt(metrics, id_vars='Method', var_name='Metric', value_name='Value')
 
+                # Sort the melted DataFrame by the 'Overall' metric
+                overall_sorted = melted_metrics[melted_metrics['Metric'] == 'Overall'].sort_values(by='Value', ascending=False)
 
-        # Set the title and labels
-        plt.ylabel('Score')
-        plt.xlabel('Metric')
+                hue_order = ["Model1 | HVGs", 
+                                "scNym", 
+                                "scNym | HVGs", 
+                                "Seurat", 
+                                "Seurat | HVGs", 
+                                "TOSICA | HVGs", 
+                                "SciBet", 
+                                "SciBet | HVGs", 
+                                "CellID_cell", 
+                                "CellID_group", 
+                                "CellID_cell | HVGs", 
+                                "CellID_group | HVGs"]
 
-        # Show the plot
-        plt.xticks(ha='center')
+                # Plot the grouped bar plot with opaque bars and borders
+                sns.barplot(x='Metric', y='Value', hue='Method', ax=axs[col_idx], data=overall_sorted, hue_order=hue_order, ci=None, dodge=True, alpha=1.0, edgecolor='black')
+
+                axs[col_idx].set_ylabel('Average Score Across Metrics')
+
+        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
+
+        # Adjust layout to prevent clipping of ylabel
         plt.tight_layout()
+
+        # Save the plot as an SVG file
+        if image_path:
+            plt.savefig(f'{image_path}.svg', format='svg')
+
         plt.show()
