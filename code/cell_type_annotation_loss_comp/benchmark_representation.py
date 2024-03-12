@@ -16,6 +16,9 @@ import scTRAC.scTRAC as scTRAC
 import scTRAC_cent.scTRAC as scTRAC_cent
 import scTRAC_cl.scTRAC as scTRAC_cl
 import scib
+import scNear
+import scNear_cl
+import scNear_cent
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -265,24 +268,11 @@ class classifier_train():
 
         adata_in_house = self.original_adata.copy()
 
-        model = scTRAC.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model1",
-                              model_path=save_path)
-        
         if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = False,
-                        train_classifier=True, 
-                        optimize_classifier=True, 
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
+            scNear.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
+        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions
@@ -356,24 +346,11 @@ class classifier_train():
 
         adata_in_house = self.original_adata.copy()
 
-        model = scTRAC_cl.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model1",
-                              model_path=save_path)
-        
         if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = False,
-                        train_classifier=True, 
-                        optimize_classifier=True, 
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
+            scNear_cl.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
+        predictions = scNear_cl.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions
@@ -447,24 +424,11 @@ class classifier_train():
 
         adata_in_house = self.original_adata.copy()
 
-        model = scTRAC_cent.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model1",
-                              model_path=save_path)
-        
         if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = False,
-                        train_classifier=True, 
-                        optimize_classifier=True, 
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
+            scNear_cent.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
+        predictions = scNear_cent.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions

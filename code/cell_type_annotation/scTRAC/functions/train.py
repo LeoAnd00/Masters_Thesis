@@ -1516,7 +1516,8 @@ class train_module():
                  eval_freq: int=1,
                  epochs: int=100,
                  earlystopping_threshold: int=10,
-                 accum_grad: int=1):
+                 accum_grad: int=1,
+                 return_val_loss: bool=False):
         """
         Perform training of the machine learning model.
 
@@ -1630,7 +1631,7 @@ class train_module():
             model_step_1= nn.DataParallel(model_step_1)
 
         # Train
-        _ = self.train_model(model=model_step_1, 
+        val_loss = self.train_model(model=model_step_1, 
                         model_name=model_name,
                         optimizer=optimizer, 
                         lr_scheduler=lr_scheduler, 
@@ -1650,6 +1651,9 @@ class train_module():
         total_train_end = time.time()
         print(f"Total training time: {(total_train_end - total_train_start)/60:.2f} minutes")
         print()
+
+        if return_val_loss:
+            return val_loss
 
     def train_classifier(self, 
                         model: nn.Module,

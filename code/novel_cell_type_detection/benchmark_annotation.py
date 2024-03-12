@@ -49,66 +49,94 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     folds = [1,2,3,4,5]
     num_folds = 5
     counter = 0  
-    for fold in folds:
-        counter += 1
+    exclude_cell_types_list = [['Mature_B_Cells'], 
+                                ['Plasma_Cells'], 
+                                ['alpha-beta_T_Cells'], 
+                                ['gamma-delta_T_Cells_1'],
+                                ['Mature_B_Cells', 
+                                'Plasma_Cells', 
+                                'alpha-beta_T_Cells', 
+                                'gamma-delta_T_Cells_1']]
 
-        seed = 42
+    exclude_cell_types_list_names = ['Mature_B_Cells', 
+                                'Plasma_Cells', 
+                                'alpha-beta_T_Cells', 
+                                'gamma-delta_T_Cells_1',
+                                'All_Above']
 
-        while True:  # Keep trying new seeds until no error occurs
-            try:
-                print("fold: ", fold)
-                print("seed: ", seed)
+    threshold_list = [0.99, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.25, 0.1]
 
-                benchmark_env = benchmark(data_path=data_path,
-                                          dataset_name=dataset_name,
-                                          image_path=image_path,
-                                          HVGs=2000,
-                                          fold=fold,
-                                          seed=seed)
+    novel_cell_counter = -1
+    for novel_cell in exclude_cell_types_list:
+        novel_cell_counter += 1
 
-                #print("**Start benchmarking TOSICA method**")
-                #benchmark_env.tosica()
+        #novel_cell = ['Mature_B_Cells', 
+        #            'Plasma_Cells', 
+        #            'alpha-beta_T_Cells', 
+        #            'gamma-delta_T_Cells_1', 
+        #            'gamma-delta_T_Cells_2']
 
-                # Calculate for model
-                print(f"Start training model, fold {fold} and seed {seed}")
-                print()
-                if fold == 1:
-                    benchmark_env.Model1_classifier(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                    #benchmark_env.Model3_classifier(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
-                    #benchmark_env.Model2_classifier(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
-                else:
-                    benchmark_env.Model1_classifier(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                    #benchmark_env.Model3_classifier(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
-                
-                benchmark_env.make_benchamrk_results_dataframe()
+        for fold in folds:
+            counter2 = 0
+            for threshold in threshold_list:
+                counter += 1
+                counter2 += 1
 
-                #benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
-                #benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
-                #benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
+                seed = 42
 
-                #if counter > 1:
-                #    benchmark_env.read_csv(name=result_csv_path)
-                benchmark_env.read_csv(name=result_csv_path)
+                while True:  # Keep trying new seeds until no error occurs
+                    try:
+                        print("fold: ", fold)
+                        print("seed: ", seed)
 
-                benchmark_env.save_results_as_csv(name=result_csv_path)
+                        benchmark_env = benchmark(data_path=data_path,
+                                                exclude_cell_types = novel_cell,
+                                                dataset_name=dataset_name,
+                                                image_path=image_path,
+                                                HVGs=2000,
+                                                fold=fold,
+                                                seed=seed)
 
-                del benchmark_env
+                        #print("**Start benchmarking TOSICA method**")
+                        #benchmark_env.tosica(excluded_cell = exclude_cell_types_list_names[novel_cell_counter], threshold=threshold)
 
-                # Empty the cache
-                torch.cuda.empty_cache()
+                        # Calculate for model
+                        print(f"Start training model, fold {fold} and seed {seed}")
+                        print()
+                        if counter2 == 1:
+                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=True, umap_plot=False, save_figure=False)
+                        else:
+                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=False)
 
-                break
-            except Exception as e:
-                # Handle the exception (you can print or log the error if needed)
-                print(f"Error occurred: {e}")
+                        benchmark_env.make_benchamrk_results_dataframe()
 
-                # Generate a new random seed not in random_seeds list
-                new_seed = random.randint(1, 10000)
+                        #benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
+                        #benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
+                        #benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
 
-                print(f"Trying a new random seed: {new_seed}")
-                seed = new_seed
+                        #if counter > 1:
+                        #    benchmark_env.read_csv(name=result_csv_path)
+                        benchmark_env.read_csv(name=result_csv_path)
 
-                break
+                        benchmark_env.save_results_as_csv(name=result_csv_path)
+
+                        del benchmark_env
+
+                        # Empty the cache
+                        torch.cuda.empty_cache()
+
+                        break
+                    except Exception as e:
+                        # Handle the exception (you can print or log the error if needed)
+                        print(f"Error occurred: {e}")
+
+                        # Generate a new random seed not in random_seeds list
+                        new_seed = random.randint(1, 10000)
+
+                        print(f"Trying a new random seed: {new_seed}")
+                        seed = new_seed
+
+                        break
 
     print("Finished generalizability benchmark!")
         

@@ -90,6 +90,7 @@ class scTRAC():
               adata,
               train_classifier: bool=False,
               optimize_classifier: bool=True,
+              optimize_latent_space_producer: bool=True,
               only_print_best: bool=False,
               num_trials: int=100,
               use_already_trained_latent_space_generator: bool=False,
@@ -99,19 +100,19 @@ class scTRAC():
               seed: int=42,
               batch_size: int=256,
               init_lr: float=0.001,
-              epochs: int=50,
+              epochs: int=100,
               lr_scheduler_warmup: int=4,
-              lr_scheduler_maxiters: int=50,
+              lr_scheduler_maxiters: int=100,
               eval_freq: int=1,
               earlystopping_threshold: int=20,
               accum_grad: int = 1,
               batch_size_classifier: int = 256,
               init_lr_classifier: float = 0.001,
               lr_scheduler_warmup_classifier: int = 4,
-              lr_scheduler_maxiters_classifier: int = 50,
+              lr_scheduler_maxiters_classifier: int = 100,
               eval_freq_classifier: int = 1,
-              epochs_classifier: int = 50,
-              earlystopping_threshold_classifier: int = 10,
+              epochs_classifier: int = 100,
+              earlystopping_threshold_classifier: int = 20,
               accum_grad_classifier: int = 1):
         """
         Fit scTRAC to your Anndata.\n
@@ -195,30 +196,125 @@ class scTRAC():
         
         if self.model_name == "Model1":
 
-            train_env = trainer_fun.train_module(data_path=adata,
-                                                 save_model_path=self.model_path,
-                                                 HVG=True,
-                                                 HVGs=self.HVGs,
-                                                 target_key=self.target_key,
-                                                 batch_keys=[self.batch_key],
-                                                 validation_pct=validation_pct)
-            
-            self.rep_seed(seed=seed)
-            model = Model1.Model1(input_dim=self.HVGs,
-                                  output_dim=self.latent_dim)
-            
-            # Sample configuration dictionary
-            config = {
-                'input_dim': self.HVGs,
-                'output_dim': self.latent_dim
-            }
+            if optimize_latent_space_producer:
+                def objective(trial):
 
-            # Define the file path to save the configuration
-            config_file_path = f'{self.model_path}config/model_config.json'
+                    # Parameters to optimize
+                    n_neurons_layer1 = trial.suggest_int('n_neurons_layer1', 128, 3072, step=128)
+                    n_neurons_layer2 = trial.suggest_int('n_neurons_layer2', 128, 3072, step=128)
+                    learning_rate = trial.suggest_loguniform('learning_rate', 1e-5, 1e-2)
+                    print ("n_neurons_layer1: ", n_neurons_layer1)
+                    print ("n_neurons_layer2: ", n_neurons_layer2)
+                    print ("learning_rate: ", learning_rate)
 
-            # Save the configuration dictionary to a JSON file
-            with open(config_file_path, 'w') as f:
-                json.dump(config, f, indent=4)
+                    self.rep_seed(seed=seed)
+                    model = Model1.Model1(input_dim=self.HVGs,
+                                        first_layer_dim=n_neurons_layer1,
+                                        second_layer_dim=n_neurons_layer2,
+                                        output_dim=self.latent_dim)
+            
+                    val_loss = train_env.train(model=model,
+                                                model_name=self.model_name,
+                                                return_val_loss=True,
+                                                device=device,
+                                                seed=seed,
+                                                batch_size=batch_size,
+                                                use_target_weights=True,
+                                                use_batch_weights=True,
+                                                init_temperature=0.25,
+                                                min_temperature=0.1,
+                                                max_temperature=2.0,
+                                                init_lr=learning_rate,
+                                                lr_scheduler_warmup=lr_scheduler_warmup,
+                                                lr_scheduler_maxiters=lr_scheduler_maxiters,
+                                                eval_freq=eval_freq,
+                                                epochs=epochs,
+                                                earlystopping_threshold=earlystopping_threshold,
+                                                accum_grad=accum_grad)
+                    return val_loss
+
+                # Define to run the best model
+                train_env = trainer_fun.train_module(data_path=adata,
+                                                    save_model_path=self.model_path,
+                                                    HVG=True,
+                                                    HVGs=self.HVGs,
+                                                    target_key=self.target_key,
+                                                    batch_keys=[self.batch_key],
+                                                    validation_pct=validation_pct)
+                
+                # Define the study and optimize
+                study = optuna.create_study(direction='minimize')
+                study.optimize(objective, n_trials=num_trials)
+
+                print('Number of finished trials: ', len(study.trials))
+                print('Best trial:')
+                trial = study.best_trial
+
+                print('  Value: ', trial.value)
+                print('  Params: ')
+                opt_dict = {}
+                for key, value in trial.params.items():
+                    print('    {}: {}'.format(key, value))
+                    opt_dict[key] = value
+
+                # Sample configuration dictionary
+                config = {
+                    'input_dim': self.HVGs,
+                    'output_dim': self.latent_dim,
+                    'first_layer_dim': opt_dict['n_neurons_layer1'],
+                    'second_layer_dim': opt_dict['n_neurons_layer2']
+                }
+
+                # Define the file path to save the configuration
+                config_file_path = f'{self.model_path}config/model_config.json'
+
+                # Save the configuration dictionary to a JSON file
+                with open(config_file_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+
+                # Define to run the best model
+                train_env = trainer_fun.train_module(data_path=adata,
+                                                    save_model_path=self.model_path,
+                                                    HVG=True,
+                                                    HVGs=self.HVGs,
+                                                    target_key=self.target_key,
+                                                    batch_keys=[self.batch_key],
+                                                    validation_pct=validation_pct)
+                
+                self.rep_seed(seed=seed)
+                model = Model1.Model1(input_dim=config["input_dim"],
+                                    output_dim=config["output_dim"],
+                                    first_layer_dim=config["first_layer_dim"],
+                                    second_layer_dim=config["second_layer_dim"],)
+                
+            else:
+
+                train_env = trainer_fun.train_module(data_path=adata,
+                                                    save_model_path=self.model_path,
+                                                    HVG=True,
+                                                    HVGs=self.HVGs,
+                                                    target_key=self.target_key,
+                                                    batch_keys=[self.batch_key],
+                                                    validation_pct=validation_pct)
+                
+                self.rep_seed(seed=seed)
+                model = Model1.Model1(input_dim=self.HVGs,
+                                    output_dim=self.latent_dim)
+                
+                # Sample configuration dictionary
+                config = {
+                    'input_dim': self.HVGs,
+                    'output_dim': self.latent_dim,
+                    'first_layer_dim': 1000,
+                    'second_layer_dim': 500,
+                }
+
+                # Define the file path to save the configuration
+                config_file_path = f'{self.model_path}config/model_config.json'
+
+                # Save the configuration dictionary to a JSON file
+                with open(config_file_path, 'w') as f:
+                    json.dump(config, f, indent=4)
             
         elif self.model_name == "Model2":
 
@@ -530,7 +626,9 @@ class scTRAC():
         if self.model_name == "Model1":
 
             model = Model1.Model1(input_dim=loaded_config["input_dim"],
-                                  output_dim=loaded_config["output_dim"])
+                                output_dim=loaded_config["output_dim"],
+                                first_layer_dim=loaded_config["first_layer_dim"],
+                                second_layer_dim=loaded_config["second_layer_dim"],)
 
         elif self.model_name == "Model2":
 

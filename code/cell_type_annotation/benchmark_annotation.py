@@ -46,10 +46,11 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     # Calculate for model at different number of patient for training and different random seeds
     folds = [1,2,3,4,5]#[1,2,3,4,5]
     num_folds = 5
-    seed = 42
     counter = 0  
     for fold in folds:
         counter += 1
+
+        seed = 42
 
         while True:  # Keep trying new seeds until no error occurs
             try:

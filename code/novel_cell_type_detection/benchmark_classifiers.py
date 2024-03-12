@@ -13,6 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
 import scTRAC.scTRAC as scTRAC
+import scNear
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -57,6 +58,7 @@ class classifier_train():
     """
 
     def __init__(self, 
+                 exclude_cell_types,
                  data_path: str, 
                  dataset_name: str,
                  pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
@@ -131,7 +133,7 @@ class classifier_train():
         #                    'alpha-beta_T_Cells', 
         #                    'gamma-delta_T_Cells_1', 
         #                    'gamma-delta_T_Cells_2']
-        self.exclude_cell_types = ['Plasma_Cells']
+        self.exclude_cell_types = exclude_cell_types#[exclude_cell_types]
 
         # Iterate through the folds
         self.adata = self.adata.copy()
@@ -165,7 +167,7 @@ class classifier_train():
         self.celltype_title = 'Cell type'
         self.batcheffect_title = 'Batch effect'
 
-    def tosica(self):
+    def tosica(self, excluded_cell: str, threshold: float=0.5):
         """
         Evaluate and visualization on performance of TOSICA (https://github.com/JackieHanLab/TOSICA/tree/main) on single-cell RNA-seq data.
 
@@ -200,10 +202,10 @@ class classifier_train():
 
         del new_adata
 
-        # Define to be novel if confidence is below 0.5
+        # Define to be novel if confidence is below threshold
         max_scores = adata_tosica.obs[f"{self.label_key}_probability"]
         for i, max_score in enumerate(max_scores):
-            if max_score < 0.5:
+            if max_score < threshold:
                 adata_tosica.obs[f"{self.label_key}_prediction"].iloc[i] = "Novel"
 
         results_novel = adata_tosica[adata_tosica.obs[self.label_key].isin(self.exclude_cell_types)]
@@ -273,19 +275,25 @@ class classifier_train():
                                     "f1_score": f1_not_novel,
                                     "dataset": self.dataset_name,
                                     "novel": "Known",
-                                    "fold": self.fold}, index=[0])
+                                    "fold": self.fold,
+                                    "excluded_cell_type": excluded_cell,
+                                    "threshold":threshold}, 
+                                    index=[0])
         temp = pd.DataFrame({"method": "TOSICA", 
                             "accuracy": accuracy_novel, 
                             "balanced_accuracy": balanced_accuracy_novel,
                             "f1_score": f1_novel,
                             "dataset": self.dataset_name,
                             "novel": "Novel",
-                            "fold": self.fold}, index=[0])
+                            "fold": self.fold,
+                            "excluded_cell_type": excluded_cell,
+                            "threshold":threshold}, 
+                            index=[0])
         self.metrics_TOSICA = pd.concat([self.metrics_TOSICA, temp], ignore_index=True)
         
         del adata_tosica
 
-    def Model1_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
+    def Model1_classifier(self, threshold: float, excluded_cell: str, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
         Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
 
@@ -315,36 +323,23 @@ class classifier_train():
 
         adata_in_house = self.original_adata.copy()
 
-        model = scTRAC.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model1",
-                              model_path=save_path)
-        
         if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = False,
-                        train_classifier=True, 
-                        optimize_classifier=True, 
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
+            scNear.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
+        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions, pred_prob = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False, return_pred_probs=True)
+        predictions, pred_prob = scNear.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True, return_pred_probs=True)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
         adata_in_house_test.obs[f"{self.label_key}_probability"] = pred_prob
 
         del predictions, pred_prob
 
-        # Define to be novel if confidence is below 0.5
+        # Define to be novel if confidence is below threshold
         max_scores = adata_in_house_test.obs[f"{self.label_key}_probability"]
         for i, max_score in enumerate(max_scores):
-            if max_score < 0.5:
+            if max_score < threshold:
                 adata_in_house_test.obs[f"{self.label_key}_prediction"].iloc[i] = "Novel"
 
         results_novel = adata_in_house_test[adata_in_house_test.obs[self.label_key].isin(self.exclude_cell_types)]
@@ -414,14 +409,20 @@ class classifier_train():
                                     "f1_score": f1_not_novel,
                                     "dataset": self.dataset_name,
                                     "novel": "Known",
-                                    "fold": self.fold}, index=[0])
+                                    "fold": self.fold,
+                                    "excluded_cell_type": excluded_cell,
+                                    "threshold":threshold}, 
+                                    index=[0])
         temp = pd.DataFrame({"method": "Model1", 
                             "accuracy": accuracy_novel, 
                             "balanced_accuracy": balanced_accuracy_novel,
                             "f1_score": f1_novel,
                             "dataset": self.dataset_name,
                             "novel": "Novel",
-                            "fold": self.fold}, index=[0])
+                            "fold": self.fold,
+                            "excluded_cell_type": excluded_cell,
+                            "threshold":threshold}, 
+                            index=[0])
         self.metrics_Model1 = pd.concat([self.metrics_Model1, temp], ignore_index=True)
 
         random_order = np.random.permutation(adata_in_house_test.n_obs)

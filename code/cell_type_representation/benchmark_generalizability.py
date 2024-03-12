@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # sbatch jobscript_generalizability_all_merged.sh
 
 
-def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: str, gene2vec_path: str, image_path: str):
+def main(data_path: str, model_path: str, result_csv_path: str, image_path: str):
     """
     Execute the generalizability benchmark pipeline. Selects 20% of data for testing and uses the
     remaining 80% for training, with the option to train using different amounts (Example: 20%, 40%, 60%, 80%)
@@ -47,14 +47,15 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
     
     # Calculate for model at different number of patient for training and different random seeds
     list_of_data_pct = [0.8]#[0.2, 0.4, 0.6, 0.8]
-    folds = [1]#[1,2,3,4,5]
+    folds = [1,2,3,4,5]#[1,2,3,4,5]
     num_folds = 5
-    seed = 42
     counter = 0
     for idx, train_pct in enumerate(list_of_data_pct):
         
         for fold in folds:
             counter += 1
+
+            seed = 42
 
             while True:  # Keep trying new seeds until no error occurs
                 try:
@@ -62,8 +63,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                     print("seed: ", seed)
 
                     benchmark_env = benchmark(data_path=data_path, 
-                                            pathway_path=pathway_path,
-                                            gene2vec_path=gene2vec_path,
                                             image_path=f'{image_path}train_pct_{train_pct}_fold_{fold}_seed_{seed}_',
                                             batch_key="patientID", 
                                             HVG=True, 
@@ -99,12 +98,15 @@ def main(data_path: str, model_path: str, result_csv_path: str, pathway_path: st
                     print(f"Start training model with {train_pct} percent of data for training, fold {fold} and seed {seed}")
                     print()
                     if fold == 1:
-                        #benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
-                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
+                        benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
+                        #benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
+                        #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=True)
+                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=True)
                     else:
-                        #benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
+                        benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
+                        #benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+                        #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=False)
                     
                     benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
 
@@ -157,10 +159,8 @@ if __name__ == "__main__":
     parser.add_argument('data_path', type=str, help='Path to the data file.')
     parser.add_argument('model_path', type=str, help='Path to save or load the trained models.')
     parser.add_argument('result_csv_path', type=str, help='Path to save the benchmark results as a CSV file.')
-    parser.add_argument('pathway_path', type=str, help='Path to the pathway information json file.')
-    parser.add_argument('gene2vec_path', type=str, help='Path to gene2vec representations.')
     parser.add_argument('image_path', type=str, help='Path where images will be saved.')
     args = parser.parse_args()
 
     # Call the main function with command-line arguments
-    main(args.data_path, args.model_path, args.result_csv_path, args.pathway_path, args.gene2vec_path, args.image_path)
+    main(args.data_path, args.model_path, args.result_csv_path, args.image_path)

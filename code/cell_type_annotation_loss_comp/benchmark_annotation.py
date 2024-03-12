@@ -70,9 +70,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                 # Calculate for model
                 print(f"Start training model, fold {fold} and seed {seed}")
                 print()
-                benchmark_env.Model1_full_loss_classifier(save_path=f'{model_path}Model1_full_loss/', train=False, umap_plot=False, save_figure=False)
-                benchmark_env.Model1_CL_loss_classifier(save_path=f'{model_path}Model1_CL_loss/', train=False, umap_plot=False, save_figure=False)
-                benchmark_env.Model1_centroid_loss_classifier(save_path=f'{model_path}Model1_centroid_loss/', train=False, umap_plot=False, save_figure=False)
+                benchmark_env.Model1_full_loss_classifier(save_path=f'{model_path}Model1_full_loss/', train=True, umap_plot=False, save_figure=False)
+                benchmark_env.Model1_CL_loss_classifier(save_path=f'{model_path}Model1_CL_loss/', train=True, umap_plot=False, save_figure=False)
+                benchmark_env.Model1_centroid_loss_classifier(save_path=f'{model_path}Model1_centroid_loss/', train=True, umap_plot=False, save_figure=False)
                 
                 benchmark_env.make_benchamrk_results_dataframe()
 

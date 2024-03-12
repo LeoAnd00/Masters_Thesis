@@ -13,6 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
 import scTRAC.scTRAC as scTRAC
+import scNear
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -259,28 +260,15 @@ class classifier_train():
         save_path = f"{save_path}Fold_{self.fold}/"
 
         adata_in_house = self.original_adata.copy()
-
-        model = scTRAC.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model1",
-                              model_path=save_path)
         
         if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = False,
-                        train_classifier=True, 
-                        optimize_classifier=True, 
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
+            scNear.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
+        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False)
+        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
 
         del predictions
@@ -502,13 +490,14 @@ class classifier_train():
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
                               HVGs=self.HVGs,
+                              num_HVG_buckets = 10,
                               batch_key="batch",
                               model_name="Model3",
                               model_path=save_path)
         
         if train:
             model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = True,
+                        use_already_trained_latent_space_generator = False,
                         train_classifier=True, 
                         optimize_classifier=True,  
                         seed=self.seed,

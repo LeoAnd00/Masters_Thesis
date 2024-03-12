@@ -5,20 +5,22 @@ class OutputEncoder(nn.Module):
     def __init__(self, 
                  input_dim: int, 
                  output_dim: int,
+                 first_layer_dim: int,
+                 second_layer_dim: int,
                  act_layer=nn.ReLU,
                  norm_layer=nn.BatchNorm1d,
                  drop_out: float=0.0):
         super().__init__()
 
         self.norm_layer_in = norm_layer(int(input_dim))
-        self.linear1 = nn.Linear(int(input_dim), int(input_dim/2))
-        self.norm_layer1 = norm_layer(int(input_dim/2))
+        self.linear1 = nn.Linear(int(input_dim), first_layer_dim)
+        self.norm_layer1 = norm_layer(first_layer_dim)
         self.linear1_act = act_layer()
-        self.linear2 = nn.Linear(int(input_dim/2), int(input_dim/4))
-        self.norm_layer2 = norm_layer(int(input_dim/4))
+        self.linear2 = nn.Linear(first_layer_dim, second_layer_dim)
+        self.norm_layer2 = norm_layer(second_layer_dim)
         self.dropout2 = nn.Dropout(drop_out)
         self.linear2_act = act_layer()
-        self.output = nn.Linear(int(input_dim/4), output_dim)
+        self.output = nn.Linear(second_layer_dim, output_dim)
 
     def forward(self, x):
         x = self.norm_layer_in(x)
@@ -62,12 +64,16 @@ class Model1(nn.Module):
                  input_dim: int,
                  output_dim: int=100,
                  drop_out: float=0.2,
+                 first_layer_dim: int=1000,
+                 second_layer_dim: int=500,
                  act_layer=nn.ReLU,
                  norm_layer=nn.LayerNorm,):
         super().__init__()
         
         self.output_encoder = OutputEncoder(input_dim=input_dim, 
                                             output_dim=output_dim,
+                                            first_layer_dim=first_layer_dim,
+                                            second_layer_dim=second_layer_dim,
                                             act_layer=act_layer,
                                             norm_layer=norm_layer,
                                             drop_out=drop_out)
