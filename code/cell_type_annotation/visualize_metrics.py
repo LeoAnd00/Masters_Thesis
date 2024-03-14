@@ -332,7 +332,7 @@ class VisualizeEnv():
                 # Add grid lines between the x positions
                 axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
-                axs[col_idx].set_ylabel('Normalized Score Across Datasets')
+                axs[col_idx].set_ylabel('Normalized Average Score Across Datasets')
 
             elif col_idx == 1:
                 # Group by "Method"

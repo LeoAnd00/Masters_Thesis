@@ -243,7 +243,7 @@ class VisualizeEnv():
                 
                 sns.move_legend(
                     axs[col_idx], "lower center",
-                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize="small"
+                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize="medium"
                 )
             else:
                 sns.boxplot(y = variable,
