@@ -1,22 +1,9 @@
 # Learning Meaningful Representations of Cells - a Master's Thesis
+## Reproducibility code
 
-**Intorduction**
+**Abstract**
 <br>
-Cells in our body exhibit remarkable diversity, and characterizing and classifying differ-
-ent cell types is fundamental to understanding their functions and contributions to various
-biological processes. Learning meaningful representations of cell types enable us to or-
-ganize and categorize cells based on their shared characteristics, such as gene expression
-patterns or phenotypic features. Due to its far-reaching implications in the biomedical
-sciences, including disease diagnostics and drug development, learning meaningful rep-
-resentations of cell types is an active area of research in deep learning, and something
-which was an active topic of discussion at the recent Learning Meaningful Representa-
-tions of Life (LMRL) workshop at NeurIPS 2022. These representations enable us to
-better comprehend cellular similarities, identify disease-specific cell populations, and de-
-sign targeted therapies conditioned on the relevant cell-type.
-<br><br>
-To learn a meaningful representation of cells, this project aims to utilize single-cell omics
-(sc-omics) data combined with cell image data to train a multi-modal neural network to
-produce an efficient, lower-dimensional latent representation of cell types.
+Batch effects are a significant concern in single-cell RNA sequencing (scRNA-Seq) data analysis, where variations in the data can be attributed to factors unrelated to cell types. This can make downstream analysis a challenging task. In this study, a neural network model is designed utilizing contrastive learning and a novel loss function for generating an embedding space from scRNA-Seq data. When benchmarked against multiple established methods on scRNA-Seq integration, the model outperformed existing methods on creating a generalizable embedding space. A downstream application that was investigated for the embedding space was cell type annotation. When compared against multiple well established cell type classifiers the model in this study displayed a performance competitive with top performing methods across multiple metrics, such as accuracy, balanced accuracy and F1 score. These findings motivates the meaningfulness contained within the generated embedding space by the model, highlighting its potential applications.
 
 ## Structur
 - **code:** Contains all code used in this project, including preprocessing, visualization, machine learning models and more.
@@ -24,28 +11,11 @@ produce an efficient, lower-dimensional latent representation of cell types.
 
 ## Necessary programming languages
 - Python version 3.10.5
-- R version 4.3.1 (Used for cell type labeling)
+- R version 4.3.2
 
-## Setup
+## Official pip package
 ```
-Comming soon
-```
-
-## How to run
-
-### Preprocessing
-Run:
-```
-cd code\data_preprocessing\automated_preprocess
-```
-and then:
-```
-python auto_pp.py --resolution 0.8
-```
-
-### Train model
-```
-Comming soon
+pip install scNear
 ```
 
 ## Authors
