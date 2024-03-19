@@ -14,10 +14,6 @@ Contains all code used in this project, including preprocessing, visualization, 
     - **pathway_information:** Contains preprocessing code for human pathway information (gene sets). Run *gene_sets_filtering.ipynb* to process the gene sets.
     - **data_for_evaluating_cell_type_annotation:** Code for processing the Baron, MacParland, Segerstolpe, and Zheng68k datasets.
 
-- **cell_type_representation:** Contains all code for training and benchmarking models, including code for the models themselves.
-    -**benchmarks:** Code for runing benchmark of model performance.
-    -**figures:** Contains figures of UMAPs of latent spaces from different models, colored by cell type and batch effect.
-    -**functions:** Code for data preprocessing, training models and producing cell type vector representations from latent space representations.
-    -**HPC_cluster:** Code for training models, suitable for HPC clusters.
-    -**models:** Model scripts.
-    -**trained_models:** Contains trained models for different data sets.
+- **cell_type_representation:** Contains results and visualizations from the scRNA-Seq embedding space benchmark. Code for running the benchmark itself can be found in the *Alvis_cluster_code* repo.
+    -**benchmarks:** Contain results from the scRNA-Seq embedding space benchmark.
+    -**visualizations:** Visualizations for report.
