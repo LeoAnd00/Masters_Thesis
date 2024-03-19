@@ -1,5 +1,5 @@
 # immune_cells
-Contains all code for preprocessing the scRNA-seq data of human immune cells.
+Contains all code for preprocessing the scRNA-seq data of the bone marrow and PBMC dataset.
 
 ## How to use notebooks in the subfolder *bone_marrow_human* and *pbmcs_human*
 - **Step 1:** Start by runing *X_preprocess.ipynb* to perform QC and normalization.

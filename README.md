@@ -9,6 +9,8 @@ Batch effects are a significant concern in single-cell RNA sequencing (scRNA-Seq
 - **code:** Contains all code used in this project, including preprocessing, visualization, machine learning models and more.
 - **data:** Contains all data used in this project, including raw and preprocessed data.
 
+Code for training the model developed in this study for reproducibility can be find in the *Alvis_cluster_code* repository, which contains code for running code on the Alvis computer cluser at Chalmers University of Technology. 
+
 ## Necessary programming languages
 - Python version 3.10.5
 - R version 4.3.2

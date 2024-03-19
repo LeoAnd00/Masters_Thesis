@@ -1,5 +1,5 @@
 # kidney_cells
-Contains all code for preprocessing the scRNA-seq data of human kidney cells.
+Contains all code for preprocessing the scRNA-seq data of the kidney dataset.
 
 ## How to use notebooks in the subfolder *kidney_1*, *kidney_2* and *kidney_3*
 - **Step 1:** Start by runing *X_preprocess.ipynb* to perform QC and normalization.

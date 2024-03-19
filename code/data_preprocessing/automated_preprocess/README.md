@@ -1,5 +1,5 @@
 # automated_preprocess
-Contains code for preprocessing the scRNA-seq data of human bone marrow, PBMC, pancreas and kidney cells.
+Contains code for preprocessing the scRNA-seq data of the bone marrow, PBMC, pancreas, kidney, and merged datasets.
 <br><br>
 Run:
 ```
