@@ -15,7 +15,7 @@ Contains all code used in this project, including preprocessing, visualization, 
     - **data_for_evaluating_cell_type_annotation:** Code for processing the Baron, MacParland, Segerstolpe, and Zheng68k datasets.
 
 - **cell_type_representation:** Contains results and visualizations from the scRNA-Seq embedding space benchmark. Code for running the benchmark itself can be found in the *Alvis_cluster_code* repo.
-    -**benchmarks:** Contain results from the scRNA-Seq embedding space benchmark.
-    -**visualizations:** Visualizations for report.
+    - **benchmarks:** Contain results from the scRNA-Seq embedding space benchmark.
+    - **visualizations:** Visualizations for report.
 
 - **cell_type_annotation:** Contains 
