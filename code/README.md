@@ -2,7 +2,7 @@
 Contains all code used in this project, including preprocessing, visualization, machine learning models and more.
 
 ## Structur
-- **data_preprocessing:** Contains all preprocessing code of scRNA-seq data. All processed data is stored in the *data/processed/* folder.
+- **data_preprocessing:** Contains preprocessing code and visualization of scRNA-seq data. All processed data is stored in the *data/processed/* folder.
     - **automated_preprocess:** Code one can run in cmd that automatically preprocess the bone marrow, PBMC, pancreas, kidney and merged datasets.
     - **immune_cells:** Code for preprocessing data related to immune cells.
         - **bone_marrow_human:** Preprocessing code for scRNA-seq data of the bone marrow dataset.
@@ -17,3 +17,5 @@ Contains all code used in this project, including preprocessing, visualization, 
 - **cell_type_representation:** Contains results and visualizations from the scRNA-Seq embedding space benchmark. Code for running the benchmark itself can be found in the *Alvis_cluster_code* repo.
     -**benchmarks:** Contain results from the scRNA-Seq embedding space benchmark.
     -**visualizations:** Visualizations for report.
+
+- **cell_type_annotation:** Contains 
