@@ -233,7 +233,7 @@ class classifier_train():
 
     def Model1_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model1 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -338,7 +338,7 @@ class classifier_train():
 
     def Model2_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model2 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -365,8 +365,6 @@ class classifier_train():
         save_path = f"{save_path}Fold_{self.fold}/"
 
         adata_in_house = self.original_adata.copy()
-
-        HVG_buckets_ = 1000
 
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
@@ -457,7 +455,7 @@ class classifier_train():
 
     def Model3_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model3 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -485,12 +483,9 @@ class classifier_train():
 
         adata_in_house = self.original_adata.copy()
 
-        HVG_buckets_ = 1000
-
         model = scTRAC.scTRAC(target_key=self.label_key,
                               latent_dim=100,
                               HVGs=self.HVGs,
-                              num_HVG_buckets = 10,
                               batch_key="batch",
                               model_name="Model3",
                               model_path=save_path)
