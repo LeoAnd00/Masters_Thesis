@@ -12,7 +12,6 @@ import matplotlib.cm as cm
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
-import scTRAC.scTRAC as scTRAC
 import scNear
 import os
 
