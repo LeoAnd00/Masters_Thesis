@@ -93,9 +93,6 @@ class classifier_train():
         self.metrics_Model1 = None
         self.metrics_Model1_centroid_loss = None
         self.metrics_Model1_CL_loss = None
-        self.metrics_Model2 = None
-        self.metrics_Model3 = None
-        self.metrics_TOSICA = None
 
         # Ensure reproducibility
         def rep_seed(seed):
@@ -154,89 +151,9 @@ class classifier_train():
         self.celltype_title = 'Cell type'
         self.batcheffect_title = 'Batch effect'
 
-    def tosica(self):
-        """
-        Evaluate and visualization on performance of TOSICA (https://github.com/JackieHanLab/TOSICA/tree/main) on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-        #import TOSICA
-        import TOSICA.TOSICA as TOSICA
-        #from TOSICA.TOSICA import TOSICA as TOSICA
-
-        adata_tosica = self.adata.copy()
-        TOSICA.train(adata_tosica, gmt_path='human_gobp', label_name=self.label_key,project='hGOBP_TOSICA')
-
-        model_weight_path = './hGOBP_TOSICA/model-9.pth'
-        adata_tosica = self.test_adata.copy()
-        new_adata = TOSICA.pre(adata_tosica, model_weight_path = model_weight_path,project='hGOBP_TOSICA')
-
-        adata_tosica.obs[f"{self.label_key}_prediction"] = new_adata.obs['Prediction'].copy()
-
-        del new_adata
-
-        # Extract the unique labels
-        unique_labels1 = np.unique(adata_tosica.obs[self.label_key])
-        unique_labels2 = np.unique(adata_tosica.obs[f"{self.label_key}_prediction"])
-        unique_labels = np.unique(np.concatenate([unique_labels1,unique_labels2]))
-        np.random.shuffle(unique_labels)
-
-        # Get the Tab20 color map with the number of colors you need
-        tab20_colors = cm.get_cmap('gist_ncar', (len(unique_labels)+2))
-
-        # Define your color palette
-        your_color_palette = [tab20_colors(i) for i in range(len(unique_labels))]
-
-        # Define your own colormap dictionary
-        color_dict = dict(zip(unique_labels, your_color_palette))
-
-        # Create a colormap object using LinearSegmentedColormap
-        custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", your_color_palette)
-
-        # Convert string labels to numerical labels
-        label_encoder_temp = LabelEncoder()
-        label_encoder_temp.fit(unique_labels)
-        y_true = label_encoder_temp.transform(adata_tosica.obs[self.label_key])
-        y_pred = label_encoder_temp.transform(adata_tosica.obs[f"{self.label_key}_prediction"])
-
-        # Calculate accuracy
-        accuracy = accuracy_score(y_true, y_pred)
-        print("Accuracy:", accuracy)
-
-        # Calculate balanced accuracy
-        balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
-        print("Balanced Accuracy:", balanced_accuracy)
-
-        # Calculate F1 score
-        f1 = f1_score(y_true, y_pred, average='weighted')
-        print("F1 Score:", f1)
-
-        # Creating a metrics dataFrame
-        self.metrics_TOSICA = pd.DataFrame({'method': "TOSICA",
-                                            'accuracy': [accuracy],
-                                            'balanced_accuracy': [balanced_accuracy],
-                                            'f1_score': [f1],
-                                            'dataset': self.dataset_name,
-                                            'fold': self.fold
-                                           })
-        
-        del adata_tosica
-
     def Model1_full_loss_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model1 on single-cell RNA-seq data when using the full loss.
 
         Parameters
         ----------
@@ -341,7 +258,7 @@ class classifier_train():
 
     def Model1_CL_loss_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model1 on single-cell RNA-seq data when using the CL loss part.
 
         Parameters
         ----------
@@ -446,7 +363,7 @@ class classifier_train():
 
     def Model1_centroid_loss_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model1 on single-cell RNA-seq data when using the centroid loss part.
 
         Parameters
         ----------
@@ -549,245 +466,6 @@ class classifier_train():
             
         del adata_in_house_test
 
-    def Model2_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool, optional
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool, optional
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        save_figure : bool, optional
-            If True, save UMAP plots as SVG files (default is False).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-        save_path = f"{save_path}Fold_{self.fold}/"
-
-        adata_in_house = self.original_adata.copy()
-
-        HVG_buckets_ = 1000
-
-        model = scTRAC.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model2",
-                              model_path=save_path)
-        
-        if train:
-            model.train(adata=adata_in_house, 
-                        train_classifier=True, 
-                        optimize_classifier=True,  
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
-        
-        adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
-        adata_in_house_test.obsm["latent_space"] = predictions
-
-        predictions = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False)
-        adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
-
-        del predictions
-
-        sc.pp.neighbors(adata_in_house_test, use_rep="latent_space")
-
-        random_order = np.random.permutation(adata_in_house_test.n_obs)
-        adata_in_house_test = adata_in_house_test[random_order, :]
-
-        # Extract the unique labels
-        unique_labels1 = np.unique(adata_in_house_test.obs[self.label_key])
-        unique_labels2 = np.unique(adata_in_house_test.obs[f"{self.label_key}_prediction"])
-        unique_labels = np.unique(np.concatenate([unique_labels1,unique_labels2]))
-        np.random.shuffle(unique_labels)
-
-        # Get the Tab20 color map with the number of colors you need
-        tab20_colors = cm.get_cmap('gist_ncar', (len(unique_labels)+2))
-
-        # Define your color palette
-        your_color_palette = [tab20_colors(i) for i in range(len(unique_labels))]
-
-        # Define your own colormap dictionary
-        color_dict = dict(zip(unique_labels, your_color_palette))
-
-        # Create a colormap object using LinearSegmentedColormap
-        custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", your_color_palette)
-
-        # Convert string labels to numerical labels
-        label_encoder_temp = LabelEncoder()
-        label_encoder_temp.fit(unique_labels)
-        y_true = label_encoder_temp.transform(adata_in_house_test.obs[self.label_key])
-        y_pred = label_encoder_temp.transform(adata_in_house_test.obs[f"{self.label_key}_prediction"])
-
-        # Calculate accuracy
-        accuracy = accuracy_score(y_true, y_pred)
-        print("Accuracy:", accuracy)
-
-        # Calculate balanced accuracy
-        balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
-        print("Balanced Accuracy:", balanced_accuracy)
-
-        # Calculate F1 score
-        f1 = f1_score(y_true, y_pred, average='weighted')
-        print("F1 Score:", f1)
-
-        # Creating a metrics dataFrame
-        self.metrics_Model2 = pd.DataFrame({'method': "Model2",
-                                            'accuracy': [accuracy],
-                                            'balanced_accuracy': [balanced_accuracy],
-                                            'f1_score': [f1],
-                                            'dataset': self.dataset_name,
-                                            'fold': self.fold
-                                           })
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house_test)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=f"{self.label_key}_prediction", ncols=1, title=f"Predicted cell types")
-        if save_figure:
-            sc.tl.umap(adata_in_house_test)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model2_cell_type.svg")
-            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model2_batch_effect.svg")
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=f"{self.label_key}_prediction", ncols=1, title=f"Predicted cell types", show=False, save=f"{self.image_path}Model2_predicted_cell_type.svg")
-        
-        del adata_in_house_test
-
-    def Model3_classifier(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
-        """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
-
-        Parameters
-        ----------
-        save_path : str
-            Path at which the model will be saved.
-        umap_plot : bool, optional
-            Whether to plot resulting latent space using UMAP (default: True).
-        train : bool, optional
-            Whether to train the model (True) or use a existing model (False) (default: True).
-        save_figure : bool, optional
-            If True, save UMAP plots as SVG files (default is False).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method computes various metrics to evaluate performance.
-
-        If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
-        The UMAP plots can be saved as SVG files if save_figure is True.
-        """
-        save_path = f"{save_path}Fold_{self.fold}/"
-
-        adata_in_house = self.original_adata.copy()
-
-        HVG_buckets_ = 1000
-
-        model = scTRAC.scTRAC(target_key=self.label_key,
-                              latent_dim=100,
-                              HVGs=self.HVGs,
-                              batch_key="batch",
-                              model_name="Model3",
-                              model_path=save_path)
-        
-        if train:
-            model.train(adata=adata_in_house, 
-                        use_already_trained_latent_space_generator = True,
-                        train_classifier=True, 
-                        optimize_classifier=True,  
-                        seed=self.seed,
-                        num_trials=100, 
-                        only_print_best=True)
-        
-        adata_in_house_test = self.original_test_adata.copy()
-        predictions = model.predict(adata=adata_in_house_test)
-        adata_in_house_test.obsm["latent_space"] = predictions
-
-        predictions = model.predict(adata=adata_in_house_test, use_classifier=True, detect_unknowns=False)
-        adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
-
-        del predictions
-
-        sc.pp.neighbors(adata_in_house_test, use_rep="latent_space")
-
-        random_order = np.random.permutation(adata_in_house_test.n_obs)
-        adata_in_house_test = adata_in_house_test[random_order, :]
-
-        # Extract the unique labels
-        unique_labels1 = np.unique(adata_in_house_test.obs[self.label_key])
-        unique_labels2 = np.unique(adata_in_house_test.obs[f"{self.label_key}_prediction"])
-        unique_labels = np.unique(np.concatenate([unique_labels1,unique_labels2]))
-        np.random.shuffle(unique_labels)
-
-        # Get the Tab20 color map with the number of colors you need
-        tab20_colors = cm.get_cmap('gist_ncar', (len(unique_labels)+2))
-
-        # Define your color palette
-        your_color_palette = [tab20_colors(i) for i in range(len(unique_labels))]
-
-        # Define your own colormap dictionary
-        color_dict = dict(zip(unique_labels, your_color_palette))
-
-        # Create a colormap object using LinearSegmentedColormap
-        custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", your_color_palette)
-
-        # Convert string labels to numerical labels
-        label_encoder_temp = LabelEncoder()
-        label_encoder_temp.fit(unique_labels)
-        y_true = label_encoder_temp.transform(adata_in_house_test.obs[self.label_key])
-        y_pred = label_encoder_temp.transform(adata_in_house_test.obs[f"{self.label_key}_prediction"])
-
-        # Calculate accuracy
-        accuracy = accuracy_score(y_true, y_pred)
-        print("Accuracy:", accuracy)
-
-        # Calculate balanced accuracy
-        balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
-        print("Balanced Accuracy:", balanced_accuracy)
-
-        # Calculate F1 score
-        f1 = f1_score(y_true, y_pred, average='weighted')
-        print("F1 Score:", f1)
-
-        # Creating a metrics dataFrame
-        self.metrics_Model3 = pd.DataFrame({'method': "Model3",
-                                            'accuracy': [accuracy],
-                                            'balanced_accuracy': [balanced_accuracy],
-                                            'f1_score': [f1],
-                                            'dataset': self.dataset_name,
-                                            'fold': self.fold
-                                           })
-
-        if umap_plot:
-            sc.tl.umap(adata_in_house_test)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=self.label_key, ncols=1, title=self.celltype_title)
-            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=f"{self.label_key}_prediction", ncols=1, title=f"Predicted cell types")
-        if save_figure:
-            sc.tl.umap(adata_in_house_test)
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=self.label_key, ncols=1, title=self.celltype_title, show=False, save=f"{self.image_path}Model3_cell_type.svg")
-            sc.pl.umap(adata_in_house_test, color="batch", ncols=1, title=self.batcheffect_title, show=False, save=f"{self.image_path}Model3_batch_effect.svg")
-            sc.pl.umap(adata_in_house_test, palette=color_dict, color=f"{self.label_key}_prediction", ncols=1, title=f"Predicted cell types", show=False, save=f"{self.image_path}Model3_predicted_cell_type.svg")
-        
-        del adata_in_house_test
-
     def make_benchamrk_results_dataframe(self):
         """
         Generates a dataframe named 'metrics' containing the performance metrics of different methods.
@@ -816,15 +494,6 @@ class classifier_train():
         if self.metrics_Model1_CL_loss is not None:
             calculated_metrics.append(self.metrics_Model1_CL_loss)
             calculated_metrics_names.append("Model1 CL Loss")
-        if self.metrics_Model2 is not None:
-            calculated_metrics.append(self.metrics_Model2)
-            calculated_metrics_names.append("Model2")
-        if self.metrics_Model3 is not None:
-            calculated_metrics.append(self.metrics_Model3)
-            calculated_metrics_names.append("Model3")
-        if self.metrics_TOSICA is not None:
-            calculated_metrics.append(self.metrics_TOSICA)
-            calculated_metrics_names.append("TOSICA")
 
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="rows")
