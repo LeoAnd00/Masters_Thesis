@@ -29,16 +29,13 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str):
     """
-    Execute the generalizability benchmark pipeline. Selects 20% of data for testing and uses the
-    remaining 80% for training, with the option to train using different amounts (Example: 20%, 40%, 60%, 80%)
-    of the training data. Performs 5-fold cross testing.
+    Execute the generalizability benchmark pipeline for making an embedding space. Selects 20% of data for testing and uses the
+    remaining 80% for training. Performs 5-fold cross testing.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
     - model_path (str): Directory path to save the trained model and predictions.
     - result_csv_path (str): File path to save the benchmark results as a CSV file.
-    - pathway_path (str): File path to the pathway information.
-    - gene2vec_path (str): File path to the gene2vec embeddings.
     - image_path (str): Path where images will be saved.
 
     Returns:
@@ -46,8 +43,8 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
     """
     
     # Calculate for model at different number of patient for training and different random seeds
-    list_of_data_pct = [0.8]#[0.2, 0.4, 0.6, 0.8]
-    folds = [1,2,3,4,5]#[1,2,3,4,5]
+    list_of_data_pct = [0.8]
+    folds = [1,2,3,4,5]
     num_folds = 5
     counter = 0
     for idx, train_pct in enumerate(list_of_data_pct):
@@ -72,15 +69,13 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
                                             pct_for_training=list_of_data_pct[idx],
                                             seed=seed)
                     
-                    # Calculate for unintegrated and PCA
-                    """if train_pct == list_of_data_pct[0]:
-                        print("Start evaluating unintegrated data")
-                        print()
-                        benchmark_env.unintegrated(save_figure=False, umap_plot=False)
+                    print("Start evaluating unintegrated data")
+                    print()
+                    benchmark_env.unintegrated(save_figure=False, umap_plot=False)
 
-                        print("Start evaluating PCA transformed data")
-                        print()
-                        benchmark_env.pca(save_figure=False, umap_plot=False)
+                    print("Start evaluating PCA transformed data")
+                    print()
+                    benchmark_env.pca(save_figure=False, umap_plot=False)
 
                     print("**Start benchmarking scVI method**")
                     vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
@@ -92,20 +87,20 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
                     benchmark_env.scgen(umap_plot=False,save_figure=False)
 
                     print("**Start benchmarking TOSICA method**")
-                    benchmark_env.tosica(umap_plot=False,save_figure=False)"""
+                    benchmark_env.tosica(umap_plot=False,save_figure=False)
 
                     # Calculate for model
                     print(f"Start training model with {train_pct} percent of data for training, fold {fold} and seed {seed}")
                     print()
                     if fold == 1:
                         benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
-                        #benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
+                        benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=True)
+                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
                         #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=True)
-                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=True)
                     else:
-                        #benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
                         benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                        #benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+                        benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
+                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
                         #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=False)
                     
                     benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
@@ -113,15 +108,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
                     benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
                     benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
                     benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
-
-                    if (train_pct == list_of_data_pct[0]) and (len(list_of_data_pct) > 1):
-                        num_replicates = len(num_patients_for_training_full_list) - 1
-                        replicated_unintegrated = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'Unintegrated']] * num_replicates, ignore_index=False, axis="rows")
-                        replicated_pca = pd.concat([benchmark_env.metrics[benchmark_env.metrics.index == 'PCA']] * num_replicates, ignore_index=False, axis="rows")
-                        benchmark_env.metrics = pd.concat([benchmark_env.metrics, replicated_unintegrated, replicated_pca], ignore_index=False, axis="rows")
-
-                        benchmark_env.metrics['train_pct'][benchmark_env.metrics.index == 'Unintegrated'] = list_of_data_pct
-                        benchmark_env.metrics['train_pct'][benchmark_env.metrics.index == 'PCA'] = list_of_data_pct
 
                     #if counter > 1:
                     #    benchmark_env.read_csv(name=result_csv_path)
@@ -150,10 +136,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
     print("Finished generalizability benchmark!")
         
 if __name__ == "__main__":
-    """
-    Start with: cd .\code\cell_type_representation\
-    How to run example (on bone marrow data set): 
-    """
     # Command-line argument parsing
     parser = argparse.ArgumentParser(description='Run the benchmark with specified data, model, and result paths.')
     parser.add_argument('data_path', type=str, help='Path to the data file.')

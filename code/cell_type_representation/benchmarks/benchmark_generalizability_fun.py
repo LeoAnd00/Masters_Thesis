@@ -135,18 +135,6 @@ class benchmark():
                 self.test_adata = self.test_adata[test_index, :].copy()
                 break
 
-        # Get the number of observations (rows) in your AnnData object
-        #num_observations = self.adata.shape[0]
-
-        # Calculate the number of observations to randomly select
-        #num_to_select = int((pct_for_training/(1-(1/num_folds))) * num_observations)
-
-        # Generate random indices to select a subset of the data
-        #random_indices = np.random.choice(num_observations, size=num_to_select, replace=False)
-
-        # Select the subset of data using the random indices
-        #self.adata = self.adata[random_indices, :]
-
         self.original_adata = self.adata.copy()
         self.original_test_adata = self.test_adata.copy()
 
@@ -535,7 +523,7 @@ class benchmark():
 
     def Model1_benchmark(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_encoder.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model1 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -612,7 +600,7 @@ class benchmark():
 
     def Model2_benchmark(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model2 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -704,7 +692,7 @@ class benchmark():
 
     def Model3_benchmark(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model3 on single-cell RNA-seq data.
 
         Parameters
         ----------
@@ -800,7 +788,7 @@ class benchmark():
 
     def Model4_benchmark(self, save_path: str="trained_models/", umap_plot: bool=True, train: bool=True, save_figure: bool=False):
         """
-        Evaluate and visualization on performance of the model_tokenized_hvg_transformer_with_pathways.py model on single-cell RNA-seq data.
+        Evaluate and visualization on performance of model4 on single-cell RNA-seq data.
 
         Parameters
         ----------
