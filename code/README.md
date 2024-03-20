@@ -1,5 +1,5 @@
 # code
-Contains all code used in this project, including preprocessing, visualization, machine learning models and more.
+Contains code used in this project, including preprocessing, visualization, machine learning models and more.
 
 ## Structur
 - **data_preprocessing:** Contains code for processing the Zheng68k dataset.
