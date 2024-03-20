@@ -30,16 +30,17 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str, dataset_name: str):
     """
-    Execute the annotation generalizability benchmark pipeline. Selects 20% of data for testing and uses the
-    remaining 80% for training. Performs 5-fold cross testing.
+    Execute the code for investigating novel cell type detection of model1. 
+    Here you select a cell type to be left out during training. Then we calculate metrics
+    on the novel cell type, and all other cell types separately.
+    Selects 20% of data for testing and uses the remaining 80% for training. Performs 5-fold cross testing.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
     - model_path (str): Directory path to save the trained model and predictions.
     - result_csv_path (str): File path to save the benchmark results as a CSV file.
-    - pathway_path (str): File path to the pathway information.
-    - gene2vec_path (str): File path to the gene2vec embeddings.
     - image_path (str): Path where images will be saved.
+    - dataset_name (str): Name of dataset.
 
     Returns:
     None 
@@ -70,12 +71,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     for novel_cell in exclude_cell_types_list:
         novel_cell_counter += 1
 
-        #novel_cell = ['Mature_B_Cells', 
-        #            'Plasma_Cells', 
-        #            'alpha-beta_T_Cells', 
-        #            'gamma-delta_T_Cells_1', 
-        #            'gamma-delta_T_Cells_2']
-
         for fold in folds:
             counter2 = 0
             for threshold in threshold_list:
@@ -84,7 +79,7 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
 
                 seed = 42
 
-                while True:  # Keep trying new seeds until no error occurs
+                while True:  # Keep trying new seeds until no error occurs in case and error occurs
                     try:
                         print("fold: ", fold)
                         print("seed: ", seed)
@@ -97,9 +92,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                                                 fold=fold,
                                                 seed=seed)
 
-                        #print("**Start benchmarking TOSICA method**")
-                        #benchmark_env.tosica(excluded_cell = exclude_cell_types_list_names[novel_cell_counter], threshold=threshold)
-
                         # Calculate for model
                         print(f"Start training model, fold {fold} and seed {seed}")
                         print()
@@ -109,10 +101,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                             benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=False)
 
                         benchmark_env.make_benchamrk_results_dataframe()
-
-                        #benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
-                        #benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
-                        #benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
 
                         #if counter > 1:
                         #    benchmark_env.read_csv(name=result_csv_path)
@@ -141,10 +129,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     print("Finished generalizability benchmark!")
         
 if __name__ == "__main__":
-    """
-    Start with: cd .\code\cell_type_representation\
-    How to run example (on bone marrow data set): 
-    """
     # Command-line argument parsing
     parser = argparse.ArgumentParser(description='Run the benchmark with specified data, model, and result paths.')
     parser.add_argument('data_path', type=str, help='Path to the data file.')
