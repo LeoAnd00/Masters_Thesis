@@ -94,9 +94,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                 print(f"Start training model, fold {fold} and seed {seed}")
                 print()
                 if counter2 == 1:
-                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=True)
+                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=True, umap_plot=False, save_figure=False)
                 else:
-                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=True)
+                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=False)
 
                 benchmark_env.make_benchamrk_results_dataframe()
 
