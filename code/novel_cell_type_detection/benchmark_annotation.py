@@ -54,18 +54,35 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                                 ['Plasma_Cells'], 
                                 ['alpha-beta_T_Cells'], 
                                 ['gamma-delta_T_Cells_1'],
-                                ['Mature_B_Cells', 
-                                'Plasma_Cells', 
-                                'alpha-beta_T_Cells', 
-                                'gamma-delta_T_Cells_1']]
+                                ['gamma-delta_T_Cells_2'],
+                                ['Central_venous_LSECs'], 
+                                ['Cholangiocytes'], 
+                                ['Non-inflammatory_Macrophage'], 
+                                ['Inflammatory_Macrophage'],
+                                ['Erythroid_Cells'], 
+                                ['Hepatic_Stellate_Cells'],
+                                ['NK-like_Cells'],
+                                ['Periportal_LSECs'],
+                                ['Portal_endothelial_Cells'],
+                                ['Hepatocyte_1'],
+                                ['Hepatocyte_2'],
+                                ['Hepatocyte_3'],
+                                ['Hepatocyte_4'],
+                                ['Hepatocyte_5'],
+                                ['Hepatocyte_6']]
+                                #['Mature_B_Cells', 
+                                #'Plasma_Cells', 
+                                #'alpha-beta_T_Cells', 
+                                #'gamma-delta_T_Cells_1']]
 
-    exclude_cell_types_list_names = ['Mature_B_Cells', 
-                                'Plasma_Cells', 
-                                'alpha-beta_T_Cells', 
-                                'gamma-delta_T_Cells_1',
-                                'All_Above']
+    #exclude_cell_types_list_names = ['Mature_B_Cells', 
+                                #'Plasma_Cells', 
+                                #'alpha-beta_T_Cells', 
+                                #'gamma-delta_T_Cells_1',]
+                                #'All_Above']
+    exclude_cell_types_list_names = exclude_cell_types_list
 
-    threshold_list = [0.99, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.25, 0.1]
+    threshold_list = [0.99]#[0.99, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.25, 0.1]
 
     novel_cell_counter = -1
     for novel_cell in exclude_cell_types_list:
@@ -96,9 +113,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                         print(f"Start training model, fold {fold} and seed {seed}")
                         print()
                         if counter2 == 1:
-                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=True, umap_plot=False, save_figure=False)
+                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=True, umap_plot=False, save_figure=False)
                         else:
-                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter], train=False, umap_plot=False, save_figure=False)
+                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=False, umap_plot=False, save_figure=False)
 
                         benchmark_env.make_benchamrk_results_dataframe()
 
