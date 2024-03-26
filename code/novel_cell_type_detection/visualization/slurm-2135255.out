@@ -1,0 +1,221 @@
+This job can be monitored from: https://scruffy.c3se.chalmers.se/d/alvis-job/alvis-job?var-jobid=2135255&from=1711444754000
+2024-03-26 10:20:43.163127: I tensorflow/core/util/port.cc:111] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2024-03-26 10:20:47.154181: I tensorflow/tsl/cuda/cudart_stub.cc:28] Could not find cuda drivers on your machine, GPU will not be used.
+2024-03-26 10:20:48.831975: E tensorflow/compiler/xla/stream_executor/cuda/cuda_dnn.cc:9342] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2024-03-26 10:20:48.832096: E tensorflow/compiler/xla/stream_executor/cuda/cuda_fft.cc:609] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2024-03-26 10:20:48.835515: E tensorflow/compiler/xla/stream_executor/cuda/cuda_blas.cc:1518] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2024-03-26 10:20:49.559648: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+/opt/conda/lib/python3.9/site-packages/tensorflow/python/framework/dtypes.py:35: DeprecationWarning: ml_dtypes.float8_e4m3b11 is deprecated. Use ml_dtypes.float8_e4m3b11fnuz
+  from tensorflow.tsl.python.lib.core import pywrap_ml_dtypes
+2024-03-26 10:20:55.622479: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Start working with dataset: MacParland
+Start working with removing cell type: Mature_B_Cells
+Start working with removing cell type: Plasma_Cells
+Start working with removing cell type: alpha-beta_T_Cells
+Start working with removing cell type: gamma-delta_T_Cells_1
+Start working with removing cell type: gamma-delta_T_Cells_2
+Start working with removing cell type: Central_venous_LSECs
+Start working with removing cell type: Cholangiocytes
+Start working with removing cell type: Non-inflammatory_Macrophage
+Start working with removing cell type: Inflammatory_Macrophage
+Start working with removing cell type: Erythroid_Cells
+Start working with removing cell type: Hepatic_Stellate_Cells
+Start working with removing cell type: NK-like_Cells
+Start working with removing cell type: Periportal_LSECs
+Start working with removing cell type: Portal_endothelial_Cells
+Start working with removing cell type: Hepatocyte_1
+Start working with removing cell type: Hepatocyte_2
+Start working with removing cell type: Hepatocyte_3
+Start working with removing cell type: Hepatocyte_4
+Start working with removing cell type: Hepatocyte_5
+Start working with removing cell type: Hepatocyte_6
+Start working with dataset: Baron
+Start working with removing cell type: acinar
+Start working with removing cell type: beta
+Start working with removing cell type: delta
+Start working with removing cell type: activated_stellate
+Start working with removing cell type: ductal
+Start working with removing cell type: alpha
+Start working with removing cell type: epsilon
+Start working with removing cell type: gamma
+Start working with removing cell type: endothelial
+Start working with removing cell type: quiescent_stellate
+Start working with removing cell type: macrophage
+Start working with removing cell type: schwann
+Start working with removing cell type: mast
+Start working with removing cell type: t_cell
+Start working with dataset: Zheng68k
+Start working with removing cell type: CD8+ Cytotoxic T
+Start working with removing cell type: CD8+/CD45RA+ Naive Cytotoxic
+Start working with removing cell type: CD4+/CD45RO+ Memory
+Start working with removing cell type: CD19+ B
+Start working with removing cell type: CD4+/CD25 T Reg
+Start working with removing cell type: CD56+ NK
+Start working with removing cell type: CD4+ T Helper2
+Start working with removing cell type: CD4+/CD45RA+/CD25- Naive T
+Start working with removing cell type: CD34+
+Start working with removing cell type: Dendritic
+Start working with removing cell type: CD14+ Monocyte
+Calculations are done with a confidence threshold of 0.18
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  1.0
+Coverage:  0.03
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  1.0
+Coverage:  0.014285714285714285
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  Can't calculate
+Coverage:  0.0
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  1.0
+Coverage:  0.017777777777777778
+_______________________
+
+Calculations are done with a confidence threshold of 0.2
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  0.875
+Coverage:  0.07
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  1.0
+Coverage:  0.07142857142857142
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  Can't calculate
+Coverage:  0.0
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  0.9230769230769231
+Coverage:  0.05333333333333334
+_______________________
+
+Calculations are done with a confidence threshold of 0.25
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  0.92
+Coverage:  0.23
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  1.0
+Coverage:  0.21428571428571427
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  1.0
+Coverage:  0.05454545454545454
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  0.9534883720930233
+Coverage:  0.18222222222222223
+_______________________
+
+Calculations are done with a confidence threshold of 0.3
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  0.8541666666666666
+Coverage:  0.41
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  1.0
+Coverage:  0.35714285714285715
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  0.6956521739130435
+Coverage:  0.2909090909090909
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  0.8541666666666666
+Coverage:  0.36444444444444446
+_______________________
+
+Calculations are done with a confidence threshold of 0.35
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  0.7
+Coverage:  0.63
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  0.9393939393939394
+Coverage:  0.44285714285714284
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  0.4827586206896552
+Coverage:  0.509090909090909
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  0.6740331491712708
+Coverage:  0.5422222222222223
+_______________________
+
+Calculations are done with a confidence threshold of 0.4
+If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data
+
+Dataset:  MacParland
+_______________________
+Precision:  0.6115702479338843
+Coverage:  0.74
+_______________________
+
+Dataset:  Baron
+_______________________
+Precision:  0.9111111111111111
+Coverage:  0.5857142857142857
+_______________________
+
+Dataset:  Zheng68k
+_______________________
+Precision:  0.3888888888888889
+Coverage:  0.6363636363636364
+_______________________
+
+Precision and coverage when combining all datasets
+_______________________
+Precision:  0.5859375
+Coverage:  0.6666666666666666
+_______________________
+

@@ -75,7 +75,8 @@ class classifier_train():
 
         adata.obs["batch"] = adata.obs[batch_key]
 
-        #del adata.layers['log1p_counts']
+        if dataset_name != "MacParland":
+            del adata.layers['log1p_counts']
 
         self.adata = adata
 
