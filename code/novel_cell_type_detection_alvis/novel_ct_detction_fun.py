@@ -201,17 +201,22 @@ class novel_cell_type_detection():
         with open("results/likelihood.json", 'r') as f:
             self.confidence_dict = json.load(f)
 
+        num_cell_types = [1/20, 1/14, 1/11]
+
         all_true_positives = 0
         all_false_positives = 0
         all_all_postives = 0
         print(f"Calculations are done with a confidence threshold of {threshold}")
         print("If a data point exists with a confidence below this point, we assume there exists a novel cell type in the data")
         print("")
-        for dataset_name in self.confidence_dict:
+        for idx, dataset_name in enumerate(self.confidence_dict):
             data = self.confidence_dict[dataset_name]
 
-            min_non_novel_confidence_temp = np.array(data["min_non_novel_confidence"])
-            min_novel_confidence_temp = np.array(data["min_novel_confidence"])
+            min_non_novel_confidence = [(x - num_cell_types[idx]) / (1 - num_cell_types[idx]) for x in data["min_non_novel_confidence"]]
+            min_novel_confidence = [(x - num_cell_types[idx]) / (1 - num_cell_types[idx]) for x in data["min_novel_confidence"]]
+
+            min_non_novel_confidence_temp = np.array(min_non_novel_confidence)
+            min_novel_confidence_temp = np.array(min_novel_confidence)
 
             false_positives = min_non_novel_confidence_temp[min_non_novel_confidence_temp <= threshold]
             true_positives = min_novel_confidence_temp[min_novel_confidence_temp <= threshold]
@@ -257,6 +262,7 @@ class novel_cell_type_detection():
         colors = sns.color_palette('deep', 2)
 
         titles = ["MacParland", "Baron", "Zheng68k", "All Datasets"]
+        num_cell_types = [1/20, 1/14, 1/11]
 
         min_non_novel_confidence_all = []
         min_novel_confidence_all = []
@@ -271,8 +277,8 @@ class novel_cell_type_detection():
                 index_0 += 1
             
             data = self.confidence_dict[dataset_name]
-            min_non_novel_confidence = data["min_non_novel_confidence"]
-            min_novel_confidence = data["min_novel_confidence"]
+            min_non_novel_confidence = [(x - num_cell_types[idx]) / (1 - num_cell_types[idx]) for x in data["min_non_novel_confidence"]]
+            min_novel_confidence = [(x - num_cell_types[idx]) / (1 - num_cell_types[idx]) for x in data["min_novel_confidence"]]
             min_non_novel_confidence_all.extend(min_non_novel_confidence)
             min_novel_confidence_all.extend(min_novel_confidence)
             
@@ -320,7 +326,9 @@ class novel_cell_type_detection():
         with open("results/likelihood.json", 'r') as f:
             self.confidence_dict = json.load(f)
 
-        thresholds = np.linspace(0.22, 0.8, 100)  # Example linspace, adjust as needed
+        num_cell_types = [1/20, 1/14, 1/11]
+
+        thresholds = np.linspace(0.15, 0.8, 100)  # Example linspace, adjust as needed
 
         results_precision = np.zeros((100, 4))
         results_coverage = np.zeros((100, 4))
@@ -332,8 +340,11 @@ class novel_cell_type_detection():
             for j, dataset_name in enumerate(self.confidence_dict):
                 data = self.confidence_dict[dataset_name]
 
-                min_non_novel_confidence_temp = np.array(data["min_non_novel_confidence"])
-                min_novel_confidence_temp = np.array(data["min_novel_confidence"])
+                min_non_novel_confidence = [(x - num_cell_types[j]) / (1 - num_cell_types[j]) for x in data["min_non_novel_confidence"]]
+                min_novel_confidence = [(x - num_cell_types[j]) / (1 - num_cell_types[j]) for x in data["min_novel_confidence"]]
+
+                min_non_novel_confidence_temp = np.array(min_non_novel_confidence)
+                min_novel_confidence_temp = np.array(min_novel_confidence)
 
                 false_positives = min_non_novel_confidence_temp[min_non_novel_confidence_temp <= threshold]
                 true_positives = min_novel_confidence_temp[min_novel_confidence_temp <= threshold]
@@ -388,7 +399,7 @@ class novel_cell_type_detection():
                 if j == 0:
                     axs[i, j].set_ylabel('Percentage')
                 if i == 1:
-                    axs[i, j].set_xlabel('Threshold')
+                    axs[i, j].set_xlabel('Likelihood Threshold')
 
                 if (i == 1) and (j == 1):
                     axs[1, 1].axvline(x=threshold_, color='red', linestyle='--')
