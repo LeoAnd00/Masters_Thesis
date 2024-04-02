@@ -63,8 +63,8 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                                           fold=fold,
                                           seed=seed)
 
-                print("**Start benchmarking TOSICA method**")
-                benchmark_env.tosica()
+                #print("**Start benchmarking TOSICA method**")
+                #benchmark_env.tosica()
 
                 # Calculate for model
                 print(f"Start training model, fold {fold} and seed {seed}")

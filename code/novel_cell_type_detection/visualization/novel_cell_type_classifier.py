@@ -64,8 +64,6 @@ class classifier_train():
                  exclude_cell_types,
                  data_path: str, 
                  dataset_name: str,
-                 pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
-                 gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
                  image_path: str='',
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
@@ -85,8 +83,6 @@ class classifier_train():
         self.adata = adata
 
         self.label_key = label_key
-        self.pathway_path = pathway_path
-        self.gene2vec_path = gene2vec_path
 
         if not os.path.exists(image_path):
             os.makedirs(image_path)
@@ -139,12 +135,7 @@ class classifier_train():
         stratified_kfold = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=42)
 
         # Define cell types to exclude
-        #self.exclude_cell_types = ['Mature_B_Cells', 
-        #                    'Plasma_Cells', 
-        #                    'alpha-beta_T_Cells', 
-        #                    'gamma-delta_T_Cells_1', 
-        #                    'gamma-delta_T_Cells_2']
-        self.exclude_cell_types = exclude_cell_types#[exclude_cell_types]
+        self.exclude_cell_types = exclude_cell_types
 
         # Iterate through the folds
         self.adata = self.adata#.copy()
@@ -232,96 +223,5 @@ class classifier_train():
         
         return min_non_novel_confidence, min_novel_confidence
         
-
-    def novel_cell_type_detection(self):
-        pass
-
-    def make_benchamrk_results_dataframe(self):
-        """
-        Generates a dataframe named 'metrics' containing the performance metrics of different methods.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method consolidates performance metrics from various methods into a single dataframe.
-        """
-
-        calculated_metrics = []
-        calculated_metrics_names = []
-        if self.metrics_Model1 is not None:
-            calculated_metrics.append(self.metrics_Model1)
-            calculated_metrics_names.append("Model1")
-        if self.metrics_Model2 is not None:
-            calculated_metrics.append(self.metrics_Model2)
-            calculated_metrics_names.append("Model2")
-        if self.metrics_Model3 is not None:
-            calculated_metrics.append(self.metrics_Model3)
-            calculated_metrics_names.append("Model3")
-        if self.metrics_TOSICA is not None:
-            calculated_metrics.append(self.metrics_TOSICA)
-            calculated_metrics_names.append("TOSICA")
-
-        if len(calculated_metrics_names) != 0:
-            metrics = pd.concat(calculated_metrics, axis="columns")
-
-            #metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
-
-            if self.metrics is None:
-                self.metrics = metrics#.sort_values(by='Overall', ascending=False)
-            else:
-                self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
-
-        self.metrics = self.metrics.sort_values(by='accuracy', ascending=False)
-
-    def save_results_as_csv(self, name: str='benchmarks/results/Benchmark_results'):
-        """
-        Saves the performance metrics dataframe as a CSV file.
-
-        Parameters
-        ----------
-        name : str, optional
-            The file path and name for the CSV file (default is 'benchmarks/results/Benchmark_results' (file name will then be Benchmark_results.csv)).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method exports the performance metrics dataframe to a CSV file.
-        """
-        self.metrics.to_csv(f'{name}.csv', index=True, header=True)
-        self.metrics = None
-
-    def read_csv(self, name: str='benchmarks/results/Benchmark_results'):
-        """
-        Reads a CSV file and updates the performance metrics dataframe.
-
-        Parameters
-        ----------
-        name : str, optional
-            The file path and name of the CSV file to read (default is 'benchmarks/results/Benchmark_results').
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        This method reads a CSV file containing performance metrics and updates the metrics dataframe.
-        """
-        if self.metrics is not None:
-            metrics = pd.read_csv(f'{name}.csv', index_col=0)
-            self.metrics = pd.concat([self.metrics, metrics], axis="rows")
-        else:
-            self.metrics = pd.read_csv(f'{name}.csv', index_col=0)
-
 
 

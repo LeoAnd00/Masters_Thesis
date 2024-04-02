@@ -10,4 +10,4 @@ In *benchmark_annotation_Baron.py* the commands needed to run the novel cell typ
 In this code we train model1 for each fold when leaving out every type of cell in the Baron dataset. <br><br>
 In *benchmark_annotation_Zheng68k.py* the commands needed to run the novel cell type detection can be found as a comment. <br> 
 In this code we train model1 for each fold when leaving out every type of cell in the Zheng68k dataset. <br><br>
-In *visualization/* there's code to create visualization of min confidence for novel and non-novel cells of each fold for each dataset and each cell type dropout event. 
+In *visualization/* there's code to create data for visualization of min confidence for novel and non-novel cells of each fold for each dataset and each cell type dropout event. The code for visualizing the data is in the *main* repo under *Masters_Thesis/code/novel_cell_type_detection_alvis/*

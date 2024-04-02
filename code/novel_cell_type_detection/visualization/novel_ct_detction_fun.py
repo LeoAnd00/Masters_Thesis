@@ -8,6 +8,7 @@ import argparse
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import cm
+import json
 import re
 import torch
 import random
@@ -26,7 +27,6 @@ class novel_cell_type_detection():
     def main(self, 
             data_path: str, 
             model_path: str, 
-            result_csv_path: str, 
             image_path: str, 
             dataset_names: str):
         """
@@ -36,7 +36,6 @@ class novel_cell_type_detection():
         Parameters:
         - data_path (str): File path to the AnnData object containing expression data and metadata.
         - model_path (str): Directory path to save the trained model and predictions.
-        - result_csv_path (str): File path to save the benchmark results as a CSV file.
         - pathway_path (str): File path to the pathway information.
         - gene2vec_path (str): File path to the gene2vec embeddings.
         - image_path (str): Path where images will be saved.
@@ -102,13 +101,13 @@ class novel_cell_type_detection():
             all_confidence = min_non_novel_confidence + min_novel_confidence
 
             # Create a list of labels (0 for max_confidence, 1 for min_confidence)
-            labels = ['Min Confidence of Non-Novel Cell Type'] * len(min_non_novel_confidence) + ['Min Confidence of Novel Cell Type'] * len(min_novel_confidence)
+            labels = ['Min Likelihood of Non-Novel Cell Type'] * len(min_non_novel_confidence) + ['Min Likelihood of Novel Cell Type'] * len(min_novel_confidence)
             
             # Jitter plot
             sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, alpha=0.7, ax=axes[idx])
             axes[idx].set_title(dataset_name, fontsize=14)
             axes[idx].set_xlabel('')
-            axes[idx].set_ylabel('Confidence', fontsize=14)
+            axes[idx].set_ylabel('Likelihood', fontsize=14)
             axes[idx].grid(axis='y', linewidth=1.5)
 
             axes[idx].tick_params(axis='x', which='major', labelsize=10) 
@@ -119,6 +118,9 @@ class novel_cell_type_detection():
         if image_path:
             plt.savefig(f'{image_path}.svg', format='svg')
         plt.show()
+
+        with open("results/likelihood.json", 'w') as f:
+            json.dump(self.confidence_dict, f, indent=4)
 
     def get_cell_type_names(self, datset_name: str):
         if datset_name == "MacParland":
@@ -193,6 +195,10 @@ class novel_cell_type_detection():
         return exclude_cell_types_list, exclude_cell_types_list_names
     
     def calc_precision_and_coverage(self, threshold: float):
+
+        with open("results/likelihood.json", 'r') as f:
+            self.confidence_dict = json.load(f)
+
         all_true_positives = 0
         all_false_positives = 0
         all_all_postives = 0
@@ -209,11 +215,7 @@ class novel_cell_type_detection():
             true_positives = min_novel_confidence_temp[min_novel_confidence_temp <= threshold]
             all_postives = min_novel_confidence_temp
 
-            precision = 0
-            try:
-                precision = len(true_positives) / (len(true_positives) + len(false_positives))
-            except:
-                precision = "Can't calculate"
+            precision = len(true_positives) / (len(true_positives) + len(false_positives))
 
             coverage = len(true_positives) / len(all_postives)
 
@@ -234,12 +236,168 @@ class novel_cell_type_detection():
         except:
             all_precision = "Can't calculate"
 
+
         all_coverage = all_true_positives / all_all_postives
 
-        print("Precision and coverage when combining all datasets")
+        print("Average across datasets")
         print("_______________________")
         print("Precision: ", all_precision)
         print("Coverage: ", all_coverage)
         print("_______________________")
         print("")
+
+    def jitter_plot(self, image_path: str, dataset_names: str, threshold: float=0.26):
+
+        with open("results/likelihood.json", 'r') as f:
+            self.confidence_dict = json.load(f)
+
+        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20,16))
         
+        colors = sns.color_palette('deep', 2)
+
+        titles = ["MacParland", "Baron", "Zheng68k", "All Datasets"]
+
+        min_non_novel_confidence_all = []
+        min_novel_confidence_all = []
+
+        index_1 = -1
+        index_0 = 0
+        for idx, dataset_name in enumerate(dataset_names):
+            index_1 += 1 
+
+            if idx == 2:
+                index_1 = 0
+                index_0 += 1
+            
+            data = self.confidence_dict[dataset_name]
+            min_non_novel_confidence = data["min_non_novel_confidence"]
+            min_novel_confidence = data["min_novel_confidence"]
+            min_non_novel_confidence_all.extend(min_non_novel_confidence)
+            min_novel_confidence_all.extend(min_novel_confidence)
+            
+            # Concatenate max_confidence and min_confidence lists
+            all_confidence = min_non_novel_confidence + min_novel_confidence
+
+            # Create a list of labels (0 for max_confidence, 1 for min_confidence)
+            labels = ['Min Likelihood of Non-Novel Cell Type'] * len(min_non_novel_confidence) + ['Min Likelihood of Novel Cell Type'] * len(min_novel_confidence)
+            
+            # Jitter plot
+            sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, alpha=0.7, ax=axes[index_0, index_1])
+            axes[index_0, index_1].set_title(titles[idx], fontsize='large')
+            axes[index_0, index_1].set_xlabel('')
+            if index_1 == 0:
+                axes[index_0, index_1].set_ylabel('Likelihood')
+            axes[index_0, index_1].grid(axis='y', linewidth=1.5)
+
+            axes[index_0, index_1].tick_params(axis='x', which='major', labelsize=12) 
+            axes[index_0, index_1].tick_params(axis='y', which='major', labelsize=12) 
+
+        # Concatenate max_confidence and min_confidence lists
+        all_confidence = min_non_novel_confidence_all + min_novel_confidence_all
+
+        # Create a list of labels (0 for max_confidence, 1 for min_confidence)
+        labels = ['Min Likelihood of Non-Novel Cell Type'] * len(min_non_novel_confidence_all) + ['Min Likelihood of Novel Cell Type'] * len(min_novel_confidence_all)
+        
+        # Jitter plot
+        sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, alpha=0.7, ax=axes[1, 1])
+        axes[1, 1].set_title(titles[3], fontsize='large')
+        axes[1, 1].set_xlabel('')
+        axes[1, 1].grid(axis='y', linewidth=1.5)
+        axes[1, 1].axhline(y=threshold, color='red', linestyle='--')
+
+        axes[1, 1].tick_params(axis='x', which='major', labelsize=12) 
+        axes[1, 1].tick_params(axis='y', which='major', labelsize=12) 
+
+        plt.tight_layout()
+        # Save the plot as an SVG file
+        if image_path:
+            plt.savefig(f'{image_path}.svg', format='svg')
+        plt.show()
+
+    def scatter_line_plot(self, image_path: str, threshold_: float=0.26):
+
+        with open("results/likelihood.json", 'r') as f:
+            self.confidence_dict = json.load(f)
+
+        thresholds = np.linspace(0.22, 0.8, 100)  # Example linspace, adjust as needed
+
+        results_precision = np.zeros((100, 4))
+        results_coverage = np.zeros((100, 4))
+
+        for i, threshold in enumerate(thresholds):
+            all_true_positives = 0
+            all_false_positives = 0
+            all_all_postives = 0
+            for j, dataset_name in enumerate(self.confidence_dict):
+                data = self.confidence_dict[dataset_name]
+
+                min_non_novel_confidence_temp = np.array(data["min_non_novel_confidence"])
+                min_novel_confidence_temp = np.array(data["min_novel_confidence"])
+
+                false_positives = min_non_novel_confidence_temp[min_non_novel_confidence_temp <= threshold]
+                true_positives = min_novel_confidence_temp[min_novel_confidence_temp <= threshold]
+                all_postives = min_novel_confidence_temp
+
+                precision = 0
+                try:
+                    precision = len(true_positives) / (len(true_positives) + len(false_positives))
+                except:
+                    precision = 0
+
+                coverage = len(true_positives) / len(all_postives)
+
+                results_precision[i,j] = precision
+                results_coverage[i,j] = coverage
+
+                all_true_positives += len(true_positives)
+                all_false_positives += len(false_positives)
+                all_all_postives += len(all_postives)
+
+            all_precision = 0
+            try:
+                all_precision = all_true_positives / (all_true_positives + all_false_positives)
+            except:
+                all_precision = 0
+
+            all_coverage = all_true_positives / all_all_postives
+
+            results_precision[i,3] = all_precision
+            results_coverage[i,3] = all_coverage
+
+        # Create subplots
+        fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+
+        # Plot on each subplot
+        handles = []
+        labels = []
+        titles = ["MacParland", "Baron", "Zheng68k", "All Datasets"]
+        counter = -1
+        for i in range(2):
+            for j in range(2):
+                counter += 1
+                # Scatter plot with line connecting points
+                precision_line, = axs[i, j].plot(thresholds, results_precision[:, counter], 'o-', markersize=3, linewidth=1, label='Precision')
+                coverage_line, = axs[i, j].plot(thresholds, results_coverage[:, counter], 'o-', markersize=3, linewidth=1, label='Coverage')
+                if (i == 0) and (j == 0):
+                    handles.append(precision_line)
+                    handles.append(coverage_line)
+                    labels.append('Precision')
+                    labels.append('Coverage')
+                axs[i, j].set_title(titles[counter], fontsize='large')
+                if j == 0:
+                    axs[i, j].set_ylabel('Percentage')
+                if i == 1:
+                    axs[i, j].set_xlabel('Threshold')
+
+                if (i == 1) and (j == 1):
+                    axs[1, 1].axvline(x=threshold_, color='red', linestyle='--')
+
+        # Create a single legend for the entire figure
+        fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 1.0), fontsize='large', frameon=False, ncol=2, title='')
+
+        # Adjust layout
+        fig.tight_layout()
+        # Save the plot as an SVG file
+        if image_path:
+            fig.savefig(f'{image_path}.svg', format='svg')
+        fig.show()

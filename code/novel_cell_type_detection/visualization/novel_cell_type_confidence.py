@@ -37,16 +37,8 @@ def main(data_path: str,
 
     env.main(data_path=data_path, 
             model_path=model_path, 
-            result_csv_path="benchmark_results/MacParland/Benchmark_results2", 
             image_path=image_path, 
             dataset_names=["MacParland", "Baron", "Zheng68k"])
-
-    env.calc_precision_and_coverage(threshold=0.18)
-    env.calc_precision_and_coverage(threshold=0.2)
-    env.calc_precision_and_coverage(threshold=0.25)
-    env.calc_precision_and_coverage(threshold=0.3)
-    env.calc_precision_and_coverage(threshold=0.35)
-    env.calc_precision_and_coverage(threshold=0.4)
 
         
 if __name__ == "__main__":
