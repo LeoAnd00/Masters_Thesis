@@ -50,11 +50,14 @@ class prep_data(data.Dataset):
 
     Methods
     -------
+    cell_type_centroid_distances()
+        Calculates the centorid distance matrix of PCA transformed scRNA-Seq data space.
+
     __len__()
         Returns the number of data points in the dataset.
 
     __getitem(idx)
-        Returns a data point, its label, batch information, and selected pathways/gene sets for a given index.
+        Returns a data point, its label, and batch information for a given index.
     """
 
     def __init__(self, 
@@ -218,7 +221,7 @@ class prep_data(data.Dataset):
         Returns
         -------
         tuple
-            A tuple containing data point, data label, batch information (if available), and selected pathways.
+            A tuple containing data point, data label, and batch information (if available).
         """
 
         # Get HVG expression levels
@@ -269,7 +272,7 @@ class prep_data_validation(data.Dataset):
         Returns the number of data points in the dataset.
 
     __getitem(idx)
-        Returns a data point, its label, batch information, and selected pathways/gene sets for a given index.
+        Returns a data point, its label, and batch information for a given index.
     """
 
     def __init__(self, 
@@ -339,7 +342,7 @@ class prep_data_validation(data.Dataset):
         Returns
         -------
         tuple
-            A tuple containing data point, data label, batch information (if available), and selected pathways.
+            A tuple containing data point, data label, and batch information (if available).
         """
 
         # Get HVG expression levels
@@ -408,9 +411,7 @@ class EarlyStopping():
 
 class CustomSNNLoss(nn.Module):
     """
-    A Custom Soft Nearest Neighbor Loss used for training the machine learning models.
-
-    This PyTorch loss function computes the Soft Nearest Neighbor (SNN) loss in such a way that the clustering of samples of the same cell type is reinforced while at the same time promoting the creation of noise in terms of batch effect properties in each cell type cluster.
+    A Custom loss function, utilizing contrastive learning through the Soft Nearest Neighbor Loss and cell type centroid loss.
 
     Parameters
     ----------
@@ -440,14 +441,6 @@ class CustomSNNLoss(nn.Module):
     
     device : str, optional
         Which device to be used (default is "cuda").
-
-    Methods
-    -------
-    calculate_class_weights(targets)
-        Calculate class weights based on label frequency.
-    
-    forward(input, targets, batches)
-        Compute the SNN loss for the input vectors and targets.
     """
 
     def __init__(self, 
@@ -518,7 +511,7 @@ class CustomSNNLoss(nn.Module):
         Parameters:
         X : torch.tensor
             Input data matrix with each row representing a data point and each column representing a feature.
-        
+
         cell_type_vector : torch.tensor
             A vector containing the cell type annotations for each data point in X.
 
@@ -576,8 +569,10 @@ class CustomSNNLoss(nn.Module):
         ----------
         input : Tensor
             Input vectors (predicted latent space).
+
         targets : Tensor
             Class labels for the input vectors.
+
         batches : list, optional
             List of batch keys to account for batch effects.
 
@@ -681,7 +676,7 @@ class CustomSNNLoss(nn.Module):
             else:
                 loss_batch = torch.tensor([0.0]).to(self.device)
 
-            # Apply weights to the two loss contributions
+            # Apply weights to the three loss contributions
             loss = 0.9*loss_target + 0.1*loss_batch + 1.0*loss_centorid 
 
             return loss
@@ -817,7 +812,7 @@ class train_module():
                     accum_grad: int=1,
                     model_classifier: nn.Module=None):
         """
-        Don't use this function by itself! It's aimed to be used in the train() function.
+        Don't use this function by itself! It's aimed to be used in the train() and train_classifier() functions.
         """
 
         print()
@@ -1043,7 +1038,7 @@ class train_module():
                  model: nn.Module,
                  device: str=None,
                  seed: int=42,
-                 batch_size: int=236,
+                 batch_size: int=256,
                  use_multiple_gpus: bool=False,
                  use_target_weights: bool=True,
                  use_batch_weights: bool=True,
@@ -1055,10 +1050,10 @@ class train_module():
                  lr_scheduler_maxiters: int=50,
                  eval_freq: int=1,
                  epochs: int=50,
-                 earlystopping_threshold: int=10,
+                 earlystopping_threshold: int=20,
                  accum_grad: int=1):
         """
-        Perform training of the machine learning model.
+        Perform training of the machine learning model for making an embedding space.
 
         Parameters
         ----------
@@ -1107,13 +1102,12 @@ class train_module():
         earlystopping_threshold : int, optional
             Early stopping threshold (default is 10).
 
-        train_classifier : bool, optional
-            Whether to train the model as a classifier (True) or just to generate latent space (False) (default is False)
+        accum_grad : int, optional
+            How many mini-batches the gradient should be accumulated for before updating weights (default is 1).
 
         Returns
         -------
-        all_preds : list
-            List of predictions.
+        None
         """
 
         model_step_1 = copy.deepcopy(model)
@@ -1205,6 +1199,58 @@ class train_module():
                         earlystopping_threshold: int=10,
                         accum_grad: int=1,
                         only_print_best: bool=False):
+        """
+        Perform training of the machine learning model for making an embedding space.
+
+        Parameters
+        ----------
+        model : nn.Module
+            The embedding space model.
+
+        model_classifier: nn.Module
+            The classifier model.
+        
+        device : str or None, optional
+            The device to run the training on (e.g., "cuda" or "cpu"). If None, it automatically selects "cuda" if available, or "cpu" otherwise.
+        
+        use_multiple_gpus : bool, optional
+            If using GPU, whether to use one GPU or all avilable GPUs (default is False).
+
+        seed : int, optional
+            Random seed for ensuring reproducibility (default is 42).
+
+        init_lr : float, optional
+            Initial learning rate for the optimizer (default is 0.001).
+        
+        batch_size : int, optional
+            Batch size for data loading during training (default is 256).
+        
+        lr_scheduler_warmup : int, optional
+            Number of warm-up iterations for the cosine learning rate scheduler (default is 4).
+        
+        lr_scheduler_maxiters : int, optional
+            Maximum number of iterations for the cosine learning rate scheduler (default is 25).
+
+        eval_freq : int, optional
+            Rate at which the model is evaluated on validation data (default is 2).
+        
+        epochs : int, optional
+            Number of training epochs (default is 20).
+        
+        earlystopping_threshold : int, optional
+            Early stopping threshold (default is 10).
+
+        accum_grad : int, optional
+            How many mini-batches the gradient should eb accumulated for before updating weights (default is 1).
+        
+        only_print_best : bool, optional
+            Whether to print the metrics on each epoch (True) or only for the best epoch (False) (default is False).
+
+        Returns
+        -------
+        val_loss : float
+            Validation loss.
+        """
 
         print("Start training classifier")
         print()
@@ -1245,7 +1291,6 @@ class train_module():
 
         # Define data
         train_loader = data.DataLoader(self.data_env_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
-        #val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=batch_size, shuffle=True, drop_last=True)
         min_batch_size = int(np.min([self.data_env_validation_for_classification.X.shape[0], batch_size]))
         val_loader = data.DataLoader(self.data_env_validation_for_classification, batch_size=min_batch_size, shuffle=False, drop_last=True)
 
