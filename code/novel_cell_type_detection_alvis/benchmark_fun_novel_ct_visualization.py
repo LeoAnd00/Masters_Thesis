@@ -74,10 +74,6 @@ def main(novel_cell: str,
     print("Finished generalizability benchmark!")
         
 if __name__ == "__main__":
-    """
-    Start with: cd .\code\cell_type_representation\
-    How to run example (on bone marrow data set): 
-    """
     # Command-line argument parsing
     parser = argparse.ArgumentParser(description='Run the benchmark with specified data, model, and result paths.')
     parser.add_argument('data_path', type=str, help='Path to the data file.')

@@ -328,7 +328,7 @@ class novel_cell_type_detection():
 
         num_cell_types = [1/20, 1/14, 1/11]
 
-        thresholds = np.linspace(0.15, 0.8, 100)  # Example linspace, adjust as needed
+        thresholds = np.linspace(0.17, 0.8, 100)  # Example linspace, adjust as needed
 
         results_precision = np.zeros((100, 4))
         results_coverage = np.zeros((100, 4))
