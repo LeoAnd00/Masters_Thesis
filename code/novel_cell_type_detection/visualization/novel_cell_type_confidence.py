@@ -16,22 +16,18 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, 
         model_path: str, 
-        result_csv_path: str, 
         image_path: str):
     """
-        Execute the annotation generalizability benchmark pipeline. Selects 20% of data for testing and uses the
-        remaining 80% for training. Performs 5-fold cross testing.
+    Execute the annotation generalizability benchmark pipeline for novel cell type detection.
+    Performs 5-fold cross testing.
 
-        Parameters:
-        - data_path (str): File path to the AnnData object containing expression data and metadata.
-        - model_path (str): Directory path to save the trained model and predictions.
-        - result_csv_path (str): File path to save the benchmark results as a CSV file.
-        - pathway_path (str): File path to the pathway information.
-        - gene2vec_path (str): File path to the gene2vec embeddings.
-        - image_path (str): Path where images will be saved.
+    Parameters:
+    - data_path (str): File path to the AnnData object containing expression data and metadata.
+    - model_path (str): Directory path to save the trained model and predictions.
+    - image_path (str): Path where images will be saved.
 
-        Returns:
-        None 
+    Returns:
+    None 
     """
     env = novel_cell_type_detection()
 
@@ -46,9 +42,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the benchmark with specified data, model, and result paths.')
     parser.add_argument('data_path', type=str, help='Path to the data file.')
     parser.add_argument('model_path', type=str, help='Path to save or load the trained models.')
-    parser.add_argument('result_csv_path', type=str, help='Path to save the benchmark results as a CSV file.')
     parser.add_argument('image_path', type=str, help='Path where images will be saved.')
     args = parser.parse_args()
 
     # Call the main function with command-line arguments
-    main(args.data_path, args.model_path, args.result_csv_path, args.image_path)
+    main(args.data_path, args.model_path, args.image_path)

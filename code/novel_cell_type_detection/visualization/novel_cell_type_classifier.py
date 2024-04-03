@@ -26,16 +26,16 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class classifier_train():
     """
-    A class for benchmarking single-cell RNA-seq data integration methods.
+    A class for doing inference for novel cell type detection and calculating likelihood/confidence scores of predictions.
 
     Parameters
     ----------
+    exclude_cell_types : list
+        A list containing cell types to exclude.
     data_path : str 
         The path to the single-cell RNA-seq Anndata file in h5ad format.
-    pathway_path: str, optional
-        The path to pathway/gene set information.
-    gene2vec_path: str, optional
-        The path to gene2vec representations.
+    dataset_name : str 
+        Name of dataset.
     image_path : str, optional
         The path to save UMAP images.
     batch_key : str, optional
@@ -46,18 +46,12 @@ class classifier_train():
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
         The number of highly variable genes to select if HVG is enabled (default is 2000).
-    num_patients_for_training : int, optional
-        The number of patients/samples to use for training.
-    num_patients_for_testing : int, optional
-        The number of patients/samples to use for testing.
-    Scaled : bool, optional
-        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
+    num_folds : int, optional
+        Number of folds for cross testing
+    fold : int, optional
+        Which fold to use.
     seed : int, optional
         Which random seed to use (default is 42).
-
-    Methods
-    -------
-
     """
 
     def __init__(self, 
@@ -175,14 +169,21 @@ class classifier_train():
         self.celltype_title = 'Cell Type'
         self.batcheffect_title = 'Batch Effect'
 
-    def threshold_investigation(self, train: bool=False, save_path: str="trained_models/"):
+    def threshold_investigation(self, save_path: str="trained_models/"):
+        """
+        Calculates min likelihood of novel and non-novel cell types of current fold.
+
+        Parameters
+        ----------
+        save_path : str
+            Path at which the model is saved.
+
+        Returns
+        -------
+        None
+        """
         save_path = f"{save_path}Fold_{self.fold}/"
 
-        #adata_in_house = self.original_adata#.copy()
-
-        if train:
-            scNear.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
-        
         adata_in_house_test = self.original_test_adata#.copy()
         predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions

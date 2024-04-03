@@ -28,8 +28,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str, dataset_name: str):
     """
-    Execute the annotation generalizability benchmark pipeline. Selects 20% of data for testing and uses the
-    remaining 80% for training. Performs 5-fold cross testing.
+    Execute the annotation generalizability benchmark pipeline. Performs 5-fold cross testing.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
@@ -42,62 +41,43 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     None 
     """
     
-    # Calculate for model at different number of patient for training and different random seeds
     folds = [1,2,3,4,5]
     num_folds = 5
+    seed = 42
     counter = 0  
     for fold in folds:
         counter += 1
+        print("fold: ", fold)
 
-        seed = 42
+        benchmark_env = benchmark(data_path=data_path,
+                                    dataset_name=dataset_name,
+                                    image_path=image_path,
+                                    HVGs=2000,
+                                    fold=fold,
+                                    seed=seed)
 
-        while True:  # Keep trying new seeds until no error occurs in case of error
-            try:
-                print("fold: ", fold)
-                print("seed: ", seed)
+        print("**Start benchmarking TOSICA method**")
+        benchmark_env.tosica()
 
-                benchmark_env = benchmark(data_path=data_path,
-                                          dataset_name=dataset_name,
-                                          image_path=image_path,
-                                          HVGs=2000,
-                                          fold=fold,
-                                          seed=seed)
+        # Calculate for model
+        print(f"Start training model, fold {fold} and seed {seed}")
+        print()
+        benchmark_env.Model1_classifier(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
+        benchmark_env.Model2_classifier(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
+        benchmark_env.Model3_classifier(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+        
+        benchmark_env.make_benchamrk_results_dataframe()
 
-                #print("**Start benchmarking TOSICA method**")
-                #benchmark_env.tosica()
+        #if counter > 1:
+        #    benchmark_env.read_csv(name=result_csv_path)
+        benchmark_env.read_csv(name=result_csv_path)
 
-                # Calculate for model
-                print(f"Start training model, fold {fold} and seed {seed}")
-                print()
-                benchmark_env.Model1_classifier(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                #benchmark_env.Model2_classifier(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
-                #benchmark_env.Model3_classifier(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
-                
-                benchmark_env.make_benchamrk_results_dataframe()
+        benchmark_env.save_results_as_csv(name=result_csv_path)
 
-                #if counter > 1:
-                #    benchmark_env.read_csv(name=result_csv_path)
-                benchmark_env.read_csv(name=result_csv_path)
+        del benchmark_env
 
-                benchmark_env.save_results_as_csv(name=result_csv_path)
-
-                del benchmark_env
-
-                # Empty the cache
-                torch.cuda.empty_cache()
-
-                break
-            except Exception as e:
-                # Handle the exception (you can print or log the error if needed)
-                print(f"Error occurred: {e}")
-
-                # Generate a new random seed not in random_seeds list
-                new_seed = random.randint(1, 10000)
-
-                print(f"Trying a new random seed: {new_seed}")
-                seed = new_seed
-
-                break
+        # Empty the cache
+        torch.cuda.empty_cache()
 
     print("Finished generalizability benchmark!")
         

@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str, dataset_name: str):
     """
     Execute the embedding space generalizability benchmark pipeline for comparing loss functions. 
-    Selects 20% of data for testing and uses the remaining 80% for training. Performs 5-fold cross testing.
+    Performs 5-fold cross testing.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
@@ -41,62 +41,44 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     None 
     """
     
-    # Calculate for model at different number of patient for training and different random seeds
     folds = [1,2,3,4,5]
     num_folds = 5
+    seed = 42
     counter = 0  
     for fold in folds:
         counter += 1
 
-        seed = 42
+        print("fold: ", fold)
 
-        while True:  # Keep trying new seeds until no error occurs in case error occurs
-            try:
-                print("fold: ", fold)
-                print("seed: ", seed)
+        benchmark_env = benchmark(data_path=data_path,
+                                    dataset_name=dataset_name,
+                                    image_path=image_path,
+                                    HVGs=2000,
+                                    fold=fold,
+                                    seed=seed)
 
-                benchmark_env = benchmark(data_path=data_path,
-                                          dataset_name=dataset_name,
-                                          image_path=image_path,
-                                          HVGs=2000,
-                                          fold=fold,
-                                          seed=seed)
+        # Calculate for model
+        print(f"Start training model, fold {fold} and seed {seed}")
+        print()
+        benchmark_env.Model1_full_loss_classifier(save_path=f'{model_path}Model1_full_loss/', train=False, umap_plot=False, save_figure=False)
+        benchmark_env.Model1_CL_loss_classifier(save_path=f'{model_path}Model1_CL_loss/', train=False, umap_plot=False, save_figure=False)
+        benchmark_env.Model1_centroid_loss_classifier(save_path=f'{model_path}Model1_centroid_loss/', train=False, umap_plot=False, save_figure=False)
+        
+        benchmark_env.make_benchamrk_results_dataframe()
 
-                # Calculate for model
-                print(f"Start training model, fold {fold} and seed {seed}")
-                print()
-                benchmark_env.Model1_full_loss_classifier(save_path=f'{model_path}Model1_full_loss/', train=False, umap_plot=False, save_figure=False)
-                benchmark_env.Model1_CL_loss_classifier(save_path=f'{model_path}Model1_CL_loss/', train=False, umap_plot=False, save_figure=False)
-                benchmark_env.Model1_centroid_loss_classifier(save_path=f'{model_path}Model1_centroid_loss/', train=False, umap_plot=False, save_figure=False)
-                
-                benchmark_env.make_benchamrk_results_dataframe()
+        benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
+        benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
 
-                benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
-                benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
+        if counter > 1:
+            benchmark_env.read_csv(name=result_csv_path)
+        #benchmark_env.read_csv(name=result_csv_path)
 
-                if counter > 1:
-                    benchmark_env.read_csv(name=result_csv_path)
-                #benchmark_env.read_csv(name=result_csv_path)
+        benchmark_env.save_results_as_csv(name=result_csv_path)
 
-                benchmark_env.save_results_as_csv(name=result_csv_path)
+        del benchmark_env
 
-                del benchmark_env
-
-                # Empty the cache
-                torch.cuda.empty_cache()
-
-                break
-            except Exception as e:
-                # Handle the exception (you can print or log the error if needed)
-                print(f"Error occurred: {e}")
-
-                # Generate a new random seed not in random_seeds list
-                new_seed = random.randint(1, 10000)
-
-                print(f"Trying a new random seed: {new_seed}")
-                seed = new_seed
-
-                break
+        # Empty the cache
+        torch.cuda.empty_cache()
 
     print("Finished generalizability benchmark!")
         

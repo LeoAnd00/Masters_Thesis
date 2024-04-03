@@ -28,10 +28,6 @@ class benchmark():
     ----------
     data_path : str 
         The path to the single-cell RNA-seq Anndata file in h5ad format.
-    pathway_path: str, optional
-        The path to pathway/gene set information.
-    gene2vec_path: str, optional
-        The path to gene2vec representations.
     image_path : str, optional
         The path to save UMAP images.
     batch_key : str, optional
@@ -50,10 +46,6 @@ class benchmark():
         The percentage of data used for training.
     seed : int, optional
         Which random seed to use (default is 42).
-
-    Methods
-    -------
-
     """
 
     def __init__(self, 
@@ -172,7 +164,6 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        # Testing
         adata_unscaled = self.test_adata.copy()
 
         adata_unscaled.obsm["Unscaled"] = adata_unscaled.X
@@ -228,7 +219,6 @@ class benchmark():
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
 
-        # Testing
         adata_pca = self.test_adata.copy()
 
         sc.tl.pca(adata_pca, n_comps=n_comps, use_highly_variable=True)
@@ -262,6 +252,13 @@ class benchmark():
     def scvi(self, umap_plot: bool=True, save_figure: bool=False):
         """
         scVI version 1.0.4: https://github.com/scverse/scvi-tools
+        
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
         """
         # import package
         import scvi
@@ -272,10 +269,9 @@ class benchmark():
         vae = scvi.model.SCVI(adata_scvi_train, gene_likelihood="nb", n_layers=2, n_latent=30)
         vae.train()
         del adata_scvi_train
-        #adata_scvi.obsm["scVI"] = vae.get_latent_representation()
 
         adata_scvi = self.test_adata.copy()
-        adata_scvi.obsm["scVI"] = vae.get_latent_representation(adata_scvi)#vae.get_latent_representation()
+        adata_scvi.obsm["scVI"] = vae.get_latent_representation(adata_scvi)
 
         sc.pp.neighbors(adata_scvi, use_rep="scVI")
 
@@ -320,6 +316,13 @@ class benchmark():
     def scanvi(self, umap_plot: bool=True, vae=None, save_figure: bool=False):
         """
         scANVI version 1.0.4: https://github.com/scverse/scvi-tools
+        
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
         """
         # import package
         import scvi
@@ -385,6 +388,13 @@ class benchmark():
     def scgen(self, umap_plot: bool=True, save_figure: bool=False):
         """
         scGen version 2.1.1: https://github.com/theislab/scgen 
+        
+        Parameters
+        ----------
+        umap_plot : bool, optional
+            If True, generate UMAP plots for cell type and batch effect visualization (default is True).
+        save_figure : bool, optional
+            If True, save UMAP plots as SVG files (default is False).
         """
         from scgen import SCGEN
 
@@ -466,9 +476,7 @@ class benchmark():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
-        #import TOSICA
         import TOSICA.TOSICA as TOSICA
-        #from TOSICA.TOSICA import TOSICA as TOSICA
 
         adata_tosica = self.adata.copy()
         TOSICA.train(adata_tosica, gmt_path='human_gobp', label_name=self.label_key, project='hGOBP_TOSICA')

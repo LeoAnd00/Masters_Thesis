@@ -24,16 +24,14 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class classifier_train():
     """
-    A class for benchmarking single-cell RNA-seq data integration methods.
+    A class for benchmarking single-cell RNA-seq data annotation of model1 using different loss functions.
 
     Parameters
     ----------
     data_path : str 
         The path to the single-cell RNA-seq Anndata file in h5ad format.
-    pathway_path: str, optional
-        The path to pathway/gene set information.
-    gene2vec_path: str, optional
-        The path to gene2vec representations.
+    dataset_name : str 
+        Name of dataset.
     image_path : str, optional
         The path to save UMAP images.
     batch_key : str, optional
@@ -44,25 +42,17 @@ class classifier_train():
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
         The number of highly variable genes to select if HVG is enabled (default is 2000).
-    num_patients_for_training : int, optional
-        The number of patients/samples to use for training.
-    num_patients_for_testing : int, optional
-        The number of patients/samples to use for testing.
-    Scaled : bool, optional
-        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
+    num_folds : int, optional
+        Number of folds for cross testing
+    fold : int, optional
+        Which fold to use.
     seed : int, optional
         Which random seed to use (default is 42).
-
-    Methods
-    -------
-
     """
 
     def __init__(self, 
                  data_path: str, 
                  dataset_name: str,
-                 pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
-                 gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
                  image_path: str='',
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
@@ -76,13 +66,9 @@ class classifier_train():
 
         adata.obs["batch"] = adata.obs[batch_key]
 
-        #del adata.layers['log1p_counts']
-
         self.adata = adata
 
         self.label_key = label_key
-        self.pathway_path = pathway_path
-        self.gene2vec_path = gene2vec_path
         self.image_path = image_path
         self.seed = seed
         self.HVGs = HVGs

@@ -23,16 +23,14 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class classifier_train():
     """
-    A class for benchmarking single-cell RNA-seq data integration methods.
+    A class for benchmarking single-cell RNA-seq data annotation methods.
 
     Parameters
     ----------
     data_path : str 
         The path to the single-cell RNA-seq Anndata file in h5ad format.
-    pathway_path: str, optional
-        The path to pathway/gene set information.
-    gene2vec_path: str, optional
-        The path to gene2vec representations.
+    dataset_name : str 
+        Name of dataset.
     image_path : str, optional
         The path to save UMAP images.
     batch_key : str, optional
@@ -43,25 +41,17 @@ class classifier_train():
         Whether to select highly variable genes (HVGs) (default is True).
     HVGs : int, optional
         The number of highly variable genes to select if HVG is enabled (default is 2000).
-    num_patients_for_training : int, optional
-        The number of patients/samples to use for training.
-    num_patients_for_testing : int, optional
-        The number of patients/samples to use for testing.
-    Scaled : bool, optional
-        Whether to scale the data so that the mean of each feature becomes zero and std becomes the approximate std of each individual feature (default is False).
+    num_folds : int, optional
+        Number of folds for cross testing
+    fold : int, optional
+        Which fold to use.
     seed : int, optional
         Which random seed to use (default is 42).
-
-    Methods
-    -------
-
     """
 
     def __init__(self, 
                  data_path: str, 
                  dataset_name: str,
-                 pathway_path: str='../../data/processed/pathway_information/all_pathways.json',
-                 gene2vec_path: str='../../data/raw/gene2vec_embeddings/gene2vec_dim_200_iter_9_w2v.txt',
                  image_path: str='',
                  batch_key: str="patientID", 
                  label_key: str="cell_type", 
@@ -75,14 +65,13 @@ class classifier_train():
 
         adata.obs["batch"] = adata.obs[batch_key]
 
+        # Delete adata.layers['log1p_counts'] to free up more memory if needed. (The MacParland dataset doesn't have the log1p_counts layer)
         if dataset_name != "MacParland":
             del adata.layers['log1p_counts']
 
         self.adata = adata
 
         self.label_key = label_key
-        self.pathway_path = pathway_path
-        self.gene2vec_path = gene2vec_path
         self.image_path = image_path
         self.seed = seed
         self.HVGs = HVGs
@@ -170,9 +159,7 @@ class classifier_train():
         If umap_plot is True, UMAP plots are generated to visualize the distribution of cell types and batch effects in the latent space.
         The UMAP plots can be saved as SVG files if save_figure is True.
         """
-        #import TOSICA
         import TOSICA.TOSICA as TOSICA
-        #from TOSICA.TOSICA import TOSICA as TOSICA
 
         adata_tosica = self.adata.copy()
         TOSICA.train(adata_tosica, gmt_path='human_gobp', label_name=self.label_key,project='hGOBP_TOSICA')
@@ -607,10 +594,8 @@ class classifier_train():
         if len(calculated_metrics_names) != 0:
             metrics = pd.concat(calculated_metrics, axis="columns")
 
-            #metrics = metrics.set_axis(calculated_metrics_names, axis="rows")
-
             if self.metrics is None:
-                self.metrics = metrics#.sort_values(by='Overall', ascending=False)
+                self.metrics = metrics
             else:
                 self.metrics = pd.concat([self.metrics, metrics], axis="rows").drop_duplicates()
 

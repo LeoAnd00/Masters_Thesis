@@ -1,12 +1,6 @@
 # Load packages
-import numpy as np
-import pandas as pd
-import scanpy as sc
-import scib
 import warnings
 import argparse
-import matplotlib.pyplot as plt
-from matplotlib import cm
 import re
 import torch
 import random
@@ -29,8 +23,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str):
     """
-    Execute the generalizability benchmark pipeline for making an embedding space. Selects 20% of data for testing and uses the
-    remaining 80% for training. Performs 5-fold cross testing.
+    Execute the generalizability benchmark pipeline for making an embedding space. Performs 5-fold cross testing to
+    evaluate generalizability.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
@@ -42,96 +36,77 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str)
     None 
     """
     
-    # Calculate for model at different number of patient for training and different random seeds
-    list_of_data_pct = [0.8]
+    train_split = 0.8
     folds = [1,2,3,4,5]
     num_folds = 5
+    seed = 42
     counter = 0
-    for idx, train_pct in enumerate(list_of_data_pct):
+
+    for fold in folds:
+        counter += 1
+
+        print("fold: ", fold)
+
+        benchmark_env = benchmark(data_path=data_path, 
+                                image_path=f'{image_path}train_pct_{train_split}_fold_{fold}_seed_{seed}_',
+                                batch_key="patientID", 
+                                HVG=True, 
+                                HVGs=2000, 
+                                num_folds=num_folds,
+                                fold=fold,
+                                pct_for_training=train_split,
+                                seed=seed)
         
-        for fold in folds:
-            counter += 1
+        print("Start evaluating unintegrated data")
+        print()
+        benchmark_env.unintegrated(save_figure=False, umap_plot=False)
 
-            seed = 42
+        print("Start evaluating PCA transformed data")
+        print()
+        benchmark_env.pca(save_figure=False, umap_plot=False)
 
-            while True:  # Keep trying new seeds until no error occurs
-                try:
-                    print("fold: ", fold)
-                    print("seed: ", seed)
+        print("**Start benchmarking scVI method**")
+        vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
 
-                    benchmark_env = benchmark(data_path=data_path, 
-                                            image_path=f'{image_path}train_pct_{train_pct}_fold_{fold}_seed_{seed}_',
-                                            batch_key="patientID", 
-                                            HVG=True, 
-                                            HVGs=2000, 
-                                            num_folds=num_folds,
-                                            fold=fold,
-                                            pct_for_training=list_of_data_pct[idx],
-                                            seed=seed)
-                    
-                    print("Start evaluating unintegrated data")
-                    print()
-                    benchmark_env.unintegrated(save_figure=False, umap_plot=False)
+        print("**Start benchmarking scANVI method**")
+        benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
 
-                    print("Start evaluating PCA transformed data")
-                    print()
-                    benchmark_env.pca(save_figure=False, umap_plot=False)
+        print("**Start benchmarking scGen method**")
+        benchmark_env.scgen(umap_plot=False,save_figure=False)
 
-                    print("**Start benchmarking scVI method**")
-                    vae = benchmark_env.scvi(umap_plot=False,save_figure=False)
+        print("**Start benchmarking TOSICA method**")
+        benchmark_env.tosica(umap_plot=False,save_figure=False)
 
-                    print("**Start benchmarking scANVI method**")
-                    benchmark_env.scanvi(vae=vae,umap_plot=False,save_figure=False)
+        # Calculate for model
+        print(f"Start training model with {train_split} percent of data for training, fold {fold} and seed {seed}")
+        print()
+        if fold == 1:
+            benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
+            benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=True)
+            benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
+            #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=True)
+        else:
+            benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
+            benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
+            benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
+            #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=False)
+        
+        benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
 
-                    print("**Start benchmarking scGen method**")
-                    benchmark_env.scgen(umap_plot=False,save_figure=False)
+        benchmark_env.metrics["train_pct"] = [train_split]*benchmark_env.metrics.shape[0]
+        benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
+        benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
 
-                    print("**Start benchmarking TOSICA method**")
-                    benchmark_env.tosica(umap_plot=False,save_figure=False)
+        #if counter > 1:
+        #    benchmark_env.read_csv(name=result_csv_path)
+        benchmark_env.read_csv(name=result_csv_path)
 
-                    # Calculate for model
-                    print(f"Start training model with {train_pct} percent of data for training, fold {fold} and seed {seed}")
-                    print()
-                    if fold == 1:
-                        benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=True)
-                        benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=True)
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=True)
-                        #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=True)
-                    else:
-                        benchmark_env.Model1_benchmark(save_path=f'{model_path}Model1/', train=True, umap_plot=False, save_figure=False)
-                        benchmark_env.Model2_benchmark(save_path=f'{model_path}Model2/', train=True, umap_plot=False, save_figure=False)
-                        benchmark_env.Model3_benchmark(save_path=f'{model_path}Model3/', train=True, umap_plot=False, save_figure=False)
-                        #benchmark_env.Model4_benchmark(save_path=f'{model_path}Model4/', train=True, umap_plot=False, save_figure=False)
-                    
-                    benchmark_env.make_benchamrk_results_dataframe(min_max_normalize=False)
+        benchmark_env.save_results_as_csv(name=result_csv_path)
 
-                    benchmark_env.metrics["train_pct"] = [list_of_data_pct[idx]]*benchmark_env.metrics.shape[0]
-                    benchmark_env.metrics["seed"] = [seed]*benchmark_env.metrics.shape[0]
-                    benchmark_env.metrics["fold"] = [fold]*benchmark_env.metrics.shape[0]
+        del benchmark_env
 
-                    #if counter > 1:
-                    #    benchmark_env.read_csv(name=result_csv_path)
-                    benchmark_env.read_csv(name=result_csv_path)
-
-                    benchmark_env.save_results_as_csv(name=result_csv_path)
-
-                    del benchmark_env
-
-                    # Empty the cache
-                    torch.cuda.empty_cache()
-
-                    break
-                except Exception as e:
-                    # Handle the exception (you can print or log the error if needed)
-                    print(f"Error occurred: {e}")
-
-                    # Generate a new random seed not in random_seeds list
-                    new_seed = random.randint(1, 10000)
-
-                    print(f"Trying a new random seed: {new_seed}")
-                    seed = new_seed
-
-                    break
+        # Empty the cache
+        torch.cuda.empty_cache()
 
     print("Finished generalizability benchmark!")
         

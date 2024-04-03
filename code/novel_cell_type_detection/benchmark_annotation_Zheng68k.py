@@ -25,10 +25,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(data_path: str, model_path: str, result_csv_path: str, image_path: str, dataset_name: str):
     """
-    Execute the code for investigating novel cell type detection of model1. 
-    Here you select a cell type to be left out during training. Then we calculate metrics
-    on the novel cell type, and all other cell types separately.
-    Selects 20% of data for testing and uses the remaining 80% for training. Performs 5-fold cross testing.
+    Execute the code for training model1 for novel cell type detection. 
+    This code is for the Zheng68k dataset.
+    Performs 5-fold cross testing.
 
     Parameters:
     - data_path (str): File path to the AnnData object containing expression data and metadata.
@@ -41,7 +40,6 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
     None 
     """
     
-    # Calculate for model at different number of patient for training and different random seeds
     folds = [1,2,3,4,5]
     num_folds = 5
     counter = 0  
@@ -59,7 +57,9 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
 
     exclude_cell_types_list_names = exclude_cell_types_list
 
-    threshold_list = [0.99]#[0.99, 0.98, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.25, 0.1]
+    seed = 42
+
+    threshold_list = [0.99]
 
     novel_cell_counter = -1
     for novel_cell in exclude_cell_types_list:
@@ -71,54 +71,36 @@ def main(data_path: str, model_path: str, result_csv_path: str, image_path: str,
                 counter += 1
                 counter2 += 1
 
-                seed = 42
+                print("fold: ", fold)
 
-                while True:  # Keep trying new seeds until no error occurs in case and error occurs
-                    try:
-                        print("fold: ", fold)
-                        print("seed: ", seed)
+                benchmark_env = benchmark(data_path=data_path,
+                                        exclude_cell_types = novel_cell,
+                                        dataset_name=dataset_name,
+                                        image_path=image_path,
+                                        HVGs=2000,
+                                        fold=fold,
+                                        seed=seed)
 
-                        benchmark_env = benchmark(data_path=data_path,
-                                                exclude_cell_types = novel_cell,
-                                                dataset_name=dataset_name,
-                                                image_path=image_path,
-                                                HVGs=2000,
-                                                fold=fold,
-                                                seed=seed)
+                # Calculate for model
+                print(f"Start training model, fold {fold} and seed {seed}")
+                print()
+                if counter2 == 1:
+                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=True, umap_plot=False, save_figure=False)
+                else:
+                    benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=False, umap_plot=False, save_figure=False)
 
-                        # Calculate for model
-                        print(f"Start training model, fold {fold} and seed {seed}")
-                        print()
-                        if counter2 == 1:
-                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=True, umap_plot=False, save_figure=False)
-                        else:
-                            benchmark_env.Model1_classifier(threshold=threshold, save_path=f'{model_path}{exclude_cell_types_list_names[novel_cell_counter][0]}/Model1/', excluded_cell = exclude_cell_types_list_names[novel_cell_counter][0], train=False, umap_plot=False, save_figure=False)
+                benchmark_env.make_benchamrk_results_dataframe()
 
-                        benchmark_env.make_benchamrk_results_dataframe()
+                if counter > 1:
+                    benchmark_env.read_csv(name=result_csv_path)
+                #benchmark_env.read_csv(name=result_csv_path)
 
-                        if counter > 1:
-                            benchmark_env.read_csv(name=result_csv_path)
-                        #benchmark_env.read_csv(name=result_csv_path)
+                benchmark_env.save_results_as_csv(name=result_csv_path)
 
-                        benchmark_env.save_results_as_csv(name=result_csv_path)
+                del benchmark_env
 
-                        del benchmark_env
-
-                        # Empty the cache
-                        torch.cuda.empty_cache()
-
-                        break
-                    except Exception as e:
-                        # Handle the exception (you can print or log the error if needed)
-                        print(f"Error occurred: {e}")
-
-                        # Generate a new random seed not in random_seeds list
-                        new_seed = random.randint(1, 10000)
-
-                        print(f"Trying a new random seed: {new_seed}")
-                        seed = new_seed
-
-                        break
+                # Empty the cache
+                torch.cuda.empty_cache()
 
     print("Finished generalizability benchmark!")
         
