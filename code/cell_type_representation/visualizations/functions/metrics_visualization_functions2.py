@@ -181,7 +181,7 @@ class VisualizeEnv():
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()
 
@@ -362,7 +362,7 @@ class VisualizeEnv():
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()
 
