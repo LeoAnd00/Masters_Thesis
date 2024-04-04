@@ -31,16 +31,15 @@ class novel_cell_type_detection():
             image_path: str, 
             dataset_names: str):
         """
-        Execute the annotation generalizability benchmark pipeline. Selects 20% of data for testing and uses the
-        remaining 80% for training. Performs 5-fold cross testing.
+        Execute the annotation generalizability benchmark pipeline for novel cell type detection.
+        Performs 5-fold cross testing.
+        It calculates the minimum confidence of novel cell types and non-novel cell types of each fold and saves them.
 
         Parameters:
         - data_path (str): File path to the AnnData object containing expression data and metadata.
         - model_path (str): Directory path to save the trained model and predictions.
-        - result_csv_path (str): File path to save the benchmark results as a CSV file.
-        - pathway_path (str): File path to the pathway information.
-        - gene2vec_path (str): File path to the gene2vec embeddings.
         - image_path (str): Path where images will be saved.
+        - dataset_names (str): Name of dataset.
 
         Returns:
         None 
@@ -125,6 +124,16 @@ class novel_cell_type_detection():
             json.dump(self.confidence_dict, f, indent=4)
 
     def get_cell_type_names(self, datset_name: str):
+        """
+        Retrieves a list of lists containing all unique cell type names for each dataset.
+
+        Parameters:
+        - dataset_names (str): Name of dataset.
+
+        Returns:
+        exclude_cell_types_list: list containing all cell types of specified dataset. 
+        """
+
         if datset_name == "MacParland":
             exclude_cell_types_list = [['Mature_B_Cells'], 
                                 ['Plasma_Cells'], 
@@ -197,11 +206,20 @@ class novel_cell_type_detection():
         return exclude_cell_types_list, exclude_cell_types_list_names
     
     def calc_precision_and_coverage(self, threshold: float):
+        """
+        Calculates the precision and coverage on all datasets when using the specified likelihood threshold.
+
+        Parameters:
+        - threshold (float): Likelihood threshold. If a sample is below this value, it's considered to contain a novel cell type.
+
+        Returns:
+        None
+        """
 
         with open("results/likelihood.json", 'r') as f:
             self.confidence_dict = json.load(f)
 
-        num_cell_types = [1/20, 1/14, 1/11]
+        num_cell_types = [1/20, 1/14, 1/11] # Inverse of number fo cell types for each dataset. Used for min-max noramlization.
 
         all_true_positives = 0
         all_false_positives = 0
@@ -253,11 +271,22 @@ class novel_cell_type_detection():
         print("")
 
     def jitter_plot(self, image_path: str, dataset_names: str, threshold: float=0.26):
+        """
+        Makes a jitter plot over the minimum likelihood fo eahc folder, and for each novel and non-novel cell type.
+
+        Parameters:
+        - image_path (str): Path (including name of file) where image will be saved.
+        - dataset_names (list): List containing the name of all datasets
+        - threshold (float): Likelihood threshold. Will draw a red line at this point.
+
+        Returns:
+        None
+        """
 
         with open("results/likelihood.json", 'r') as f:
             self.confidence_dict = json.load(f)
 
-        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20,16))
+        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(7.08, 6))
         
         colors = sns.color_palette('deep', 2)
 
@@ -289,15 +318,19 @@ class novel_cell_type_detection():
             labels = ['Min Likelihood of Non-Novel Cell Type'] * len(min_non_novel_confidence) + ['Min Likelihood of Novel Cell Type'] * len(min_novel_confidence)
             
             # Jitter plot
-            sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, alpha=0.7, ax=axes[index_0, index_1])
-            axes[index_0, index_1].set_title(titles[idx], fontsize='large')
+            sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, size=3, alpha=0.7, ax=axes[index_0, index_1])
+            axes[index_0, index_1].set_title(titles[idx], fontsize=7)
             axes[index_0, index_1].set_xlabel('')
             if index_1 == 0:
-                axes[index_0, index_1].set_ylabel('Likelihood')
-            axes[index_0, index_1].grid(axis='y', linewidth=1.5)
+                axes[index_0, index_1].set_ylabel('Likelihood', fontsize=7)
+            axes[index_0, index_1].grid(axis='y', linewidth=0.5)
 
-            axes[index_0, index_1].tick_params(axis='x', which='major', labelsize=12) 
-            axes[index_0, index_1].tick_params(axis='y', which='major', labelsize=12) 
+            axes[index_0, index_1].tick_params(axis='x', which='major', labelsize=5, width=0.5) 
+            axes[index_0, index_1].tick_params(axis='y', which='major', labelsize=7, width=0.5) 
+
+            # Adjust border thickness
+            for spine in axes[index_0, index_1].spines.values():
+                spine.set_linewidth(0.5)  # Adjust thickness here
 
         # Concatenate max_confidence and min_confidence lists
         all_confidence = min_non_novel_confidence_all + min_novel_confidence_all
@@ -306,22 +339,36 @@ class novel_cell_type_detection():
         labels = ['Min Likelihood of Non-Novel Cell Type'] * len(min_non_novel_confidence_all) + ['Min Likelihood of Novel Cell Type'] * len(min_novel_confidence_all)
         
         # Jitter plot
-        sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, alpha=0.7, ax=axes[1, 1])
-        axes[1, 1].set_title(titles[3], fontsize='large')
+        sns.stripplot(x=labels, y=all_confidence, jitter=True, palette=colors, size=3, alpha=0.7, ax=axes[1, 1])
+        axes[1, 1].set_title(titles[3], fontsize=7)
         axes[1, 1].set_xlabel('')
-        axes[1, 1].grid(axis='y', linewidth=1.5)
-        axes[1, 1].axhline(y=threshold, color='red', linestyle='--')
+        axes[1, 1].grid(axis='y', linewidth=0.5)
+        axes[1, 1].axhline(y=threshold, color='red', linestyle='--', linewidth=1.0)
 
-        axes[1, 1].tick_params(axis='x', which='major', labelsize=12) 
-        axes[1, 1].tick_params(axis='y', which='major', labelsize=12) 
+        axes[1, 1].tick_params(axis='x', which='major', labelsize=5, width=0.5) 
+        axes[1, 1].tick_params(axis='y', which='major', labelsize=7, width=0.5) 
+
+        # Adjust border thickness
+        for spine in axes[1, 1].spines.values():
+            spine.set_linewidth(0.5)  # Adjust thickness here
 
         plt.tight_layout()
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
         plt.show()
 
     def scatter_line_plot(self, image_path: str, threshold_: float=0.26):
+        """
+        Makes a scatter plot over the precision and coverage at different thresholds, and for each novel and non-novel cell type.
+
+        Parameters:
+        - image_path (str): Path (including name of file) where image will be saved.
+        - threshold (float): Likelihood threshold. Will draw a red line at this point.
+
+        Returns:
+        None
+        """
 
         with open("results/likelihood.json", 'r') as f:
             self.confidence_dict = json.load(f)
@@ -377,7 +424,7 @@ class novel_cell_type_detection():
             results_coverage[i,3] = all_coverage
 
         # Create subplots
-        fig, axs = plt.subplots(2, 2, figsize=(20, 16))
+        fig, axs = plt.subplots(2, 2, figsize=(7.08, 6))
 
         # Plot on each subplot
         handles = []
@@ -388,29 +435,36 @@ class novel_cell_type_detection():
             for j in range(2):
                 counter += 1
                 # Scatter plot with line connecting points
-                precision_line, = axs[i, j].plot(thresholds, results_precision[:, counter], 'o-', markersize=3, linewidth=1, label='Precision')
-                coverage_line, = axs[i, j].plot(thresholds, results_coverage[:, counter], 'o-', markersize=3, linewidth=1, label='Coverage')
+                precision_line, = axs[i, j].plot(thresholds, results_precision[:, counter], 'o-', markersize=0.5, linewidth=0.3, label='Precision')
+                coverage_line, = axs[i, j].plot(thresholds, results_coverage[:, counter], 'o-', markersize=0.5, linewidth=0.3, label='Coverage')
                 if (i == 0) and (j == 0):
                     handles.append(precision_line)
                     handles.append(coverage_line)
                     labels.append('Precision')
                     labels.append('Coverage')
-                axs[i, j].set_title(titles[counter], fontsize='large')
+                axs[i, j].set_title(titles[counter], fontsize=7)
                 if j == 0:
-                    axs[i, j].set_ylabel('Percentage')
+                    axs[i, j].set_ylabel('Percentage', fontsize=7)
                 if i == 1:
-                    axs[i, j].set_xlabel('Likelihood Threshold')
+                    axs[i, j].set_xlabel('Likelihood Threshold', fontsize=7)
 
                 if (i == 1) and (j == 1):
-                    axs[1, 1].axvline(x=threshold_, color='red', linestyle='--')
+                    axs[1, 1].axvline(x=threshold_, color='red', linestyle='--', linewidth=1.0)
+
+                axs[i, j].tick_params(axis='x', which='major', labelsize=7, width=0.5) 
+                axs[i, j].tick_params(axis='y', which='major', labelsize=7, width=0.5) 
+
+                # Adjust border thickness
+                for spine in axs[i, j].spines.values():
+                    spine.set_linewidth(0.5)  # Adjust thickness here
 
         # Create a single legend for the entire figure
-        fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 1.0), fontsize='large', frameon=False, ncol=2, title='')
+        fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.97), fontsize=7, frameon=False, ncol=2, title='')
 
         # Adjust layout
         fig.tight_layout()
         # Save the plot as an SVG file
         if image_path:
-            fig.savefig(f'{image_path}.svg', format='svg')
+            fig.savefig(f'{image_path}.svg', format='svg', dpi=300, bbox_inches='tight')
         fig.show()
         
