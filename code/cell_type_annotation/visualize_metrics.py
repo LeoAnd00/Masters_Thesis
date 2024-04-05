@@ -37,95 +37,9 @@ class VisualizeEnv():
                                 "Dataset",
                                 "Fold"]
 
-    def BarPlotVisualization(self, dataset_name: str, image_path: str=None, version: int=1):
-        """
-        Generate a bar plot visualization for each metric, displaying the mean values
-        with error bars representing standard deviation across different model types.
-
-        Parameters
-        --------
-        image_path : str, optional 
-            If provided, the plot will be saved as an SVG file with the specified file path/name (.svg is added by the function at the end). Defaults to None (meaning no image will be downloaded).
-        version : int, optional
-            Which plot option to chose (Options: 1, 2, 3)
-            
-        Returns
-        -------
-        None
-        """
-
-        metrics = self.metrics.copy()
-
-        metrics = metrics.loc[metrics["Dataset"] == dataset_name,:]
-
-        # Set up the figure and axis with 4 columns per row
-        ncols = 3
-        fig, axs = plt.subplots(nrows=1, ncols=ncols, figsize=(15, 5 * 1), sharey=False)
-
-        # Get unique model types in order of performance on Overall metric
-        metrics_temp = metrics.groupby(['Method'])["Accuracy"].agg(['mean', 'std']).reset_index()
-        metrics_temp = metrics_temp.sort_values(by='mean')
-        unique_model_types = metrics_temp['Method'].unique()
-
-        # Define a colormap based on unique model types
-        cmap = cm.get_cmap('tab20', len(unique_model_types))
-
-        # Map each model type to a color using the colormap
-        if self.color_dict is None:
-            self.color_dict = {model_type: cmap(1 - j / (len(unique_model_types) - 1)) for j, model_type in enumerate(unique_model_types)}
-
-        columns_metrics = self.metrics.columns[1:4].to_list()
-
-        for i, metric in enumerate(columns_metrics):
-            # Calculate the row and column indices
-            row_idx = 0
-            col_idx = i % ncols
-
-            # Group by model type, calculate mean and std, and sort by mean value of the current metric
-            visual_metrics = metrics.groupby(['Method'])[metric].agg(['mean', 'std']).reset_index()
-            visual_metrics = visual_metrics.sort_values(by='mean')
-
-            # Map the colors to the model types in the sorted order
-            colors = visual_metrics['Method'].map(self.color_dict)
-
-            # Plot horizontal bars for each model_type in the specified subplot
-            if version == 1:
-                axs[col_idx].barh(visual_metrics['Method'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', color=colors, capsize=3, alpha=1.0, height=0.4, zorder=2)
-            elif version == 2:
-                axs[col_idx].barh(visual_metrics['Method'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='blue', capsize=3, alpha=1.0, height=0.4, zorder=2)
-            elif version == 3:
-                axs[col_idx].barh(visual_metrics['Method'], visual_metrics['mean'], xerr=visual_metrics['std'], edgecolor='black', facecolor='none', capsize=3, alpha=0.7, height=0.4, zorder=2)
-
-            # Set labels and title for each subplot
-            axs[col_idx].set_xlabel(metric)
-            #axs[col_idx].set_title(metric)
-
-            # Ensure y-axis is visible for each subplot
-            axs[col_idx].tick_params(left=True)
-
-            # Add grid
-            axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1)
-
-            # Set x-axis limit to 1.1
-            axs[col_idx].set_xlim(right=1.1)
-
-        # Set common ylabel for the leftmost subplot in each row
-        axs[0].set_ylabel('Method')
-        axs[1].set_title(dataset_name)
-
-        # Adjust layout to prevent clipping of ylabel
-        plt.tight_layout()
-
-        # Save the plot as an SVG file
-        if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
-
-        plt.show()
-
     def BoxPlotVisualization(self, image_path: str=None):
         """
-        Generate a bar plot visualization for each metric, displaying the mean values
-        with error bars representing standard deviation across different model types.
+        Generate a box plot visualization of average performance across datasets for each metric.
 
         Parameters
         --------
@@ -152,7 +66,7 @@ class VisualizeEnv():
         # Set up the figure and axis with 4 columns per row
         ncols = 1
         nrows = 3
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10 * ncols, 5 * nrows), sharey=False)
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(7.08 * ncols, (7.08/2) * nrows), sharey=False)
 
         columns_metrics = self.metrics.columns[1:4].to_list()
 
@@ -163,7 +77,7 @@ class VisualizeEnv():
             # Group by model type, calculate mean and std, and sort by mean value of the current metric
             visual_metrics = metrics[['Dataset','Method',metric]]
 
-            axs[col_idx].set_ylabel(metric)
+            axs[col_idx].set_ylabel(metric, fontsize=7)
             variable = visual_metrics[metric].to_list()
             group = visual_metrics['Dataset'].to_list()
             group2 = visual_metrics['Method'].to_list()
@@ -203,6 +117,8 @@ class VisualizeEnv():
             # Add grid lines between the x positions
             axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
+            axs[col_idx].tick_params(axis='both', which='major', labelsize=7)  # Adjust font size for tick labels
+
             """if col_idx == 0:
                 sns.boxplot(y = variable,
                         x = group,
@@ -228,28 +144,25 @@ class VisualizeEnv():
                         showfliers = False)
                 axs[col_idx].legend().remove()"""
 
-        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
+        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False, fontsize=7)
 
         # Adjust layout to prevent clipping of ylabel
         plt.tight_layout()
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()
 
     def BarPlotAverageMetricsVisualization(self, image_path: str=None):
         """
-        Generate a bar plot visualization for each metric, displaying the mean values
-        with error bars representing standard deviation across different model types.
+        Generate a bar plot visualization for the average performance across metrics.
 
         Parameters
         --------
         image_path : str, optional 
             If provided, the plot will be saved as an SVG file with the specified file path/name (.svg is added by the function at the end). Defaults to None (meaning no image will be downloaded).
-        version : int, optional
-            Which plot option to chose (Options: 1, 2, 3)
             
         Returns
         -------
@@ -279,7 +192,7 @@ class VisualizeEnv():
         # Apply min-max normalization to each group
         normalized_averages = grouped_averages.transform(min_max_normalize)
 
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10 * 2, 5 * 1), sharey=False, gridspec_kw={'width_ratios': [3, 1]})
+        fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(7.08, (7.08/2)), sharey=False)#, gridspec_kw={'width_ratios': [3, 1]}
 
         for col_idx, ax in enumerate(axs):
 
@@ -318,8 +231,8 @@ class VisualizeEnv():
                             hue_order = hue_order,
                             ax=axs[col_idx], 
                             showfliers = False)
-                if col_idx != 1:
-                    axs[col_idx].legend().remove()
+                
+                axs[col_idx].legend().remove()
 
                 # Add grid
                 # Calculate the x positions of the grid lines to be between the ticks
@@ -332,7 +245,9 @@ class VisualizeEnv():
                 # Add grid lines between the x positions
                 axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
-                axs[col_idx].set_ylabel('Normalized Average Score Across Datasets')
+                axs[col_idx].tick_params(axis='both', which='major', labelsize=7)  # Adjust font size for tick labels
+
+                axs[col_idx].set_ylabel('Normalized Average Score Across Datasets', fontsize=5)
 
             elif col_idx == 1:
                 # Group by "Method"
@@ -370,15 +285,29 @@ class VisualizeEnv():
                 # Plot the grouped bar plot with opaque bars and borders
                 sns.barplot(x='Metric', y='Value', hue='Method', ax=axs[col_idx], data=overall_sorted, hue_order=hue_order, ci=None, dodge=True, alpha=1.0, edgecolor='black')
 
-                axs[col_idx].set_ylabel('Average Score Across Metrics')
+                axs[col_idx].set_ylabel('Average Score Across Metrics', fontsize=5)
+                axs[col_idx].set_xlabel('', fontsize=1)
 
-        sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
+                axs[col_idx].tick_params(axis='both', which='major', labelsize=7)  # Adjust font size for tick labels
+
+                axs[col_idx].set_xticklabels([])
+                axs[col_idx].tick_params(axis='x', length=0)
+
+                axs[col_idx].legend().remove()
+
+        #sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False, fontsize=7)
+        # Get handles and labels from both axes
+        handles, labels = axs[1].get_legend_handles_labels()
+
+        # Create a legend for the entire subplot
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 0.8), title=None, frameon=False, fontsize=7)
+
 
         # Adjust layout to prevent clipping of ylabel
         plt.tight_layout()
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()

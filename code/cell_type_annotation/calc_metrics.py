@@ -10,6 +10,20 @@ class metrics():
         self.metrics = None
 
     def calc_metrics(self, path: str, method_name: str, dataset_name: str):
+        """
+        Calculate evaluation metrics for a given method and dataset.
+        This method calculates accuracy, balanced accuracy, and F1 score for each fold of the cross-testing
+        results stored in the CSV file specified by `path`. It then stores these metrics along with the method name,
+        dataset name, and fold index in a DataFrame.
+
+        Parameters:
+        path (str): Path to the CSV file containing results.
+        method_name (str): Name of the method/model being evaluated.
+        dataset_name (str): Name of the dataset.
+
+        Returns:
+        None
+        """
 
         results = pd.read_csv(f'{path}.csv', index_col=0)
 

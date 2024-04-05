@@ -13,6 +13,25 @@ def split_data(data_path: str,
                seed: int=42,
                HVG: bool=False,
                HVGs: int=2000):
+    """
+    Split data into train and test sets using Stratified K-Fold cross-validation and save them as h5ad files.
+    This function splits the data stored in an AnnData object into train and test sets using Stratified K-Fold 
+    cross-validation. It saves each fold of the train and test sets as h5ad files. Optionally, it can perform 
+    feature selection using highly variable genes (HVG) and include only those genes in the split data.
+
+    Parameters:
+    data_path (str): Path to the input AnnData object file.
+    save_path (str): Path to save the split data.
+    folds (int): Number of folds for Stratified K-Fold cross-validation (default is 5).
+    batch_key (str): Key specifying batch information in the AnnData object (default is "patientID").
+    label_key (str): Key specifying label information in the AnnData object (default is "cell_type").
+    seed (int): Random seed for reproducibility (default is 42).
+    HVG (bool): Whether to use highly variable genes (HVG) for feature selection (default is False).
+    HVGs (int): Number of highly variable genes to select if HVG is True (default is 2000).
+
+    Returns:
+    None
+    """
     
     adata = sc.read(data_path, cache=True)
 

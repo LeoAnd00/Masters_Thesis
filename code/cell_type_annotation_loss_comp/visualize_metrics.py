@@ -39,8 +39,7 @@ class VisualizeEnv():
         
     def LossCompBoxPlotVisualization(self, image_path: str=None):
         """
-        Generate a bar plot visualization for each metric, displaying the mean values
-        with error bars representing standard deviation across different model types.
+        Generate a box plot visualization for accuracy, balanced accuracy and F1 score for each dataset and each loss function.
 
         Parameters
         --------
@@ -63,7 +62,7 @@ class VisualizeEnv():
         # Set up the figure and axis with 4 columns per row
         ncols = 1
         nrows = 3
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 3 * nrows), sharey=False)
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(7.08 * ncols, (7.08/2) * nrows), sharey=False)
 
         columns_metrics = self.metrics.columns[1:4].to_list()
 
@@ -74,7 +73,7 @@ class VisualizeEnv():
             # Group by model type, calculate mean and std, and sort by mean value of the current metric
             visual_metrics = metrics[['Dataset','Method',metric]]
 
-            axs[col_idx].set_ylabel(metric)
+            axs[col_idx].set_ylabel(metric, fontsize=7)
             variable = visual_metrics[metric].to_list()
             group = visual_metrics['Dataset'].to_list()
             group2 = visual_metrics['Method'].to_list()
@@ -94,7 +93,7 @@ class VisualizeEnv():
                 
                 sns.move_legend(
                     axs[col_idx], "lower center",
-                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize="small"
+                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize=7
                 )
             else:
                 sns.boxplot(y = variable,
@@ -118,6 +117,8 @@ class VisualizeEnv():
             # Add grid lines between the x positions
             axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
+            axs[col_idx].tick_params(axis='both', which='major', labelsize=7)  # Adjust font size for tick labels
+
         #sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.8), title=None, frameon=False)
 
         # Adjust layout to prevent clipping of ylabel
@@ -125,19 +126,24 @@ class VisualizeEnv():
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()
 
     def BoxPlotVisualization(self, files, dataset_names, image_path: str=None, minmax_norm: bool=True):
         """
-        Generate a bar plot visualization for each metric, displaying the mean values
-        with error bars representing standard deviation across different model types.
+        Generate a box plot visualization of the overall metric from the scib package to assess the embedding space for each dataset of each loss function.
 
         Parameters
         --------
+        files
+            List contraining file paths to be used. One for each dataset.
+        dataset_names
+            List of dataset names for each file.
         image_path : str, optional 
             If provided, the plot will be saved as an SVG file with the specified file path/name (.svg is added by the function at the end). Defaults to None (meaning no image will be downloaded).
+        minmax_norm: bool, optional
+            Whether to min-max noramlize all metrics from scib or not. Default is True.
             
         Returns
         -------
@@ -210,7 +216,7 @@ class VisualizeEnv():
         # Set up the figure and axis with 4 columns per row
         ncols = 1
         nrows = 1
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10 * ncols, 5 * nrows), sharey=False)
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(7.08 * ncols, (7.08/2) * nrows), sharey=False)
         axs = [axs]
 
         columns_metrics = ["Overall Score"]
@@ -222,7 +228,7 @@ class VisualizeEnv():
             # Group by model type, calculate mean and std, and sort by mean value of the current metric
             visual_metrics = metrics[['Dataset','Method',metric]]
 
-            axs[col_idx].set_ylabel(metric)
+            axs[col_idx].set_ylabel(metric, fontsize=7)
             variable = visual_metrics[metric].to_list()
             group = visual_metrics['Dataset'].to_list()
             group2 = visual_metrics['Method'].to_list()
@@ -243,7 +249,7 @@ class VisualizeEnv():
                 
                 sns.move_legend(
                     axs[col_idx], "lower center",
-                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize="medium"
+                    bbox_to_anchor=(.5, 1), ncol=len(hue_order), title=None, frameon=False, fontsize=7
                 )
             else:
                 sns.boxplot(y = variable,
@@ -268,6 +274,8 @@ class VisualizeEnv():
             # Add grid lines between the x positions
             axs[col_idx].grid(axis='x', linestyle='--', alpha=1.0, zorder=1, which='minor')
 
+            axs[col_idx].tick_params(axis='both', which='major', labelsize=7)  # Adjust font size for tick labels
+
         #sns.move_legend(axs[1], "upper left", bbox_to_anchor=(1, 0.75), title=None, frameon=False)
 
         # Adjust layout to prevent clipping of ylabel
@@ -275,6 +283,6 @@ class VisualizeEnv():
 
         # Save the plot as an SVG file
         if image_path:
-            plt.savefig(f'{image_path}.svg', format='svg')
+            plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
 
         plt.show()

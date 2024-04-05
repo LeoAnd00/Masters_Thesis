@@ -10,6 +10,15 @@ class metrics():
         self.metrics = None
 
     def calc_metrics(self, path: str):
+        """
+        Simply reads the results and concatenates them with previously read results.
+
+        Parameters:
+        path (str): Path to the input .csv file of results.
+
+        Returns:
+        None
+        """
 
         results = pd.read_csv(f'{path}.csv', index_col=0)
             
