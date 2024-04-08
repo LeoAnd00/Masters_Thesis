@@ -186,6 +186,59 @@ class VisualizeEnv():
             plt.savefig(f'{image_path}_PCA_CV.svg', format='svg', dpi=300)
         plt.show()
 
+
+
+
+        # Set up the subplots
+        fig, axs = plt.subplots(2, 1, figsize=(7.08, 12))  # 2 rows
+
+        # Plot 1
+        heatmap = axs[0].imshow(self.cell_type_centroids_distances_matrix_filter/torch.max(self.cell_type_centroids_distances_matrix_filter), cmap='viridis', interpolation='nearest')
+        colorbar = plt.colorbar(heatmap, ax=axs[0], label='Normalized Euclidean Distance')
+        colorbar.ax.tick_params(axis='y', labelsize=7)
+        colorbar.set_label('Normalized Euclidean Distance', fontsize=7)
+        axs[0].set_xticks(range(len(self.pred_adata.obs['cell_type'].unique())))
+        axs[0].set_xticklabels(self.pred_adata.obs['cell_type'].unique(), rotation=60, ha='right', fontsize=5)
+        axs[0].set_yticks(range(len(self.pred_adata.obs['cell_type'].unique())))
+        axs[0].set_yticklabels(self.pred_adata.obs['cell_type'].unique(), fontsize=5)
+        axs[0].set_title('Normalized euclidean distance between cell type centorids in PCA latent space', fontsize=7)
+
+        # Plot 2
+        CV_df = (self.distance_std_df / self.cell_type_centroids_distances_matrix_filter)
+        nan_mask = torch.isnan(CV_df)
+        CV_df = torch.where(nan_mask, torch.tensor(0.0), CV_df)
+        upper_triangular = torch.triu(CV_df)
+        non_zero_indices = torch.nonzero(upper_triangular)
+        non_zero_elements = CV_df[non_zero_indices[:, 0], non_zero_indices[:, 1]]
+        mean_value = torch.mean(non_zero_elements)
+        std_value = torch.std(non_zero_elements)
+
+        heatmap2 = axs[1].imshow(CV_df, cmap='viridis', interpolation='nearest')
+        colorbar2 = plt.colorbar(heatmap2, ax=axs[1], label='Coefficient of variation (CV)')
+        colorbar2.ax.tick_params(axis='y', labelsize=7)
+        colorbar2.set_label('CV of Euclidean Distance', fontsize=7)
+        axs[1].set_xticks(range(len(self.pred_adata.obs['cell_type'].unique())))
+        axs[1].set_xticklabels(self.pred_adata.obs['cell_type'].unique(), rotation=60, ha='right', fontsize=5)
+        axs[1].set_yticks(range(len(self.pred_adata.obs['cell_type'].unique())))
+        axs[1].set_yticklabels(self.pred_adata.obs['cell_type'].unique(), fontsize=5)
+        axs[1].set_title('CV of normalized euclidean distance between cell type centorids in PCA latent space', fontsize=7)
+
+        # Annotate subplots with letters
+        for ax, letter in zip(axs.ravel(), ['a', 'b']):
+            ax.text(-0.1, 1.1, letter, transform=ax.transAxes, fontsize=7, fontweight='bold', va='top')
+
+        plt.tight_layout()
+
+        # Save the plot as an SVG file
+        if image_path:
+            plt.savefig(f'{image_path}_PCA_combined.svg', format='svg', dpi=300)
+
+        plt.show()
+
+
+
+
+
         # Create a violin plot of CV scores
         plt.figure(figsize=((7.08/2), (6/2)))
         non_zero_elements_np = non_zero_elements.numpy()
