@@ -192,7 +192,7 @@ class VisualizeEnv():
         # Apply min-max normalization to each group
         normalized_averages = grouped_averages.transform(min_max_normalize)
 
-        fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(7.08, (7.08/2)), sharey=False)#, gridspec_kw={'width_ratios': [3, 1]}
+        fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(7.08, (7.08/1.5)), sharey=False)#, gridspec_kw={'width_ratios': [3, 1]}
 
         for col_idx, ax in enumerate(axs):
 
@@ -300,8 +300,11 @@ class VisualizeEnv():
         handles, labels = axs[1].get_legend_handles_labels()
 
         # Create a legend for the entire subplot
-        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 0.8), title=None, frameon=False, fontsize=7)
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(1, 0.7), title=None, frameon=False, fontsize=7)
 
+        # Annotate subplots with letters
+        for ax, letter in zip(axs.ravel(), ['a', 'b']):
+            ax.text(-0.1, 1.15, letter, transform=ax.transAxes, fontsize=7, fontweight='bold', va='top')
 
         # Adjust layout to prevent clipping of ylabel
         plt.tight_layout()
