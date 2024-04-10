@@ -252,7 +252,7 @@ class UMAP_Kidney_Viz():
         umap = UMAP(n_components=2, n_neighbors=15, random_state=42)
         vis_adata.obsm["X_umap"] = umap.fit_transform(vis_adata.obsm["embedding"] )
 
-        random_order = np.random.permutation(vis_adata.n_obs)
+        #random_order = np.random.permutation(vis_adata.n_obs)
         vis_adata = vis_adata[random_order, :]
 
         # Convert categorical variables to numerical labels
