@@ -12,7 +12,7 @@ from IPython.display import display
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import StratifiedKFold
 import scTRAC.scTRAC as scTRAC
-import scNear
+import CELLULAR
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -561,10 +561,10 @@ class benchmark():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
+            CELLULAR.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["In_house"] = predictions
 
         del predictions

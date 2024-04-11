@@ -13,9 +13,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
 import scib
-import scNear
-import scNear_cl
-import scNear_cent
+import CELLULAR
+import CELLULAR_cl
+import CELLULAR_cent
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -169,10 +169,10 @@ class classifier_train():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
+            CELLULAR.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions
@@ -247,10 +247,10 @@ class classifier_train():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear_cl.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
+            CELLULAR_cl.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear_cl.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR_cl.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions
@@ -325,10 +325,10 @@ class classifier_train():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear_cent.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
+            CELLULAR_cent.train(adata=adata_in_house, model_path=save_path, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear_cent.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR_cent.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
         del predictions
