@@ -21,5 +21,8 @@ The model developed in this study have been made into a convenient package at X,
 pip install CELLULAR
 ```
 
+## Data
+Data for reproducibility can be found [here](https://doi.org/10.5281/zenodo.10959788).
+
 ## Authors
 Leo Andrekson
