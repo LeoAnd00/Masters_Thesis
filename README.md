@@ -18,7 +18,7 @@ Code for training the model developed in this study for reproducibility can be f
 ## Official pip package
 The model developed in this study have been made into a convenient package at X, and can be intalled by running:
 ```
-pip install scNear
+pip install CELLULAR
 ```
 
 ## Authors
