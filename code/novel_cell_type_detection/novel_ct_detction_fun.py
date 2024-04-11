@@ -199,7 +199,7 @@ class novel_cell_type_detection():
                                     ["Dendritic"], 
                                     ["CD14+ Monocyte"]]
         else:
-            raise ValueError("Not a valid dataset name! Must be MacParland, Segerstolpe or Baron")
+            raise ValueError("Not a valid dataset name! Must be MacParland, Segerstolpe, Baron, or Zheng68k")
 
         exclude_cell_types_list_names = [item[0] for item in exclude_cell_types_list]
 
