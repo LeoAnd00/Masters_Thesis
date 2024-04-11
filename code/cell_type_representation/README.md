@@ -1,0 +1,3 @@
+**cell_type_representation:** Contains results and visualizations from the scRNA-Seq embedding space benchmark. Code for running the benchmark itself can be found in the *Alvis_cluster_code* repo.
+- **benchmarks:** Contain results from the scRNA-Seq embedding space benchmark from the *Alvis_cluster_code* repo.
+- **visualizations:** Visualizations for report. Both for the generalizable embedding space and for invetigating the validity of the cell type centroid loss. But also to visualize the embedding space using UMAP for the first test fold of the kidney dataset.

@@ -14,10 +14,11 @@ More code exist in the *Alvis_cluster_code* repo.
     - **kidney_cells:** Code for preprocessing data of the kidney dataset.
     - **pathway_information:** Contains preprocessing code for human pathway information (gene sets). Run *gene_sets_filtering.ipynb* to process the gene sets.
     - **data_for_evaluating_cell_type_annotation:** Code for processing the Baron, MacParland, Segerstolpe, and Zheng68k datasets.
+    - **visualizations:** Code for making UMAP visualizations of data.
 
 - **cell_type_representation:** Contains results and visualizations from the scRNA-Seq embedding space benchmark. Code for running the benchmark itself can be found in the *Alvis_cluster_code* repo.
     - **benchmarks:** Contain results from the scRNA-Seq embedding space benchmark from the *Alvis_cluster_code* repo.
-    - **visualizations:** Visualizations for report. Both for the generalizable embedding space and for invetigating the validity of the cell type centroid loss.
+    - **visualizations:** Visualizations for report. Both for the generalizable embedding space and for invetigating the validity of the cell type centroid loss. But also to visualize the embedding space using UMAP for the first test fold of the kidney dataset.
  
 - **cell_type_annotation:** Contains code for performing the cell type annotation benchmark.
     1. Start by running *Make_data_splits.ipynb* to generate the training and test data folds.
