@@ -6,15 +6,12 @@ from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import random
 import math
-
 import numpy as np
 import torch.nn as nn
 import torch
-import random
 import tensorflow as tf
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import StratifiedKFold
-import scNear
+import CELLULAR
 
 class UMAP_Kidney_Viz():
     """
@@ -149,7 +146,7 @@ class UMAP_Kidney_Viz():
         save_path = f"{save_path}Fold_{self.fold}/"
 
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["embedding"] = predictions
 
         return adata_in_house_test

@@ -26,10 +26,9 @@ class novel_cell_type_detection():
 
     def main(self, 
             data_path: str, 
-            model_path: str, 
-            result_csv_path: str, 
-            image_path: str, 
-            dataset_names: str):
+            model_path: str,  
+            dataset_names: str,
+            image_path: str=None):
         """
         Execute the annotation generalizability benchmark pipeline for novel cell type detection.
         Performs 5-fold cross testing.
@@ -38,8 +37,8 @@ class novel_cell_type_detection():
         Parameters:
         - data_path (str): File path to the AnnData object containing expression data and metadata.
         - model_path (str): Directory path to save the trained model and predictions.
-        - image_path (str): Path where images will be saved.
         - dataset_names (str): Name of dataset.
+        - image_path (str): Path where images will be saved. Default is None
 
         Returns:
         None 
@@ -270,7 +269,7 @@ class novel_cell_type_detection():
         print("_______________________")
         print("")
 
-    def jitter_plot(self, image_path: str, dataset_names: str, threshold: float=0.26):
+    def jitter_plot(self, dataset_names: str, image_path: str=None, threshold: float=0.26):
         """
         Makes a jitter plot over the minimum likelihood fo eahc folder, and for each novel and non-novel cell type.
 
@@ -358,7 +357,7 @@ class novel_cell_type_detection():
             plt.savefig(f'{image_path}.svg', format='svg', dpi=300)
         plt.show()
 
-    def scatter_line_plot(self, image_path: str, threshold_: float=0.26):
+    def scatter_line_plot(self, image_path: str=None, threshold_: float=0.26):
         """
         Makes a scatter plot over the precision and coverage at different thresholds, and for each novel and non-novel cell type.
 

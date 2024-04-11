@@ -12,7 +12,7 @@ import matplotlib.cm as cm
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.model_selection import StratifiedKFold
-import scNear
+import CELLULAR
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -184,13 +184,13 @@ class classifier_train():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
+            CELLULAR.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions, pred_prob = scNear.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True, return_pred_probs=True)
+        predictions, pred_prob = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True, return_pred_probs=True)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
         adata_in_house_test.obs[f"{self.label_key}_probability"] = pred_prob
 
@@ -255,13 +255,13 @@ class classifier_train():
         adata_in_house = self.original_adata.copy()
 
         if train:
-            scNear.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
+            CELLULAR.train(adata=adata_in_house, model_path=save_path, train_classifier=True, target_key=self.label_key, batch_key="batch")
         
         adata_in_house_test = self.original_test_adata.copy()
-        predictions = scNear.predict(adata=adata_in_house_test, model_path=save_path)
+        predictions = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path)
         adata_in_house_test.obsm["latent_space"] = predictions
 
-        predictions, pred_prob = scNear.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True, return_pred_probs=True)
+        predictions, pred_prob = CELLULAR.predict(adata=adata_in_house_test, model_path=save_path, use_classifier=True, return_pred_probs=True)
         adata_in_house_test.obs[f"{self.label_key}_prediction"] = predictions
         adata_in_house_test.obs[f"{self.label_key}_probability"] = pred_prob
 
