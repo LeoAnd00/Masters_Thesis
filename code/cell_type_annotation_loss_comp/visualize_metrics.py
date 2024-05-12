@@ -53,9 +53,9 @@ class VisualizeEnv():
 
         metrics = self.metrics.copy()
 
-        metrics['Method'][metrics['Method'] == "Model1 CL + Centroid Loss"] = "Model1 | Centroid + CL Loss"
-        metrics['Method'][metrics['Method'] == "Model1 CL Loss"] = "Model1 | CL Loss"
-        metrics['Method'][metrics['Method'] == "Model1 Centroid Loss"] = "Model1 | Centroid Loss"
+        metrics['Method'][metrics['Method'] == "Model1 CL + Centroid Loss"] = "Centroid + CL Loss"
+        metrics['Method'][metrics['Method'] == "Model1 CL Loss"] = "CL Loss"
+        metrics['Method'][metrics['Method'] == "Model1 Centroid Loss"] = "Centroid Loss"
 
         #metrics = metrics.loc[metrics["Dataset"] == dataset_name,:]
 
@@ -77,9 +77,9 @@ class VisualizeEnv():
             variable = visual_metrics[metric].to_list()
             group = visual_metrics['Dataset'].to_list()
             group2 = visual_metrics['Method'].to_list()
-            hue_order = ["Model1 | Centroid + CL Loss", 
-                         "Model1 | Centroid Loss", 
-                         "Model1 | CL Loss"]
+            hue_order = ["Centroid + CL Loss", 
+                         "Centroid Loss", 
+                         "CL Loss"]
 
             if col_idx == 0:
                 sns.boxplot(y = variable,
@@ -207,9 +207,9 @@ class VisualizeEnv():
         metrics['Method'] = metrics.index
 
          # Replace model names
-        metrics['Method'][metrics['Method'] == "Model1 CL + Centroid Loss"] = "Model1 | Centroid + CL Loss"
-        metrics['Method'][metrics['Method'] == "Model1 CL Loss"] = "Model1 | CL Loss"
-        metrics['Method'][metrics['Method'] == "Model1 Centroid Loss"] = "Model1 | Centroid Loss"
+        metrics['Method'][metrics['Method'] == "Model1 CL + Centroid Loss"] = "Centroid + CL Loss"
+        metrics['Method'][metrics['Method'] == "Model1 CL Loss"] = "CL Loss"
+        metrics['Method'][metrics['Method'] == "Model1 Centroid Loss"] = "Centroid Loss"
 
         #metrics = metrics.loc[metrics["Dataset"] == dataset_name,:]
 
@@ -232,9 +232,9 @@ class VisualizeEnv():
             variable = visual_metrics[metric].to_list()
             group = visual_metrics['Dataset'].to_list()
             group2 = visual_metrics['Method'].to_list()
-            hue_order = ["Model1 | Centroid + CL Loss", 
-                         "Model1 | Centroid Loss", 
-                         "Model1 | CL Loss"]
+            hue_order = ["Centroid + CL Loss", 
+                         "Centroid Loss", 
+                         "CL Loss"]
 
             if col_idx == 0:
                 sns.boxplot(y = variable,
