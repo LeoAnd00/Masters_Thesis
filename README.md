@@ -15,12 +15,6 @@ Code for training the model developed in this study for reproducibility can be f
 - Python version 3.10.5
 - R version 4.3.2
 
-## Official pip package
-The model developed in this study have been made into a convenient package at X, and can be intalled by running:
-```
-pip install CELLULAR
-```
-
 ## Data
 Data for reproducibility can be found [here](https://doi.org/10.5281/zenodo.10959788).
 
